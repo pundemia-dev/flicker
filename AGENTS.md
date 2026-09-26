@@ -46,10 +46,13 @@ Not a git repo. No tests, no linter, no formatter.
   one Loader in `core/IndicatorLayout.qml`; eviction by priority and island expansion
   (`extraWidth`) are computed there from each indicator's stable `desiredWidth`.
 - Bar width is dynamic (no fixed `island.width`): `Island.barFittedWidth` fits the
-  measured content (clock centered, indicator sides mirrored) with spacing/edgePad
+  measured centered row in `IndicatorLayout` (spec order mic|music|dictation|
+  clock|timer, nothing pinned to the edges — the clock shifts when an
+  indicator grows, e.g. the mic hover label) with spacing/edgePad
   computed from the live content width, capped at `island.maxWidth`. Eviction is
-  computed from stable desired widths against the cap (never from animated widths —
-  that oscillates/deadlocks newcomers).
+  computed from stable desired widths against the shared budget (never from animated widths —
+  that oscillates/deadlocks newcomers). Row children are vertically centered
+  (pShell pattern) — without it short indicators top-align next to tall ones.
 - Module islands are sized per module via `config.modules.<name>` (`notifications`
   splits into `notifications:flow`/`notifications:center` by payload mode);
   `island.moduleWidth/moduleHeight` is the fallback. Bar content is hidden
@@ -156,27 +159,30 @@ slide-in (appearFromEdge primitive: slide from top edge; no minimal-morph yet).
 NOT live-tested (no mouse tool in this env — code-complete, needs manual drag/click):
 presentation drag, minimal hold/reveal, dashboard drawer drag, side drags (QS/NotifCenter),
 swipe-up close, music hover/click → player, clock-plate click → action buttons,
-QS sliders/tiles, notification flow + ticker, lock screen visuals.
+QS sliders/tiles, notification flow + ticker, lock screen visuals. Mic
+indicator: exclusion list `config.audio.micExclude` (substring, hot-reload)
++ last-added stack display (verified headless via parecord fake clients +
+debugState `mic` block: Telegram → +Discord → kill Discord → back).
 
 Simplified / not implemented yet (see pillShell.md for the intended behaviour):
 - Blur: backdrop blur via niri's `ext-background-effect-v1` is WIRED
   (`Region` pair + ping-pong kicks in Island.qml, pShell pattern — re-assigning
-  the SAME region object is a compositor no-op; while the island morphs the
-  region is held at null and re-applied ~450ms after it settles, otherwise the
-  lagging halo mismatches the live corners). Visible behind translucent
+  the SAME region object is a compositor no-op; the region live-tracks the
+  island through morphs (every geometry/state change re-kicks the current
+  int-snapped shape, so the blur resizes together with the background
+  instead of blinking; kicks are throttled to `timings.blurKickIntervalMs`
+  (leading edge + trailing exact kick — per-frame effect reallocs stutter
+  big morphs otherwise). Visible behind translucent
   surfaces: the Minimal strip (`minimalBg` + `minimalOpacity`) and any island
-  area below full opacity (`effects.islandOpacity` < 1). Blur region follows
-  a DYNAMIC inset (`effects.blurInset`, default 2, Config+config.json):
-  quickshell bakes Region radius into wl_region as an integer QRegion-ellipse
-  staircase and niri (layer, no layer-rule → xray path, clip None, radius 0)
-  blurs exactly that shape, so an exact-fit region fringes ~1px of blurred
-  background past the smooth painted corner (pixelated corners over flat
-  windows). While the island is opaque the region is inset to hide that
-  fringe underneath (blur is occluded anyway); while translucent the region
-  stays exact-fit, otherwise the inset would ring an unblurred seam INSIDE
-  the bar (translucent inset is separately tunable via
-  `effects.blurInsetFaded`, default 0). `blurInsetAnim` rides the island springs toward 0/inset (never a
-  sharp jump); each int step re-kicks the blur live. Region geometry is
+  area below full opacity (`effects.islandOpacity` < 1). Following the DMS
+  approach the blur region is always exact-fit (no inset — tried Sep 2026,
+  both a static and an opacity-driven animated inset: any inset merely moves
+  the outside fringe into an inside seam once translucent): quickshell bakes
+  Region radius into wl_region as an integer QRegion-ellipse staircase and
+  niri (layer, no layer-rule → xray path, clip None, radius 0) blurs exactly
+  that shape, so the ~1px divergence zone between the hard mask and the
+  smooth painted corner is masked by a 1px rim over the island edge instead
+  (`Theme.islandRim` + `islandRimWidth`). Region geometry is
   int-rounded first (fractional springs truncated outward + re-kicked on
   subpixel jitter otherwise). Deliberately NOT solved by staircase-painting
   the island to the mask (tried Sep 2026: needs output-scale plumbing,

@@ -94,17 +94,15 @@ PanelWindow {
             ?? ({ width: root.islandCfg.moduleWidth, height: root.islandCfg.moduleHeight });
     }
 
-    // Bar width fits the content (spec: no fixed bar width): clock centered,
-    // indicator sides mirrored, capped at islandCfg.maxWidth (eviction in
-    // IndicatorLayout kicks in past the cap).
-    readonly property real barFittedWidth: {
-        const left = indicators.leftContentWidth;
-        const right = indicators.rightContentWidth;
-        const clock = clockPlate.implicitWidth;
-        const side = Math.max(left, right);
-        const gaps = (left > 0 || right > 0) ? indicators.spacing * 2 : 0;
-        return indicators.edgePad * 2 + clock + side * 2 + gaps;
-    }
+    // Bar width fits the content (spec: no fixed bar width): a single Row
+    // centered in the island (indicators + clock in spec order, nothing
+    // pinned to the edges), so the clock shifts when an indicator grows
+    // (e.g. the mic hover label). Follows the STABLE row target
+    // (IndicatorLayout.stableRowWidth): the island spring then runs the same
+    // curve as the indicator width springs — one synchronized motion, the
+    // clock glides instead of teleporting. Capped at islandCfg.maxWidth
+    // (eviction in IndicatorLayout kicks in past the cap).
+    readonly property real barFittedWidth: indicators.edgePadD * 2 + indicators.stableRowWidth
 
     readonly property real islandWidth: root.moduleOpen
         ? root.moduleSize.width
@@ -122,72 +120,58 @@ PanelWindow {
     // the island rect is published as the compositor blur region. Two region
     // objects alternate (ping-pong): re-assigning the SAME object is a no-op
     // for the compositor, so every kick must present a different object;
-    // assigning null clears the effect. While the island morphs the region
-    // is held at null (pShell: never blur the morphing shape) and re-applied
-    // once the springs settle. Visible behind translucent island areas.
+    // assigning null clears the effect. Visible behind translucent island areas.
+    //
+    // Live tracking: the region follows the island THROUGH morphs (every
+    // geometry/state change re-kicks with the current int-snapped shape),
+    // so the blur resizes together with the background instead of blinking
+    // out and back. The region is committed atomically with the surface, so
+    // it cannot lag a frame behind. Kicks are throttled (leading edge +
+    // trailing exact kick): recommitting + reallocating the effect buffers
+    // every frame stutters big morphs like bar->module, so intermediates go
+    // at most every blurKickIntervalMs while the final shape always lands
+    // exact via the trailing timer.
     //
     // Pixel-exactness note: quickshell bakes Region radius into wl_region
     // as an integer QRegion-ellipse staircase and niri blurs exactly that
     // shape (layer surface, no layer-rule -> xray path, clip None,
-    // radius 0), so an exact-fit region fringes ~1px of blurred background
-    // past the smooth painted corner. While the island is opaque that fringe
-    // is hidden by insetting the region (blurInsetEff, animated); while
-    // translucent the region stays exact-fit so no seam rings inside.
+    // radius 0), so the hard mask diverges ~1px from the smooth painted
+    // corner. Per the DMS approach the region stays exact-fit and the
+    // divergence zone is masked by the 1px island rim (see islandRect
+    // border) instead of an inset.
     property bool blurAlt: false
-    property bool blurSettled: true
     property string blurGeo: ""
+    property double blurLastKickMs: 0
     readonly property int blurBaseX: Math.round(islandRect.x)
     readonly property int blurBaseY: Math.round(islandRect.y)
     readonly property int blurBaseW: Math.round(islandRect.width)
     readonly property int blurBaseH: Math.round(islandRect.height)
     readonly property int blurBaseR: Math.round(islandRect.radius)
-    // Dynamic blur inset (px, animated with the island morphs, never sharp):
-    // opaque island -> effects.blurInset (fringe hidden underneath, blur is
-    // occluded anyway); translucent island / Minimal -> effects.blurInsetFaded
-    // (default 0, exact-fit, so no unblurred seam rings inside the bar).
-    // blurInsetAnim rides the same springs as the resize; the int region
-    // steps along the way and each step re-kicks the blur live.
-    readonly property int blurInsetCfg: Math.max(0, root.config.effects?.blurInset ?? 2)
-    // Inset for the translucent island (opacity < 1, Minimal strip): an
-    // inset would ring an unblurred seam inside the bar, so the default is
-    // an exact-fit region; tune up if the corner fringe bothers more.
-    readonly property int blurInsetFadedCfg: Math.max(0, root.config.effects?.blurInsetFaded ?? 0)
-    readonly property bool blurIsOpaque: root.shouldDrawIslandShape && (root.config.effects?.islandOpacity ?? 1) >= 1.0
-    readonly property int blurInsetTarget: root.blurIsOpaque ? root.blurInsetCfg : root.blurInsetFadedCfg
-    property real blurInsetAnim: root.blurInsetTarget
-    Behavior on blurInsetAnim { Spring {} }
-    readonly property int blurInsetEff: Math.max(0, Math.min(Math.round(root.blurInsetAnim), Math.floor(root.blurBaseW / 2), Math.floor(root.blurBaseH / 2)))
-    readonly property int blurRegX: root.blurBaseX + root.blurInsetEff
-    readonly property int blurRegY: root.blurBaseY + root.blurInsetEff
-    readonly property int blurRegW: Math.max(0, root.blurBaseW - 2 * root.blurInsetEff)
-    readonly property int blurRegH: Math.max(0, root.blurBaseH - 2 * root.blurInsetEff)
-    readonly property int blurRegR: Math.max(0, root.blurBaseR - root.blurInsetEff)
-    onBlurInsetAnimChanged: root.updateIslandBlur()
+    // DMS approach: the region is always exact-fit (no inset) and the
+    // paint/blur boundary is masked by a 1px rim over the island edge
+    // (see islandRect border) instead. Geometry stays int-snapped.
 
     function updateIslandBlur(): void {
         if (root.config.effects.disableBlur) {
+            blurKickTrail.stop();
             root.BackgroundEffect.blurRegion = null;
             root.blurGeo = "";
             return;
         }
-        if (!root.blurSettled) {
-            root.BackgroundEffect.blurRegion = null;
-            return;
-        }
-        const g = `${root.blurRegX},${root.blurRegY},${root.blurRegW},${root.blurRegH},${root.blurRegR}`;
+        const g = `${root.blurBaseX},${root.blurBaseY},${root.blurBaseW},${root.blurBaseH},${root.blurBaseR}`;
         if (g === root.blurGeo)
             return;
+        const now = Date.now();
+        if (now - root.blurLastKickMs < root.timingCfg.blurKickIntervalMs) {
+            // Morph in progress: defer, the trailing timer lands the latest
+            // shape. Keeps per-frame effect reallocs from stuttering.
+            blurKickTrail.restart();
+            return;
+        }
+        root.blurLastKickMs = now;
         root.blurGeo = g;
         root.blurAlt = !root.blurAlt;
         root.BackgroundEffect.blurRegion = root.blurAlt ? islandBlurRegionA : islandBlurRegionB;
-    }
-
-    // Called on every island morph trigger: drop the blur now, re-apply it
-    // once the springs settle (debounced).
-    function morphBlurHold(): void {
-        root.blurSettled = false;
-        blurSettleTimer.restart();
-        root.updateIslandBlur();
     }
 
     onFsActiveChanged: {
@@ -315,32 +299,25 @@ PanelWindow {
         }
     }
 
-    // Blur-region refresh triggers: state transitions + every island morph
-    // hold the blur at null; the settle timer re-applies it once springs
-    // stop. The heartbeat is a safety net (e.g. for the disableBlur config
-    // toggle, which has no change signal on the nested JsonAdapter object).
+    // Blur-region refresh triggers: state transitions + every island
+    // geometry step re-kick live (see live-tracking note above). Identical
+    // int-snapped geos dedupe inside updateIslandBlur, so per-frame calls
+    // are free. The heartbeat is a safety net (e.g. for the disableBlur
+    // config toggle, which has no change signal on the nested JsonAdapter
+    // object).
     Connections {
         target: root.state
-        function onCurrentStateChanged(): void { root.morphBlurHold(); }
-        function onActiveModuleChanged(): void { root.morphBlurHold(); }
+        function onCurrentStateChanged(): void { root.updateIslandBlur(); }
+        function onActiveModuleChanged(): void { root.updateIslandBlur(); }
     }
 
     Connections {
         target: islandRect
-        function onXChanged(): void { root.morphBlurHold(); }
-        function onYChanged(): void { root.morphBlurHold(); }
-        function onWidthChanged(): void { root.morphBlurHold(); }
-        function onHeightChanged(): void { root.morphBlurHold(); }
-        function onRadiusChanged(): void { root.morphBlurHold(); }
-    }
-
-    Timer {
-        id: blurSettleTimer
-        interval: 450
-        onTriggered: {
-            root.blurSettled = true;
-            root.updateIslandBlur();
-        }
+        function onXChanged(): void { root.updateIslandBlur(); }
+        function onYChanged(): void { root.updateIslandBlur(); }
+        function onWidthChanged(): void { root.updateIslandBlur(); }
+        function onHeightChanged(): void { root.updateIslandBlur(); }
+        function onRadiusChanged(): void { root.updateIslandBlur(); }
     }
 
     Timer {
@@ -351,24 +328,32 @@ PanelWindow {
         onTriggered: root.updateIslandBlur()
     }
 
-    // Compositor blur regions (ping-pong pair): the island rounded rect in
-    // surface-local int coords, inset while opaque (see above). Both track
-    // the live geometry; kicks alternate.
+    // Trailing exact kick: fires blurKickIntervalMs after the last deferred
+    // geometry step, so the settled shape always lands pixel-exact.
+    Timer {
+        id: blurKickTrail
+        interval: root.timingCfg.blurKickIntervalMs
+        onTriggered: root.updateIslandBlur()
+    }
+
+    // Compositor blur regions (ping-pong pair): the island rounded rect,
+    // exact-fit, in surface-local int coords. Both track the live geometry;
+    // kicks alternate.
     Region {
         id: islandBlurRegionA
-        x: root.blurRegX
-        y: root.blurRegY
-        width: root.blurRegW
-        height: root.blurRegH
-        radius: root.blurRegR
+        x: root.blurBaseX
+        y: root.blurBaseY
+        width: root.blurBaseW
+        height: root.blurBaseH
+        radius: root.blurBaseR
     }
     Region {
         id: islandBlurRegionB
-        x: root.blurRegX
-        y: root.blurRegY
-        width: root.blurRegW
-        height: root.blurRegH
-        radius: root.blurRegR
+        x: root.blurBaseX
+        y: root.blurBaseY
+        width: root.blurBaseW
+        height: root.blurBaseH
+        radius: root.blurBaseR
     }
 
     Arcs {
@@ -449,6 +434,11 @@ PanelWindow {
         color: root.shouldDrawIslandShape
             ? Qt.rgba(root.theme.islandBg.r, root.theme.islandBg.g, root.theme.islandBg.b, root.config.effects.islandOpacity)
             : Qt.rgba(root.theme.minimalBg.r, root.theme.minimalBg.g, root.theme.minimalBg.b, root.theme.minimalOpacity)
+        // DMS-style rim: a 1px border over the island edge masks the zone
+        // where the hard compositor blur mask diverges from the smooth
+        // painted corner (see blur block above).
+        border.width: root.theme.islandRimWidth
+        border.color: root.theme.islandRim
         clip: true
 
         Behavior on width { Spring {} }
@@ -484,7 +474,9 @@ PanelWindow {
                     anchors.fill: parent
                     cfg: root.indicatorCfg
                     islandCfg: root.islandCfg
-                    clockWidth: clockPlate.implicitWidth
+                    clock: root.clock
+                    islandHeight: root.islandHeight
+                    timingCfg: root.timingCfg
                     audio: root.audio
                     players: root.players
                     network: root.network
@@ -492,19 +484,6 @@ PanelWindow {
                     dictation: root.dictation
                     theme: root.theme
                     onRequestModule: (name, payload) => root.openModule(name, payload)
-                }
-
-                ClockPlate {
-                    id: clockPlate
-                    anchors.centerIn: parent
-                    clock: root.clock
-                    recorder: root.recorder
-                    network: root.network
-                    theme: root.theme
-                    islandHeight: root.islandHeight
-                    cfg: root.indicatorCfg
-                    timingCfg: root.timingCfg
-                    onRequestModule: name => root.openModule(name, {})
                 }
             }
 
@@ -621,7 +600,21 @@ PanelWindow {
                     ticker: root.tickerVisible,
                     contentKey: root.contentKey,
                     locked: root.lock.locked,
-                    queue: root.notificationQueue.size
+                    queue: root.notificationQueue.size,
+                    mic: {
+                        active: root.audio.micActive,
+                        app: root.audio.micAppName,
+                        streams: root.audio.captureStreams.length
+                    },
+                    bar: {
+                        fitted: root.barFittedWidth,
+                        stable: indicators.stableRowWidth,
+                        row: indicators.barRowWidth,
+                        kept: indicators.keptCount,
+                        clock: indicators.clockWidth,
+                        edgeD: indicators.edgePadD,
+                        loaders: indicators.loaderState
+                    }
                 });
         }
     }

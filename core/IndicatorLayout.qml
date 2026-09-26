@@ -1,17 +1,23 @@
 import QtQuick
+import "../components"
 import "../indicators"
 
-// Row layout for background indicators, driven by indicators/Registry.qml
-// (priorities). Left/right rows around the centered clock. The island fits
-// its bar width to the measured content (see Island.barFittedWidth); when the
-// desired content exceeds islandCfg.maxWidth, lower priority indicators are
-// evicted first (fade + width collapse). Adding an indicator = QML file +
-// Registry entry + one Loader below (same pattern as ModuleHost).
+// Bar content: a single Row centered in the island, in spec order
+// [ microphone | music | dictation | clock | timer ]. Nothing is pinned to
+// the island edges, so the clock shifts whenever an indicator grows (e.g.
+// the mic hover label) — the whole group stays centered and the island fits
+// it (see Island.barFittedWidth). Recording/hotspot render on the clock
+// plate itself (see ClockPlate.qml). When the desired content exceeds
+// islandCfg.maxWidth, lower priority indicators are evicted first (fade +
+// width collapse). Adding an indicator = QML file + Registry entry + one
+// Loader below (same pattern as ModuleHost).
 Item {
     id: root
     required property var cfg
     required property var islandCfg
-    required property real clockWidth
+    required property var clock
+    required property real islandHeight
+    required property var timingCfg
     required property var audio
     required property var players
     required property var network
@@ -32,29 +38,50 @@ Item {
             cfg: root.cfg
         })
 
-    // Measured (animated) row widths — the island fits itself to these.
-    readonly property real leftContentWidth: leftRow.width
-    readonly property real rightContentWidth: rightRow.width
+    // Visual order in the row (spec example); the clock sits between the
+    // left indicators and the timer.
+    readonly property var orderedNames: ["microphone", "music", "dictation", "timer"]
+
+    // Live clock width (plate grows with the recording timer text).
+    readonly property real clockWidth: clockPlate.implicitWidth
+    // Animated indicator widths (0 while hidden/evicted).
+    readonly property real indicatorsNow: (micLoader.item?.width ?? 0)
+        + (musicLoader.item?.width ?? 0)
+        + (waveLoader.item?.width ?? 0)
+        + (timerLoader.item?.width ?? 0)
     // Live content width: spacing/padding factors stay relative to the actual
     // current content size (spec), never to the island width (that would loop).
-    readonly property real contentNow: leftContentWidth + rightContentWidth + clockWidth
+    // Deliberately excludes Row spacing so spacing never feeds back into itself.
+    readonly property real contentNow: indicatorsNow + clockWidth
     readonly property real spacing: Math.max(4, contentNow * cfg.indicatorSpacingFactor)
     readonly property real edgePad: Math.max(12, contentNow * cfg.edgePaddingFactor)
 
-    readonly property var leftNames: {
-        const list = [];
-        for (const e of registry.entries)
-            if (e.side === "left")
-                list.push(e.name);
-        return list;
+    // Measured row width (includes inter-item spacing).
+    readonly property real barRowWidth: barRow.width
+
+    // Stable row width: the island's width target. Built ONLY from stable
+    // (desired) widths, never from animated ones — so on hover the island
+    // target jumps in one step and its spring runs the SAME curve as the
+    // indicator's own width spring (identical Spring params, same frame):
+    // siblings, not series. Series (island target following the animated
+    // row) expands in two visible stages; a snapped row teleports the clock.
+    // Every kept indicator costs its width plus one gap (each is always
+    // adjacent to the clock or another indicator).
+    readonly property real keptSum: {
+        let sum = 0;
+        for (const n of orderedNames)
+            if (indicatorActive(n) && !isEvicted(n))
+                sum += desiredWidth(n);
+        return sum;
     }
-    readonly property var rightNames: {
-        const list = [];
-        for (const e of registry.entries)
-            if (e.side === "right")
-                list.push(e.name);
-        return list;
+    readonly property int keptCount: {
+        let c = 0;
+        for (const n of orderedNames)
+            if (indicatorActive(n) && !isEvicted(n))
+                c++;
+        return c;
     }
+    readonly property real stableRowWidth: keptSum + clockWidth + spacingD * keptCount
 
     function indicatorActive(name: string): bool {
         if (name === "microphone")
@@ -88,42 +115,36 @@ Item {
     // Stable (desired) widths for the eviction math. Never depend on
     // `evicted` or animated widths — otherwise hide->refit->unhide
     // would oscillate, and newcomers could deadlock against a grown island.
-    readonly property real leftDesired: {
+    readonly property real indicatorsDesired: {
         let sum = 0;
-        for (const n of leftNames)
+        for (const n of orderedNames)
             if (indicatorActive(n))
                 sum += desiredWidth(n);
         return sum;
     }
-    readonly property real rightDesired: {
-        let sum = 0;
-        for (const n of rightNames)
-            if (indicatorActive(n))
-                sum += desiredWidth(n);
-        return sum;
-    }
-    readonly property real desiredContent: leftDesired + rightDesired + clockWidth
+    readonly property real desiredContent: indicatorsDesired + clockWidth
     readonly property real spacingD: Math.max(4, desiredContent * cfg.indicatorSpacingFactor)
     readonly property real edgePadD: Math.max(12, desiredContent * cfg.edgePaddingFactor)
-    // Eviction budget from the island cap: while the desired content fits
-    // under maxWidth, nothing is evicted and the island grows to fit it.
-    readonly property real evictBudget: islandCfg.maxWidth / 2 - clockWidth / 2 - edgePadD
 
-    // Eviction: keep the highest-priority indicators that fit the budget;
-    // the top-priority one is always kept.
-    function evictedNamesFor(names: var): var {
+    // Eviction against the single shared budget: the whole centered row must
+    // fit under maxWidth. Each kept indicator costs its width plus one gap.
+    // Highest priority first; the top-priority one is always kept.
+    readonly property var evictedNames: {
         const active = [];
-        for (const n of names) {
+        for (const n of orderedNames) {
             if (!indicatorActive(n))
                 continue;
             active.push({ name: n, priority: priorityOf(n), width: desiredWidth(n) });
         }
         active.sort((a, b) => b.priority - a.priority);
+        const budget = root.islandCfg.maxWidth - root.edgePadD * 2 - root.clockWidth;
         const evicted = [];
         let used = 0;
         for (let i = 0; i < active.length; i++) {
-            const need = (used > 0 ? root.spacingD : 0) + active[i].width;
-            if (i === 0 || used + need <= root.evictBudget)
+            // Every kept indicator adds one gap (always adjacent to the clock
+            // or another indicator) — same accounting as stableRowWidth.
+            const need = active[i].width + root.spacingD;
+            if (i === 0 || used + need <= budget)
                 used += need;
             else
                 evicted.push(active[i].name);
@@ -131,24 +152,51 @@ Item {
         return evicted;
     }
 
-    readonly property var evictedNames: [...evictedNamesFor(leftNames), ...evictedNamesFor(rightNames)]
-
     function isEvicted(name: string): bool {
         return evictedNames.indexOf(name) !== -1;
     }
 
-    // Order per spec: [ microphone | music | dictation | time | ... ]
-    Row {
-        id: leftRow
-        spacing: root.spacing
-        anchors.left: parent.left
-        anchors.leftMargin: root.edgePad
-        anchors.verticalCenter: parent.verticalCenter
+    // Loader introspection (debugState): catches ghost items (loaded but
+    // invisible) keeping the row wide after the indicator is gone.
+    readonly property var loaderState: ({
+            microphone: [micLoader.active, micLoader.item !== null, micLoader.item?.width ?? -1],
+            music: [musicLoader.active, musicLoader.item !== null, musicLoader.item?.width ?? -1],
+            dictation: [waveLoader.active, waveLoader.item !== null, waveLoader.item?.width ?? -1],
+            timer: [timerLoader.active, timerLoader.item !== null, timerLoader.item?.width ?? -1]
+        })
 
+    // Order per spec: [ microphone | music | dictation | clock | timer ].
+    // Every child is vertically centered (pShell pattern): without it, Row
+    // top-aligns children and short ones (the 8px mic dot next to the 24px
+    // music cover) stick to the top edge.
+    Row {
+        id: barRow
+        anchors.centerIn: parent
+        // Stable spacing: the row width must glide on the same curve as the
+        // island (see stableRowWidth), so gaps can't be driven by animated
+        // widths mid-morph.
+        spacing: root.spacingD
+
+        // Explicit geometry from the loaded item (0 when unloaded):
+        // QQuickLoader keeps its last size after unloading, so without this
+        // a dead 8px mic Loader keeps the row (and the island's padding)
+        // wide forever. No width spring here: the loader must track the
+        // item's own (spring-animated) width exactly — its own spring would
+        // lag behind, leaving the full-width text hanging over the clock.
+        // Smooth collapse on unload comes from delayed unload below: the
+        // item stays loaded while its width spring shrinks to ~0.
         Loader {
             id: micLoader
+            anchors.verticalCenter: parent.verticalCenter
+            width: item ? item.width : 0
+            height: item ? item.height : 0
+            // Unload only after the item has collapsed (width glides down
+            // via its own spring while still loaded, in sync with the
+            // island — same Spring, same frame). Unloading instantly would
+            // snap the row and teleport the clock.
+            readonly property bool collapsing: item !== null && !root.indicatorActive("microphone") && item.width > 0.5
             sourceComponent: registry.microphoneIndicator
-            active: root.indicatorActive("microphone")
+            active: root.indicatorActive("microphone") || collapsing
             onLoaded: {
                 item.services = Qt.binding(() => root.servicesBundle);
                 item.evicted = Qt.binding(() => root.isEvicted("microphone"));
@@ -156,8 +204,12 @@ Item {
         }
         Loader {
             id: musicLoader
+            anchors.verticalCenter: parent.verticalCenter
+            width: item ? item.width : 0
+            height: item ? item.height : 0
+            readonly property bool collapsing: item !== null && !root.indicatorActive("music") && item.width > 0.5
             sourceComponent: registry.musicIndicator
-            active: root.indicatorActive("music")
+            active: root.indicatorActive("music") || collapsing
             onLoaded: {
                 item.services = Qt.binding(() => root.servicesBundle);
                 item.evicted = Qt.binding(() => root.isEvicted("music"));
@@ -167,27 +219,37 @@ Item {
         }
         Loader {
             id: waveLoader
+            anchors.verticalCenter: parent.verticalCenter
+            width: item ? item.width : 0
+            height: item ? item.height : 0
+            readonly property bool collapsing: item !== null && !root.indicatorActive("dictation") && item.width > 0.5
             sourceComponent: registry.dictationIndicator
-            active: root.indicatorActive("dictation")
+            active: root.indicatorActive("dictation") || collapsing
             onLoaded: {
                 item.services = Qt.binding(() => root.servicesBundle);
                 item.evicted = Qt.binding(() => root.isEvicted("dictation"));
             }
         }
-    }
 
-    // Right side per spec: recording / timer / hotspot. Recording and hotspot
-    // are rendered on the clock plate (see ClockPlate.qml); the row stays for
-    // future Registry-driven indicators (timer, etc.).
-    Row {
-        id: rightRow
-        spacing: root.spacing
-        anchors.right: parent.right
-        anchors.rightMargin: root.edgePad
-        anchors.verticalCenter: parent.verticalCenter
+        ClockPlate {
+            id: clockPlate
+            anchors.verticalCenter: parent.verticalCenter
+            clock: root.clock
+            recorder: root.recorder
+            network: root.network
+            theme: root.theme
+            islandHeight: root.islandHeight
+            cfg: root.cfg
+            timingCfg: root.timingCfg
+            onRequestModule: name => root.requestModule(name, {})
+        }
 
         Loader {
             id: timerLoader
+            anchors.verticalCenter: parent.verticalCenter
+            width: item ? item.width : 0
+            height: item ? item.height : 0
+            readonly property bool collapsing: item !== null && !root.indicatorActive("timer") && item.width > 0.5
             sourceComponent: registry.timerIndicator
             active: root.indicatorActive("timer")
             onLoaded: {

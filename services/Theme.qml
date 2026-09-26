@@ -3,6 +3,10 @@ import QtQuick
 QtObject {
     readonly property color islandBg: "#000000"
     readonly property color islandFg: "#E9ECF1"
+    // 1px rim over the island edge (DMS approach): masks the zone where the
+    // hard compositor blur mask diverges from the smooth painted corner.
+    readonly property color islandRim: "#26FFFFFF"
+    readonly property int islandRimWidth: 1
     readonly property color minimalBg: "#8D939A"
     readonly property real minimalOpacity: 0.35
     readonly property color subtleFg: "#B9C0CB"

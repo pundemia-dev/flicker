@@ -46,6 +46,7 @@ Singleton {
                     blurOutMs: 110,
                     fadeOutMs: 160,
                     blurFadeDelayMs: 70,
+                    blurKickIntervalMs: 80,
                     osdAutoCloseMs: 1300,
                     plateIconMs: 380,
                     startupDelayMs: 60
@@ -67,7 +68,7 @@ Singleton {
                     edgePaddingFactor: 0.06,
                     musicCoverDiameter: 24,
                     micDotDiameter: 8,
-                    micLabelMaxWidth: 120,
+                    micLabelMaxWidth: 180,
                     waveWidth: 28,
                     plateHeight: 22,
                     plateMinWidth: 46,
@@ -86,9 +87,7 @@ Singleton {
                 })
             property var effects: ({
                     disableBlur: false,
-                    islandOpacity: 1.0,
-                    blurInset: 2,
-                    blurInsetFaded: 0
+                    islandOpacity: 1.0
                 })
             property var notifications: ({
                     tickerDurationMs: 3500,
@@ -103,7 +102,12 @@ Singleton {
                 })
             property var audio: ({
                     maxVolume: 1.5,
-                    volumeStep: 0.05
+                    volumeStep: 0.05,
+                    // Capture streams to hide from the mic indicator:
+                    // case-insensitive substrings matched against
+                    // application.name, process binary, description and node
+                    // name (e.g. DSP infrastructure nodes). Empty = show all.
+                    micExclude: []
                 })
             property var brightness: ({
                     step: 0.1

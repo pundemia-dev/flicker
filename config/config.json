@@ -18,6 +18,7 @@
     "blurOutMs": 110,
     "fadeOutMs": 160,
     "blurFadeDelayMs": 70,
+    "blurKickIntervalMs": 80,
     "osdAutoCloseMs": 1300,
     "plateIconMs": 380,
     "startupDelayMs": 60
@@ -39,7 +40,7 @@
     "edgePaddingFactor": 0.06,
     "musicCoverDiameter": 24,
     "micDotDiameter": 8,
-    "micLabelMaxWidth": 120,
+    "micLabelMaxWidth": 180,
     "waveWidth": 28,
     "plateHeight": 22,
     "plateMinWidth": 46,
@@ -58,9 +59,7 @@
   },
   "effects": {
     "disableBlur": false,
-    "islandOpacity": 0.8,
-    "blurInset": 2,
-    "blurInsetFaded": 0
+    "islandOpacity": 0.5
   },
   "notifications": {
     "tickerDurationMs": 3500,
@@ -75,7 +74,8 @@
   },
   "audio": {
     "maxVolume": 1.5,
-    "volumeStep": 0.05
+    "volumeStep": 0.05,
+    "micExclude": ["dsp"]
   },
   "brightness": {
     "step": 0.1
