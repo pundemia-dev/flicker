@@ -185,9 +185,12 @@ Item {
         // lag behind, leaving the full-width text hanging over the clock.
         // Smooth collapse on unload comes from delayed unload below: the
         // item stays loaded while its width spring shrinks to ~0.
+        // Spring on movement: Row sets x from the (springing) widths, so each
+        // child glides to its slot instead of jumping with the layout.
         Loader {
             id: micLoader
             anchors.verticalCenter: parent.verticalCenter
+            Behavior on x { Spring {} }
             width: item ? item.width : 0
             height: item ? item.height : 0
             // Unload only after the item has collapsed (width glides down
@@ -205,6 +208,7 @@ Item {
         Loader {
             id: musicLoader
             anchors.verticalCenter: parent.verticalCenter
+            Behavior on x { Spring {} }
             width: item ? item.width : 0
             height: item ? item.height : 0
             readonly property bool collapsing: item !== null && !root.indicatorActive("music") && item.width > 0.5
@@ -220,6 +224,7 @@ Item {
         Loader {
             id: waveLoader
             anchors.verticalCenter: parent.verticalCenter
+            Behavior on x { Spring {} }
             width: item ? item.width : 0
             height: item ? item.height : 0
             readonly property bool collapsing: item !== null && !root.indicatorActive("dictation") && item.width > 0.5
@@ -234,6 +239,7 @@ Item {
         ClockPlate {
             id: clockPlate
             anchors.verticalCenter: parent.verticalCenter
+            Behavior on x { Spring {} }
             clock: root.clock
             recorder: root.recorder
             network: root.network
@@ -247,11 +253,12 @@ Item {
         Loader {
             id: timerLoader
             anchors.verticalCenter: parent.verticalCenter
+            Behavior on x { Spring {} }
             width: item ? item.width : 0
             height: item ? item.height : 0
             readonly property bool collapsing: item !== null && !root.indicatorActive("timer") && item.width > 0.5
             sourceComponent: registry.timerIndicator
-            active: root.indicatorActive("timer")
+            active: root.indicatorActive("timer") || collapsing
             onLoaded: {
                 item.services = Qt.binding(() => root.servicesBundle);
                 item.evicted = Qt.binding(() => root.isEvicted("timer"));
