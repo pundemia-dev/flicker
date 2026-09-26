@@ -1,0 +1,131 @@
+import QtQuick
+import "../modules/launcher"
+import "../modules/notifications"
+import "../modules/capture"
+import "../modules/quicksettings"
+import "../modules/dashboard"
+import "../modules/dictation"
+import "../modules/localsend"
+import "../modules/osd"
+import "../modules/player"
+
+Item {
+    id: root
+    required property string moduleName
+    required property var payload
+    required property var services
+    signal closeRequested
+
+    Loader {
+        id: host
+        anchors.fill: parent
+        sourceComponent: {
+            if (root.moduleName === "launcher")
+                return launcherComp;
+            if (root.moduleName === "notifications")
+                return notificationsComp;
+            if (root.moduleName === "capture")
+                return captureComp;
+            if (root.moduleName === "quicksettings")
+                return quickSettingsComp;
+            if (root.moduleName === "dashboard")
+                return dashboardComp;
+            if (root.moduleName === "player")
+                return playerComp;
+            if (root.moduleName === "dictation")
+                return dictationComp;
+            if (root.moduleName === "localsend")
+                return localSendComp;
+            if (root.moduleName === "osd")
+                return osdComp;
+            if (root.moduleName === "recording-actions")
+                return recordingActionsComp;
+            if (root.moduleName === "hotspot-actions")
+                return hotspotActionsComp;
+            return null;
+        }
+    }
+
+    Component {
+        id: launcherComp
+        LauncherModule { onCloseRequested: root.closeRequested() }
+    }
+    Component {
+        id: notificationsComp
+        NotificationsModule {
+            payload: root.payload
+            notificationsService: root.services.notifications
+            cfg: root.services.config.notifications
+            onCloseRequested: root.closeRequested()
+        }
+    }
+    Component {
+        id: captureComp
+        CaptureModule {
+            compositor: root.services.compositor
+            recorder: root.services.recorder
+            onCloseRequested: root.closeRequested()
+        }
+    }
+    Component {
+        id: quickSettingsComp
+        QuickSettingsModule {
+            audio: root.services.audio
+            players: root.services.players
+            network: root.services.network
+            bluetooth: root.services.bluetooth
+            brightness: root.services.brightness
+            notifications: root.services.notifications
+            onCloseRequested: root.closeRequested()
+        }
+    }
+    Component {
+        id: dashboardComp
+        DashboardModule { onCloseRequested: root.closeRequested() }
+    }
+    Component {
+        id: playerComp
+        PlayerModule {
+            players: root.services.players
+            onCloseRequested: root.closeRequested()
+        }
+    }
+    Component {
+        id: dictationComp
+        DictationModule {
+            dictation: root.services.dictation
+            onCloseRequested: root.closeRequested()
+        }
+    }
+    Component {
+        id: localSendComp
+        LocalSendModule { onCloseRequested: root.closeRequested() }
+    }
+    Component {
+        id: osdComp
+        OsdModule {
+            payload: root.payload
+            onCloseRequested: root.closeRequested()
+        }
+    }
+    Component {
+        id: recordingActionsComp
+        ActionButtonsModule {
+            kind: "recording"
+            recorder: root.services.recorder
+            network: root.services.network
+            theme: root.services.theme
+            onCloseRequested: root.closeRequested()
+        }
+    }
+    Component {
+        id: hotspotActionsComp
+        ActionButtonsModule {
+            kind: "hotspot"
+            recorder: root.services.recorder
+            network: root.services.network
+            theme: root.services.theme
+            onCloseRequested: root.closeRequested()
+        }
+    }
+}
