@@ -18,8 +18,11 @@ Rectangle {
     readonly property string artUrl: players?.artUrl ?? ""
     // Stable width for the eviction math (never depends on `evicted`).
     readonly property real desiredWidth: diameter
+    // Enter animation (see Microphone.qml): grow in instead of popping.
+    property bool entered: false
+    Component.onCompleted: entered = true
 
-    width: evicted ? 0 : desiredWidth
+    width: (entered && !evicted) ? desiredWidth : 0
     height: diameter
     radius: diameter / 2
     color: root.theme?.islandBg ?? "#2B2F36"

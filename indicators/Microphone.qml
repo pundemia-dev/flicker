@@ -23,6 +23,11 @@ Item {
     readonly property int boxHeight: cfg?.musicCoverDiameter ?? 24
     readonly property real labelMax: cfg?.micLabelMaxWidth ?? 120
     readonly property bool hovered: hover.hovered
+    // Enter animation: Behavior doesn't animate the initial value, so a fresh
+    // item would pop in at full width. Start collapsed and flip on creation;
+    // the width spring then grows it in sync with the island.
+    property bool entered: false
+    Component.onCompleted: entered = true
     // Natural label width measured OUTSIDE the label item (TextMetrics):
     // reading appLabel.implicitWidth while the label itself is width-capped
     // feeds the animated box width back into extraWidth, so the target keeps
@@ -36,7 +41,7 @@ Item {
     // otherwise hide->refit->unhide would oscillate).
     readonly property real desiredWidth: active ? diameter + extraWidth : 0
 
-    width: evicted ? 0 : desiredWidth
+    width: (entered && !evicted) ? desiredWidth : 0
     height: boxHeight
     visible: width > 0.5
     opacity: active ? 1 : 0

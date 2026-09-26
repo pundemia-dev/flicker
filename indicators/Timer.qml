@@ -17,8 +17,11 @@ Rectangle {
     readonly property string value: timer?.remainingText ?? "00:00"
     // Stable width for the eviction math (never depends on `evicted`).
     readonly property real desiredWidth: active ? 50 : 0
+    // Enter animation (see Microphone.qml): grow in instead of popping.
+    property bool entered: false
+    Component.onCompleted: entered = true
 
-    width: evicted ? 0 : desiredWidth
+    width: (entered && !evicted) ? desiredWidth : 0
     height: 20
     radius: 10
     color: root.theme?.islandBg ?? "#2C3139"

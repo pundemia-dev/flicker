@@ -18,8 +18,11 @@ Item {
     readonly property real waveWidth: cfg?.waveWidth ?? 28
     // Stable width for the eviction math (never depends on `evicted`).
     readonly property real desiredWidth: active ? waveWidth : 0
+    // Enter animation (see Microphone.qml): grow in instead of popping.
+    property bool entered: false
+    Component.onCompleted: entered = true
 
-    width: evicted ? 0 : desiredWidth
+    width: (entered && !evicted) ? desiredWidth : 0
     height: 14
     visible: width > 0.5
     opacity: active && !evicted ? 1 : 0
