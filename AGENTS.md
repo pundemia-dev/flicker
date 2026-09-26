@@ -154,7 +154,9 @@ Recorder service (single source of truth) incl. live red clock plate (elapsed ti
 island keeps bar size; stop returns the clock, wf-recorder reaped, file finalized), per-screen fullscreen/workspace, OSD only on
 keys/IPC with auto-close, module→previousState (incl. back-to-Minimal from Minimal),
 ext-session-lock + PAM, config hot-reload (all keys wired, no dead keys), startup
-slide-in (appearFromEdge primitive: slide from top edge; no minimal-morph yet).
+slide-in (appearFromEdge primitive: Minimal strip slides from top edge, then
+morphs into the bar on its spot via `startupMorphDelayMs`; centered via anchor,
+Y-only slide — no diagonal flight).
 
 NOT live-tested (no mouse tool in this env — code-complete, needs manual drag/click):
 presentation drag, minimal hold/reveal, dashboard drawer drag, side drags (QS/NotifCenter),
@@ -182,13 +184,17 @@ Simplified / not implemented yet (see pillShell.md for the intended behaviour):
   niri (layer, no layer-rule → xray path, clip None, radius 0) blurs exactly
   that shape, so the ~1px divergence zone between the hard mask and the
   smooth painted corner is masked by a 1px rim over the island edge instead
-  (`Theme.islandRim` + `islandRimWidth`). Region geometry is
+  (`Theme.islandRim` + `islandRimWidth`), applied only while compositor blur
+  is on (with `effects.disableCompositorBlur` the rim just lightens the true
+  black edge, so `Island.qml` drops it to width 0). Region geometry is
   int-rounded first (fractional springs truncated outward + re-kicked on
   subpixel jitter otherwise). Deliberately NOT solved by staircase-painting
   the island to the mask (tried Sep 2026: needs output-scale plumbing,
   Qt renders the layer buffer at integer scale, exactness unverifiable). `components/BlurSurface.qml` is the in-window wash
   for the blur→fade pattern (its radius follows `ContentSwap.surfaceRadius` =
   island radius — never `height/2`, that draws a capsule inside tall modules).
+  The wash is transparent: any white overlay would lift the opaque body off
+  true black (8% white turned #000000 into #141414, Sep 2026).
   Island body is truly black (`Theme.islandBg #000000`, `effects.islandOpacity`
   1.0) except Minimal. Do NOT fake blur with a blurred wallpaper image —
   the island lives over app windows, wallpaper would mismatch.
@@ -196,7 +202,8 @@ Simplified / not implemented yet (see pillShell.md for the intended behaviour):
   second island instance are absent.
 - Shared element transitions: `core/TransitionLayer.qml` is an empty placeholder; the album
   cover does not reparent into the player module.
-- `appearFromEdge` (startup / capture strip) is partially implemented: startup slides the
-  island in from the top edge with a spring (`started` flag in Island.qml); the
-  minimal-morph variant and the Capture second instance are absent.
+- `appearFromEdge` (startup / capture strip): startup slides the Minimal strip in
+  from the top edge with a spring (`started` flag in Island.qml), then morphs it
+  into the bar on its spot (`startupMorph` timer + `timings.startupMorphDelayMs`);
+  the Capture second instance is absent.
 - LocalSend is a placeholder drop zone (never opened); Timer indicator exists but no timer service feeds it.

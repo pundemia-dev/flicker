@@ -1,7 +1,8 @@
 import QtQuick
 
 // Gesture hitboxes per spec: bar/clock inside the island, Quick Settings and
-// Notification Center zones *outside* the island's left/right edges, and the
+// Notification Center strips pressed to the TOP screen edge, adjacent to the
+// island's horizontal projection (left = notifications, right = QS), and the
 // minimal active zone from the strip (inclusive) to the top screen edge.
 //
 // IMPORTANT: rendered BELOW the island content (declared before islandRect
@@ -13,8 +14,8 @@ import QtQuick
 //  - presentation mode: hold LMB on the bar + drag up beyond the island
 //  - dashboard drawer: hold LMB on the clock + drag down (island follows the
 //    cursor via dashboardDragProgress, snaps on dashboardDragReleased)
-//  - Notification Center: hold left of the island + drag down
-//  - Quick Settings: hold right of the island + drag down
+//  - Notification Center: hold the top-edge strip left of the island + drag down
+//  - Quick Settings: hold the top-edge strip right of the island + drag down
 //  - minimal hold: press anywhere in the active zone reveals the bar while
 //    held; dragging down commits back to Island; release returns to Minimal
 //  - module close: swipe up inside the island while a module is open
@@ -49,8 +50,8 @@ Item {
     property bool moduleSwipe: false
     property real maxDy: 0
 
-    readonly property real sideBandBottom: root.islandY
-        + Math.max(root.islandHeight, Math.max(root.cfg.quickSettingsZoneHeight, root.cfg.notificationsZoneHeight))
+    readonly property real leftZoneX: root.islandX - root.cfg.notificationsZoneWidth
+    readonly property real rightZoneX: root.islandX + root.islandWidth
 
     MouseArea {
         id: ma
@@ -148,11 +149,14 @@ Item {
                 return "bar";
             }
 
-            // Side drag zones live *outside* the island edges (spec gesture table).
-            const inSideBand = y >= root.islandY && y <= root.sideBandBottom;
-            if (inSideBand) {
-                if (x < root.islandX && x >= root.islandX - root.cfg.notificationsZoneWidth)
+            // Top-edge strips pressed to the screen top (y 0..height) and
+            // adjacent to the island's horizontal projection: left strip
+            // ends where the island starts, right strip starts where it ends.
+            if (y >= 0 && y <= root.cfg.notificationsZoneHeight) {
+                if (x >= root.leftZoneX && x < root.islandX)
                     return "left";
+            }
+            if (y >= 0 && y <= root.cfg.quickSettingsZoneHeight) {
                 if (x > root.islandX + root.islandWidth && x <= root.islandX + root.islandWidth + root.cfg.quickSettingsZoneWidth)
                     return "right";
             }

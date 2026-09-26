@@ -49,14 +49,15 @@ Singleton {
                     blurKickIntervalMs: 80,
                     osdAutoCloseMs: 1300,
                     plateIconMs: 380,
-                    startupDelayMs: 60
+                    startupDelayMs: 60,
+                    startupMorphDelayMs: 100
                 })
             property var gestures: ({
                     minimalActiveZoneHeight: 42,
-                    quickSettingsZoneWidth: 120,
-                    quickSettingsZoneHeight: 56,
-                    notificationsZoneWidth: 120,
-                    notificationsZoneHeight: 56,
+                    quickSettingsZoneWidth: 100,
+                    quickSettingsZoneHeight: 5,
+                    notificationsZoneWidth: 100,
+                    notificationsZoneHeight: 5,
                     clockZoneWidth: 120,
                     clockZoneHeight: 44,
                     dashboardDragThreshold: 42,
@@ -87,6 +88,7 @@ Singleton {
                 })
             property var effects: ({
                     disableBlur: false,
+                    disableCompositorBlur: false,
                     islandOpacity: 1.0
                 })
             property var notifications: ({

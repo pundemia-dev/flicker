@@ -21,14 +21,15 @@
     "blurKickIntervalMs": 80,
     "osdAutoCloseMs": 1300,
     "plateIconMs": 380,
-    "startupDelayMs": 60
+    "startupDelayMs": 60,
+    "startupMorphDelayMs": 100
   },
   "gestures": {
     "minimalActiveZoneHeight": 42,
-    "quickSettingsZoneWidth": 120,
-    "quickSettingsZoneHeight": 56,
-    "notificationsZoneWidth": 120,
-    "notificationsZoneHeight": 56,
+    "quickSettingsZoneWidth": 100,
+    "quickSettingsZoneHeight": 5,
+    "notificationsZoneWidth": 100,
+    "notificationsZoneHeight": 5,
     "clockZoneWidth": 120,
     "clockZoneHeight": 44,
     "dashboardDragThreshold": 42,
@@ -59,7 +60,8 @@
   },
   "effects": {
     "disableBlur": false,
-    "islandOpacity": 0.5
+    "disableCompositorBlur": true,
+    "islandOpacity": 1.0
   },
   "notifications": {
     "tickerDurationMs": 3500,

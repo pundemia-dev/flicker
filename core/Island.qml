@@ -55,7 +55,8 @@ PanelWindow {
     // the clock, snapping open past dashboardDragThreshold (spec).
     property bool dashboardDragging: false
     property real dashboardPreviewDy: 0
-    // appearFromEdge primitive: the island slides in from the top edge at startup.
+    // appearFromEdge primitive: the Minimal strip slides in from the top
+    // edge at startup, then morphs into the bar (see startupMorph timer).
     property bool started: false
 
     readonly property var islandCfg: config.island
@@ -114,7 +115,13 @@ PanelWindow {
     readonly property real islandX: (width - islandWidth) / 2
     readonly property real islandY: started ? islandCfg.topMargin : -(islandCfg.height + islandCfg.topMargin)
 
-    Component.onCompleted: startupTimer.start()
+    // appearFromEdge (spec): the shell appears as the Minimal strip sliding
+    // in from the top edge, then morphs into the bar on its spot. Starting
+    // in Minimal (not Island) is what makes the first phase a thin strip.
+    Component.onCompleted: {
+        state.setMinimal();
+        startupTimer.start();
+    }
 
     // Real backdrop blur via niri's ext-background-effect-v1 (pShell pattern):
     // the island rect is published as the compositor blur region. Two region
@@ -152,7 +159,7 @@ PanelWindow {
     // (see islandRect border) instead. Geometry stays int-snapped.
 
     function updateIslandBlur(): void {
-        if (root.config.effects.disableBlur) {
+        if (root.config.effects.disableBlur || root.config.effects.disableCompositorBlur) {
             blurKickTrail.stop();
             root.BackgroundEffect.blurRegion = null;
             root.blurGeo = "";
@@ -296,15 +303,32 @@ PanelWindow {
         onTriggered: {
             root.started = true;
             root.updateIslandBlur();
+            // Second phase of appearFromEdge: morph the Minimal strip into
+            // the bar. Fires while the strip is still sliding so the morph
+            // starts just short of the final position (tune via
+            // timings.startupMorphDelayMs); the springs blend both motions.
+            startupMorph.restart();
+        }
+    }
+
+    Timer {
+        id: startupMorph
+        interval: root.timingCfg.startupMorphDelayMs
+        onTriggered: {
+            // Skipped under fullscreen (stays Minimal; onFsActiveChanged
+            // brings the bar back later) and if the state already moved on
+            // (e.g. a module opened in the meantime).
+            if (!root.fsActive && root.state.currentState === root.state.minimal)
+                root.state.setIsland();
         }
     }
 
     // Blur-region refresh triggers: state transitions + every island
     // geometry step re-kick live (see live-tracking note above). Identical
     // int-snapped geos dedupe inside updateIslandBlur, so per-frame calls
-    // are free. The heartbeat is a safety net (e.g. for the disableBlur
-    // config toggle, which has no change signal on the nested JsonAdapter
-    // object).
+    // are free. The heartbeat is a safety net (e.g. for the disableBlur /
+    // disableCompositorBlur config toggles, which have no change signal
+    // on the nested JsonAdapter object).
     Connections {
         target: root.state
         function onCurrentStateChanged(): void { root.updateIslandBlur(); }
@@ -426,7 +450,13 @@ PanelWindow {
 
     Rectangle {
         id: islandRect
-        x: root.islandX
+        // Horizontally centered via anchor (NOT x:islandX + spring): at
+        // startup islandWidth grows as indicators load and the layer width
+        // settles, so an animated x would sweep left->center while y slides
+        // top->position -- a diagonal flight from the top-left corner.
+        // With anchor centering the width spring alone grows the island
+        // symmetrically, and startup animates Y only (appearFromEdge).
+        anchors.horizontalCenter: parent.horizontalCenter
         y: root.islandY
         width: root.islandWidth
         height: root.islandHeight
@@ -434,17 +464,18 @@ PanelWindow {
         color: root.shouldDrawIslandShape
             ? Qt.rgba(root.theme.islandBg.r, root.theme.islandBg.g, root.theme.islandBg.b, root.config.effects.islandOpacity)
             : Qt.rgba(root.theme.minimalBg.r, root.theme.minimalBg.g, root.theme.minimalBg.b, root.theme.minimalOpacity)
-        // DMS-style rim: a 1px border over the island edge masks the zone
-        // where the hard compositor blur mask diverges from the smooth
-        // painted corner (see blur block above).
-        border.width: root.theme.islandRimWidth
+        // DMS-style rim, only while compositor blur is on: a 1px border
+        // over the island edge masks the zone where the hard compositor
+        // blur mask diverges from the smooth painted corner (see blur block
+        // above). With compositor blur off the rim just lightens the true
+        // black edge, so it is dropped (width 0).
+        border.width: root.config.effects.disableCompositorBlur ? 0 : root.theme.islandRimWidth
         border.color: root.theme.islandRim
         clip: true
 
         Behavior on width { Spring {} }
         Behavior on height { Spring {} }
         Behavior on radius { Spring {} }
-        Behavior on x { Spring {} }
         Behavior on y { Spring {} }
 
         ContentSwap {
