@@ -81,12 +81,23 @@ Item {
     }
     Component {
         id: dashboardComp
-        DashboardModule { onCloseRequested: root.closeRequested() }
+        DashboardModule {
+            clock: root.services.clock
+            battery: root.services.battery
+            players: root.services.players
+            systemUsage: root.services.systemUsage
+            weather: root.services.weather
+            theme: root.services.theme
+            dash: root.services.config.dashboard
+            onCloseRequested: root.closeRequested()
+        }
     }
     Component {
         id: playerComp
         PlayerModule {
             players: root.services.players
+            theme: root.services.theme
+            cfg: root.services.config.dashboard
             onCloseRequested: root.closeRequested()
         }
     }

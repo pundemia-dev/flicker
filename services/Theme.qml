@@ -10,12 +10,17 @@ QtObject {
     readonly property color minimalBg: "#8D939A"
     readonly property real minimalOpacity: 0.35
     readonly property color subtleFg: "#B9C0CB"
-    readonly property color accentRed: "#E04F5F"
-    readonly property color accentGreen: "#49C57D"
+    readonly property color accentRed: "#E4483E"
+    readonly property color accentGreen: "#3DBD4E"
     readonly property color accentYellow: "#D8BE52"
     readonly property color accentOrange: "#E58B4D"
     readonly property color waveColor: "#A8C1FF"
     readonly property color arcTrack: "#6E7681"
+    // Dashboard cards (dark widgets on the true-black island body).
+    readonly property color cardBg: "#1C1C1E"
+    readonly property color cardTrack: "#2C2C2E"
+    readonly property color cardDim: "#99EBEBF5"
+    readonly property color cardBlue: "#0F7CEC"
     readonly property color batteryGood: "#59D67A"
     readonly property color batteryWarn: "#E7C45A"
     readonly property color batteryLow: "#E35D5D"
@@ -23,4 +28,11 @@ QtObject {
     readonly property int fontSizeBody: 12
     readonly property int fontSizeIndicator: 11
     readonly property int fontSizeTiny: 10
+    // Global shell font (otf-san-francisco, fc family name "SF Pro Display").
+    // Applied by default in components/Text.qml; theme-less spots (launcher
+    // TextInput) reference the same family literally.
+    readonly property string fontFamily: "SF Pro Display"
+    // Icon glyph font (fc family "tabler-icons"; the filled media-control set
+    // lives in the U+F6xx plane: prev f697 pause f690 play f691 next f696).
+    readonly property string iconFamily: "tabler-icons"
 }

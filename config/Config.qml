@@ -129,13 +129,37 @@ Singleton {
             property var compositor: ({
                     pollMs: 1200
                 })
+            property var dashboard: ({
+                    // "" = auto by IP, "City" name, or "lat,lon".
+                    weatherLocation: "",
+                    useFahrenheit: false,
+                    sysPollMs: 2000,
+                    weatherPollMs: 1800000,
+                    updatesPollMs: 900000,
+                    cardRadius: 13,
+                    spacing: 8,
+                    margins: 9,
+                    cardPadding: 10,
+                    // Grid-first layout: unit side (px) + column count. Row
+                    // count emerges from card spans. Island size must match:
+                    // W/H = 2*margins + 5*unit + 4*spacing (modules.dashboard).
+                    unit: 80,
+                    cols: 6,
+                    titleSize: 13,
+                    dotSize: 8,
+                    valueSize: 24,
+                    bigValueSize: 32,
+                    headerTimeSize: 44,
+                    headerDateSize: 15,
+                    iconSize: 24
+                })
             // Per-module island sizes (island.moduleWidth/Height = fallback).
             // "notifications" splits by payload mode: notifications:flow/center.
             property var modules: ({
                     launcher: ({ width: 560, height: 210 }),
                     quicksettings: ({ width: 560, height: 210 }),
-                    dashboard: ({ width: 560, height: 210 }),
-                    player: ({ width: 560, height: 210 }),
+                    dashboard: ({ width: 538, height: 450 }),
+                    player: ({ width: 448, height: 230 }),
                     notifications: ({ width: 520, height: 180 }),
                     "notifications:flow": ({ width: 520, height: 150 }),
                     "notifications:center": ({ width: 560, height: 210 }),

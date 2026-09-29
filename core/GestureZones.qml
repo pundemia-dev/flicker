@@ -10,6 +10,10 @@ import QtQuick
 // content above; this layer only receives presses that fall through the bar
 // (gaps, clock text) so gestures and bar clicks coexist.
 //
+// NOTE: Island.qml masks layer input to the island background rect plus the
+// side top-edge strips, so only presses starting there reach this layer
+// (the press grab then keeps tracking outside for drags).
+//
 // Gestures handled:
 //  - presentation mode: hold LMB on the bar + drag up beyond the island
 //  - dashboard drawer: hold LMB on the clock + drag down (island follows the

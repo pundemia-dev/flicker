@@ -56,6 +56,8 @@ Item {
                 selectionColor: "#4C6EF5"
                 selectedTextColor: "white"
                 font.pixelSize: 13
+                // Matches Theme.fontFamily (this module is theme-less).
+                font.family: "SF Pro Display"
                 focus: true
                 clip: true
                 onTextChanged: root.query = text

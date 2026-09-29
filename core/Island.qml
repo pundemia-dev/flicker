@@ -20,6 +20,8 @@ PanelWindow {
     required property var notifications
     required property var recorder
     required property var dictation
+    required property var systemUsage
+    required property var weather
     required property var lock
 
     screen: root.screen
@@ -35,8 +37,38 @@ PanelWindow {
     anchors.top: true
     anchors.left: true
     anchors.right: true
-    // Keep the layer surface tight around the island so it does not block
-    // clicks to windows below; mouse-grab during drags still tracks outside.
+    // Input mask = island background + side gesture strips: clicks anywhere
+    // else fall through to windows below. Without this the full-width layer
+    // surface (tight but still screen-wide) swallows the whole top strip.
+    // The side strips (100x5 at the top edge, adjacent to the island) are
+    // the QS / Notification Center drag handles from GestureZones.detectZone;
+    // they stay out of the mask while a module is open (a press there could
+    // never open anything then — moduleSwipe takes over — so keeping them
+    // would just eat window clicks). Gestures that start inside the mask
+    // keep tracking outside via the press grab, so dashboard/presentation/
+    // swipe-up drags still work; presses that start outside never reach us.
+    mask: Region {
+        x: Math.round(root.islandX)
+        y: Math.round(root.islandY)
+        width: Math.round(root.islandWidth)
+        height: Math.round(root.islandHeight)
+
+        Region {
+            x: Math.round(root.islandX - root.gestureCfg.notificationsZoneWidth)
+            y: 0
+            width: root.moduleOpen ? 0 : Math.round(root.gestureCfg.notificationsZoneWidth)
+            height: Math.round(root.gestureCfg.notificationsZoneHeight)
+        }
+        Region {
+            x: Math.round(root.islandX + root.islandWidth)
+            y: 0
+            width: root.moduleOpen ? 0 : Math.round(root.gestureCfg.quickSettingsZoneWidth)
+            height: Math.round(root.gestureCfg.quickSettingsZoneHeight)
+        }
+    }
+    // The layer surface stays tight around the island (plus arcs overhang
+    // and the minimal active zone) purely to keep the window small; input
+    // is gated by the mask above, so surface size alone never blocks clicks.
     // In the bar state the side arcs stick out past the island (concentric
     // with the end roundings), so the surface also covers their overhang.
     readonly property real arcsBottom: root.islandY + root.islandHeight / 2 + arcsShape.extent + 1
@@ -532,6 +564,10 @@ PanelWindow {
                         notifications: root.notifications,
                         recorder: root.recorder,
                         dictation: root.dictation,
+                        systemUsage: root.systemUsage,
+                        weather: root.weather,
+                        clock: root.clock,
+                        battery: root.battery,
                         compositor: root.compositor,
                         config: root.config,
                         theme: root.theme

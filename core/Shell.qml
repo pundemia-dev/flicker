@@ -19,6 +19,8 @@ Scope {
     Notifications { id: notificationsService }
     Recorder { id: recorderService }
     Dictation { id: dictationService }
+    SystemUsage { id: systemUsageService }
+    Weather { id: weatherService }
 
     // Recording is WM-agnostic: the facade delegates to the Recorder service.
     Compositor {
@@ -49,6 +51,8 @@ Scope {
                 notifications: notificationsService
                 recorder: recorderService
                 dictation: dictationService
+                systemUsage: systemUsageService
+                weather: weatherService
                 lock: lockScope
             }
 

@@ -1,4 +1,5 @@
 import QtQuick
+import "../../components"
 
 // Two modes in one module (spec): "flow" replaces the bar content with a single
 // incoming notification; "center" is the history browser — compact configurable

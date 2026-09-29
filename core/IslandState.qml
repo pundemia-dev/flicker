@@ -28,7 +28,12 @@ QtObject {
     }
 
     function openModule(name: string, payload: var): void {
-        previousState = currentState;
+        // Module-over-module switches (e.g. IPC open while a module is up)
+        // must NOT overwrite previousState with "module": closeModule would
+        // then return to "module" with no module — a stuck empty island.
+        // Keep the original pre-module state instead.
+        if (currentState !== module)
+            previousState = currentState;
         // Payload first: ModuleHost's Loader creates the module when
         // activeModule changes and reads activePayload at that moment.
         activePayload = payload;
@@ -40,6 +45,9 @@ QtObject {
     function closeModule(): void {
         activeModule = "";
         activePayload = null;
-        currentState = previousState;
+        // Belt and suspenders for states already poisoned with
+        // previousState === module: fall back to the bar instead of
+        // re-entering a module-less module state.
+        currentState = previousState === module ? island : previousState;
     }
 }

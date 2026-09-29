@@ -80,6 +80,20 @@ Not a git repo. No tests, no linter, no formatter.
   `Config.data.<group>.<key>`. Pure visual tokens live in `services/Theme.qml`.
 - Lock is shell-level, not an island module: `modules/lock/LockScope.qml` (WlSessionLock +
   `Pam.qml` + PAM config `assets/pam.d/pillshell`). Island hides while locked.
+- IslandState: openModule over an already-open module must NOT overwrite `previousState`
+  with "module" (closeModule would then re-enter a module-less "module" state → island
+  stuck as an empty module-sized rect; `setIsland`/`setMinimal` refuse to leave "module").
+  `core/IslandState.qml` guards both openModule (keeps the original pre-module state) and
+  closeModule (falls back to island on a poisoned previousState).
+- MprisPlayer position reads are always live (Quickshell interpolates), but the
+  positionChanged signal must be emitted manually while playing — the documented pattern
+  (1s Timer, `onTriggered: player.positionChanged()`, running bound to Playing) is in
+  `modules/player/PlayerModule.qml`. `length` mirrors `position` when `lengthSupported`
+  is false — guard progress/remaining on that.
+- MPRIS multi-player: `services/Players.qml` picks `active` dms-style (prefer a playing
+  player, remember the last playing one, a paused player beats registered-idle ones at
+  cold start). Plain `players[0]` picks early-registrants like Telegram (registers
+  Stopped with stale voice-message metadata) over the actually playing app.
 
 ## Quickshell 0.3.1 / QML gotchas (hit before, verified)
 
@@ -114,6 +128,10 @@ Not a git repo. No tests, no linter, no formatter.
 - `openModule()` must set `activePayload` BEFORE `activeModule` — ModuleHost's
   Loader creates the module the moment `activeModule` changes and reads the
   payload at that instant.
+- Module content must stay press-transparent (no fullscreen Flickable/MouseArea):
+  swipe-up close is handled by `GestureZones` BELOW the island content, so any
+  press-grabber covering the module makes it unclosable (hit with dashboard
+  Flickable, Sep 2026). Only small controls (buttons/sliders) may accept presses.
 - Quickshell's qml scanner sometimes MISSES a file's relative imports (no "Found imports"
   line and no "Synthesizing qmldir for <dir>" in the qslog) — then types from that dir
   fail at runtime with "X is not a type" even though qmllint is clean. If you add a new
@@ -126,6 +144,9 @@ Not a git repo. No tests, no linter, no formatter.
   properties with null-safe reads instead.
 - Inside `Repeater` delegates prefer `modelData` over the Loader's `id` in outer
   bindings — delegate ids are not visible outside the delegate scope.
+- Path elements (`PathMove`/`PathLine`, NOT `*To` — Qt6 names, live in QtQuick
+  itself) inside `ShapePath` do NOT see the parent `Shape`'s own properties
+  via scope lookup (`baseX is not defined`); qualify with an id or an outer id.
 
 ## Conventions (from pillShell.md)
 
@@ -142,11 +163,30 @@ Working end-to-end (verified via IPC + screenshots + debugState, Sep 2026): bar 
 at island.maxWidth with priority eviction; clock, arcs (concentric with the bar-end
 rounding centres, no digits, grey track + bottom-up coloured fill) incl. bottom-up
 battery fill, mic/music/dictation indicators), per-module island sizes
-(verified: dashboard 560×210, OSD 400×72, capture 520×112),
+(verified: dashboard 538×450, OSD 400×72, capture 520×112),
 Minimal state (fullscreen-driven + IPC, per-screen), Overlay visibility over fullscreen,
 modules launcher/quicksettings/dashboard/player/osd/capture/dictation/notifications
 (center; flow + FIFO queue verified in code, live D-Bus unreachable — pShell owns the
-notification server), dashboard drawer (drag-follow + snap, code-complete), swipe-down
+notification server), dashboard drawer (drag-follow + snap, code-complete),
+dashboard cards (one file per card in `modules/dashboard/cards/` + shared
+`DashboardCard`/`CardTitle`/`MiniBar`/`RingArc`; grid-first: fixed 1-unit
+header block + 6x4 card grid (unit 80px, island 538x450); spans hardcoded
+per card (system 2x2, wide 4x1, narrow 2x1), positions in `DashboardModule`,
+widths locked via min=max=preferred (bare preferred loses to fillWidth
+stretch + content minimums — grid splits evenly, system goes non-square),
+content adapts (adaptive fonts/row counts); live: clock header RU, CPU/RAM/disk rings via
+`services/SystemUsage`, battery, top processes, now-playing; weather card =
+gradient by two continuous sun factors (daylight `d` = smoothstep ramp
+ramped up at sr-45..sr+45 and down at ss-45..ss+45; horizon glow `w` =
+smoothstep 60 min either side of sr/ss) over per-category Day/Night
+palettes, warm #F29A5B mixed into the BOTTOM by 0.8*w*cloudDamp and dusk
+violet #6C5B9E into the TOP by 0.25*w*cloudDamp (clouds eat the glow:
+clear 1 / cloudy 0.5 / snow 0.4 / fog 0.35 / rain 0.3 / storm 0.15),
+animated 900ms; no six discrete phases, no jumps) + emoji icon +
+min/max,
+via `services/Weather` open-meteo; pacman/AUR counts render empty state until
+their slow first fetch lands; events = empty state, no calendar backend yet),
+swipe-down
 reveal from Minimal, swipe-up module close, mic exclusion of dictation/recording
 (live: pw-record runs, no mic dot, wave expands island 420→448 and back), dictation
 start/stop via IPC incl. SIGINT finalize (`signal(2)`), recording routed through the
@@ -207,3 +247,7 @@ Simplified / not implemented yet (see pillShell.md for the intended behaviour):
   into the bar on its spot (`startupMorph` timer + `timings.startupMorphDelayMs`);
   the Capture second instance is absent.
 - LocalSend is a placeholder drop zone (never opened); Timer indicator exists but no timer service feeds it.
+- Player lyrics: the «Текст» pill in the player module is a visual placeholder (hover only,
+  no action — user: a layout change/lyrics view comes later). Source decided by the user:
+  lrclib.net via `curl -4` (the Weather fetch pattern, no API key) — plain + synced lyrics;
+  pShell's caelestia C++ lyrics plugin is not portable (pure QML shell).

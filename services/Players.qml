@@ -6,7 +6,30 @@ QtObject {
 
     readonly property var players: Mpris.players.values
     property MprisPlayer manualActive: null
-    readonly property MprisPlayer active: manualActive ?? players[0] ?? null
+
+    // Active-player selection (dms _resolveActivePlayer pattern): prefer a
+    // playing player; when everything pauses/stops keep the LAST playing one;
+    // at cold start a paused player beats a registered-idle one (Telegram
+    // registers Stopped with stale voice-message metadata and can be
+    // players[0] — the plain players[0] pick showed it instead of the
+    // actually playing app).
+    property MprisPlayer remembered: null
+
+    // Filters harvest per-player playbackState reads as dependencies, so
+    // they re-evaluate when any player's state changes.
+    readonly property var _playing: players.filter(p => p.playbackState === MprisPlaybackState.Playing)
+    readonly property MprisPlayer _paused: players.find(p => p.playbackState === MprisPlaybackState.Paused) ?? null
+
+    on_PlayingChanged: {
+        if (_playing.length > 0)
+            remembered = _playing[0];
+    }
+    onPlayersChanged: {
+        if (remembered && !players.includes(remembered))
+            remembered = null;
+    }
+
+    readonly property MprisPlayer active: manualActive ?? _playing[0] ?? remembered ?? _paused ?? players[0] ?? null
 
     readonly property bool musicActive: active !== null && active.playbackState === MprisPlaybackState.Playing
     readonly property string trackTitle: active?.trackTitle ?? ""

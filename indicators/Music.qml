@@ -31,11 +31,13 @@ Rectangle {
     Behavior on width { Spring {} }
     Behavior on opacity { NumberAnimation { duration: 160 } }
 
-    Image {
+    RoundedImage {
+        id: cover
         anchors.fill: parent
         source: root.artUrl
-        fillMode: Image.PreserveAspectCrop
-        visible: root.artUrl.length > 0
+        // Max rounding: the art masked to a circle (Rectangle clip is
+        // square-only, hence the MultiEffect mask).
+        radius: root.diameter / 2
     }
 
     Text {
@@ -43,7 +45,7 @@ Rectangle {
         text: "♫"
         color: root.theme?.islandFg ?? "#E8ECF4"
         font.pixelSize: Math.max(8, root.diameter / 2)
-        visible: root.artUrl.length === 0
+        visible: !cover.ready
     }
 
     MouseArea {
