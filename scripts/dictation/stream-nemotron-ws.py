@@ -18,6 +18,10 @@ Env: NEMO_WS_URL (default ws://127.0.0.1:8090/v1/audio/transcriptions/realtime),
 Emitted JSONL lines: {"type":"ready"} once the server acks session.update
 (model loaded), then partial/final/error as the session runs.
 
+Exit codes: 0 = clean Stop (SIGINT: tail flushed); 1 = abnormal end (WS or
+mic died on its own — error line emitted first, so the shell shows why
+instead of just going quiet).
+
 Mic reads use small fixed frames via os.read (returns what arrived, never
 waits to fill): send size does NOT affect the model's server-side chunking,
 so big reads would only add latency to partials. DICT_CHUNK_MS is ignored
@@ -168,34 +172,17 @@ async def main():
         await ws.send(json.dumps({"type": "session.update",
             "session": {"sample_rate": 16000, "language": LANG,
                         "word_timestamps": False}}))
-        try:
-            # Wait for the session ack: it means the model is loaded and the
-            # shell may flip its indicator from "switching" to live. Bound
-            # the wait so a silent server doesn't wedge SIGINT until SIGKILL
-            # (no ack = no ready line; first partial flips the shell anyway).
-            async def _wait_updated():
-                async for msg in ws:
-                    if not isinstance(msg, str):
-                        continue
-                    try:
-                        m = json.loads(msg)
-                    except Exception:
-                        continue
-                    if (m.get("type", "") or "").endswith(".updated"):
-                        return True
-                return False
-            if await asyncio.wait_for(_wait_updated(), timeout=5.0):
-                emit({"type": "ready"})
-        except Exception:
-            pass
 
         # Set after the commit goes out; the receiver signals trailing_done
         # on the first completed past that point. Waiting for the event
         # (instead of the receiver task, which ends only when the server
         # closes the session) bounds Stop latency to ~seconds, not the full
-        # recv timeout.
+        # recv timeout. The session ack is watched by the receiver in
+        # parallel — the sender starts streaming immediately instead of
+        # idling the mic for up to 5s on a silent server.
         commit_sent = asyncio.Event()
         trailing_done = asyncio.Event()
+        acked = False
 
         async def sender():
             mic_fd = mic.stdout.fileno()
@@ -269,7 +256,7 @@ async def main():
                 pass
 
         async def receiver():
-            nonlocal hyp, last_emitted, deltas_since_completed
+            nonlocal hyp, last_emitted, deltas_since_completed, acked
             try:
                 async for msg in ws:
                     if not isinstance(msg, str):
@@ -279,6 +266,13 @@ async def main():
                     except Exception:
                         continue
                     t = m.get("type", "")
+                    if t.endswith(".updated"):
+                        # Session ack (model loaded) — watched in parallel
+                        # with streaming, never blocking the mic.
+                        if not acked:
+                            acked = True
+                            emit({"type": "ready"})
+                        continue
                     if t.endswith(".delta"):
                         d = m.get("delta", "") or ""
                         # Empty keepalive deltas carry no text: ignore them
@@ -308,14 +302,36 @@ async def main():
                                 and not trailing_done.is_set():
                             trailing_done.set()
                     elif t == "error":
-                        emit_error(m.get("message", m.get("error",
-                                                         "server error")))
+                        if commit_sent.is_set():
+                            # Post-commit server notice (e.g. commit on an
+                            # already-empty buffer after trailing silence):
+                            # logged, never failed — every Stop would error
+                            # otherwise.
+                            print(f"post-commit server notice ignored: "
+                                  f"{m.get('message', m.get('error', ''))}",
+                                  file=sys.stderr, flush=True)
+                        else:
+                            emit_error(m.get("message", m.get("error",
+                                                             "server error")))
             except Exception:
                 pass
 
         send_task = asyncio.create_task(sender())
         recv_task = asyncio.create_task(receiver())
         await send_task
+        if not stop.is_set():
+            # Abnormal end (WS dropped or mic EOF on its own): the tail is
+            # flushed first so speech survives on screen, then an error line
+            # goes out and we exit 1 — the shell must show WHY dictation
+            # stopped instead of just going quiet.
+            if hyp.strip():
+                emit_final(hyp.strip(), LANG)
+            try:
+                await asyncio.wait_for(recv_task, timeout=1.0)
+            except (TimeoutError, asyncio.TimeoutError):
+                recv_task.cancel()
+            emit_error("connection or mic lost")
+            return 1
         # Sender closed the WS after the trailing completed (or its
         # ceiling), so the receiver drains on its own; only bound the wait.
         try:

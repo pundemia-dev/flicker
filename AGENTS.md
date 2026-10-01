@@ -147,6 +147,10 @@ Not a git repo. No tests, no linter, no formatter.
 - Path elements (`PathMove`/`PathLine`, NOT `*To` — Qt6 names, live in QtQuick
   itself) inside `ShapePath` do NOT see the parent `Shape`'s own properties
   via scope lookup (`baseX is not defined`); qualify with an id or an outer id.
+- Canvas `shadow*` (`shadowColor`/`shadowBlur`/offsets) do NOTHING in Qt:
+  the Context2D properties exist (assignments don't throw) but render no
+  shadow (verified Sep 2026). Build glows from layered translucent strokes
+  instead (see Arcs).
 
 ## Conventions (from pillShell.md)
 
@@ -161,8 +165,8 @@ Not a git repo. No tests, no linter, no formatter.
 Working end-to-end (verified via IPC + screenshots + debugState, Sep 2026): bar island
 (dynamic width fitted to content — clock-only ≈78px, expands with indicators, capped
 at island.maxWidth with priority eviction; clock, arcs (concentric with the bar-end
-rounding centres, no digits, grey track + bottom-up coloured fill) incl. bottom-up
-battery fill, mic/music/dictation indicators), per-module island sizes
+rounding centres, no digits, grey track + bottom-up coloured fill, soft black halo) incl. bottom-up
+battery fill, mic/music/dictation indicators, light halo around the body), per-module island sizes
 (verified: dashboard 538×450, OSD 400×72, capture 520×112),
 Minimal state (fullscreen-driven + IPC, per-screen), Overlay visibility over fullscreen,
 modules launcher/quicksettings/dashboard/player/osd/capture/dictation/notifications

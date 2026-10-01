@@ -19,6 +19,8 @@ Item {
     property string sessionFile: ""
     property int sessionId: 0
     readonly property bool running: streamProc.running
+    // Backend spawn chained behind touch completion (not yet running).
+    readonly property bool starting: touchProc.running
 
     signal partial(string text)
     signal segment(string text, string lang)
@@ -35,13 +37,25 @@ Item {
     // in the new session (cancel + immediate start → bogus "exit 137").
     property int _runSid: 0
     property bool _watchdogFired: false
+    // Chained-start state (see prepareAndStart): touch completion carries
+    // the sid it was launched with and aborts on mismatch.
+    property string _pendingSession: ""
+    property string _pendingCmd: ""
+    property int _chainSid: -1
 
-    function start(cmd: string): void {
+    // Ordered start: the session file is pre-created FIRST, and only its
+    // completion binds FileView (Loader) and spawns the backend. Binding
+    // FileView to a missing file risks it never noticing the creation, and
+    // a same-tick spawn loses that race — the chain makes the order exact.
+    function prepareAndStart(path: string, cmd: string): void {
         root._cursor = 0;
         root._runSid = root.sessionId;
+        root._chainSid = root.sessionId;
         root._watchdogFired = false;
-        streamProc.command = ["bash", "-lc", cmd];
-        streamProc.running = true;
+        root._pendingSession = path ?? "";
+        root._pendingCmd = cmd ?? "";
+        touchProc.command = ["bash", "-c", 'umask 077; : >> "$1"', "dictation-touch", path];
+        touchProc.running = true;
     }
 
     function stop(): void {
@@ -57,20 +71,10 @@ Item {
             streamProc.signal(9);
     }
 
-    // Pre-create the session file from the shell side, BEFORE the Loader
-    // below binds FileView to the path: a FileView bound to a missing file
-    // may never notice its later creation. The backend pre-creates too;
-    // whichever wins, the file exists by the time the first line flushes.
-    // Mode 0600 via umask: the file holds verbatim dictation.
-    function prepare(path: string): void {
-        if ((path ?? "").length === 0)
-            return;
-        touchProc.command = ["bash", "-c", 'umask 077; : >> "$1"', "dictation-touch", path];
-        touchProc.running = true;
-    }
-
     // Session tail: inotify picks every flush up without polling. Gated by
     // Loader so the FileView only exists while a session is active.
+    // NOTE: sessionFile is assigned only from touchProc completion (see
+    // below), i.e. always to an existing file — never bind it directly.
     Loader {
         id: sessionLoader
         active: root.sessionFile.length > 0
@@ -147,6 +151,22 @@ Item {
 
     Process {
         id: touchProc
+        onExited: code => {
+            // Superseded (cancel/fail bumped the sid meanwhile): abort the
+            // chain instead of spawning a backend into a dead session.
+            if (root._chainSid !== root.sessionId)
+                return;
+            const path = root._pendingSession;
+            const cmd = root._pendingCmd;
+            root._pendingSession = "";
+            root._pendingCmd = "";
+            if (path.length === 0 || cmd.length === 0)
+                return;
+            // File exists now (touch ran first): bind FileView, then spawn.
+            root.sessionFile = path;
+            streamProc.command = ["bash", "-lc", cmd];
+            streamProc.running = true;
+        }
     }
 
     Process {

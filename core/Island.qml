@@ -74,6 +74,7 @@ PanelWindow {
     readonly property real arcsBottom: root.islandY + root.islandHeight / 2 + arcsShape.extent + 1
     implicitHeight: Math.max(root.islandY + root.islandHeight + 8,
         (root.shouldDrawIslandShape && !root.moduleOpen) ? root.arcsBottom : 0,
+        root.haloVisible ? root.islandY + root.islandHeight + root.haloPad + 1 : 0,
         gestureCfg.minimalActiveZoneHeight + 8)
 
     property IslandState state: IslandState {}
@@ -423,6 +424,61 @@ PanelWindow {
         cfg: root.config.arcs
         batteryCfg: root.config.battery
         visibleInState: root.state.currentState === root.state.island && !root.moduleOpen && !root.tickerVisible
+    }
+
+    // Light halo around the island body (the arcs' halo treatment, but
+    // light): three nested border rings with falling opacity, so there is
+    // no hard outer edge. Fully declarative — the rings follow the island
+    // springs (width/height/radius/y) exactly with no repaints. Hidden
+    // while Minimal (a glow around the 6px strip would dominate it).
+    readonly property bool haloVisible: root.shouldDrawIslandShape || root.moduleOpen
+    readonly property real haloW: root.islandCfg.haloWidth ?? 2
+    readonly property real haloBorderW: root.islandCfg.haloBorder ?? 2
+    readonly property real haloPeakA: (root.theme.islandHalo && root.theme.islandHalo.a !== undefined) ? root.theme.islandHalo.a : 0.004
+    // Widest ring extent: keeps the layer surface tall enough (see
+    // implicitHeight). The top sits tight against topMargin by design.
+    readonly property real haloPad: root.haloW + root.haloBorderW
+
+    Rectangle {
+        color: "transparent"
+        z: -1
+        anchors.horizontalCenter: parent.horizontalCenter
+        y: islandRect.y - root.haloW * 0.35
+        width: islandRect.width + root.haloW * 0.7
+        height: islandRect.height + root.haloW * 0.7
+        radius: islandRect.radius + root.haloW * 0.35
+        border.width: root.haloBorderW
+        border.color: Qt.rgba(1, 1, 1, root.haloPeakA)
+        opacity: root.haloVisible ? 1 : 0
+        Behavior on opacity { NumberAnimation { duration: 140 } }
+    }
+
+    Rectangle {
+        color: "transparent"
+        z: -1
+        anchors.horizontalCenter: parent.horizontalCenter
+        y: islandRect.y - root.haloW * 0.65
+        width: islandRect.width + root.haloW * 1.3
+        height: islandRect.height + root.haloW * 1.3
+        radius: islandRect.radius + root.haloW * 0.65
+        border.width: root.haloBorderW
+        border.color: Qt.rgba(1, 1, 1, root.haloPeakA * 0.55)
+        opacity: root.haloVisible ? 1 : 0
+        Behavior on opacity { NumberAnimation { duration: 140 } }
+    }
+
+    Rectangle {
+        color: "transparent"
+        z: -1
+        anchors.horizontalCenter: parent.horizontalCenter
+        y: islandRect.y - root.haloW
+        width: islandRect.width + root.haloW * 2
+        height: islandRect.height + root.haloW * 2
+        radius: islandRect.radius + root.haloW
+        border.width: root.haloBorderW
+        border.color: Qt.rgba(1, 1, 1, root.haloPeakA * 0.3)
+        opacity: root.haloVisible ? 1 : 0
+        Behavior on opacity { NumberAnimation { duration: 140 } }
     }
 
     // Gesture layer sits BELOW the island content: bar clicks/hoovers reach

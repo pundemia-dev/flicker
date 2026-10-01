@@ -69,7 +69,9 @@ case "$NEMO_WS_URL" in wss://*) _READY_SCHEME="https";; esac
 _READY="$(printf '%s' "$NEMO_WS_URL" | sed -E 's#^wss?://##; s#/.*$##')"
 _READY_HOST="${_READY%%:*}"
 _READY_PORT="${_READY##*:}"
-[[ "$_READY_PORT" == "$_READY" ]] && _READY_PORT=80
+if [[ "$_READY_PORT" == "$_READY" ]]; then
+  case "$NEMO_WS_URL" in wss://*) _READY_PORT=443;; *) _READY_PORT=80;; esac
+fi
 if ! curl -fsS --max-time 3 "${_READY_SCHEME}://${_READY_HOST}:${_READY_PORT}/ready" >/dev/null 2>&1; then
   err "{\"type\":\"error\",\"message\":\"nemo-speech serve not reachable at ${_READY_HOST}:${_READY_PORT} (systemctl --user start nemo-speech)\"}"
   exit 1

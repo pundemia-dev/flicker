@@ -70,6 +70,9 @@ Item {
     // session; consumed by onExited/_finish to start the new one.
     property string _restartLang: ""
     property bool _restarting: false
+    // First segment of a restarted session gets a leading space when the
+    // previous session already typed text (cursor sits right after it).
+    property bool _needLeadingSpace: false
     property bool _dualWarned: false
     readonly property string _runtimeDir: (Quickshell.env("XDG_RUNTIME_DIR") ?? "").length > 0 ? Quickshell.env("XDG_RUNTIME_DIR") : "/tmp"
     readonly property string _stub: `${Quickshell.shellDir}/scripts/dictation/stream-stub.sh`
@@ -115,7 +118,11 @@ Item {
         onExited: (code, tail, sid, watchdogKill) => {
             if (sid !== root._sessionId || !root.active)
                 return;
-            if (code !== 0) {
+            // 130 (SIGINT) / 143 (SIGTERM) while a graceful stop is in
+            // flight: the wrapper died before exec'ing the backend (e.g.
+            // Stop during the curl check) — treat as a normal exit.
+            const ok = code === 0 || ((code === 130 || code === 143) && root._finishing);
+            if (!ok) {
                 // Watchdog kill after a graceful stop: the backend is deaf,
                 // but whatever it flushed is already tailed from the file —
                 // finish normally instead of dropping Refine work in _fail.
@@ -134,11 +141,14 @@ Item {
             // Backend exited on its own (e.g. stub killed, mic died).
             // Pending Refine work must still land: mark finishing so
             // _maybeFinish() can close the session when it drains.
-            // Layout restart consumes the exit instead when armed.
+            // Layout restart consumes the exit instead when armed. Deferred
+            // through a timer: (re)starting a Process from inside its own
+            // onExited is untested territory in Quickshell — a timer fires
+            // from a clean event-loop turn instead.
             root._streamAlive = false;
             if (root._restarting && root._restartLang.length > 0) {
                 if (root._pending === 0) {
-                    root._startSession(root._restartLang);
+                    restartTimer.restart();
                 } else {
                     root._finishing = true;
                     root.phase = "finalizing";
@@ -222,8 +232,9 @@ Item {
         // process still runs would overwrite _runSid and route its late
         // exit into the new session (bogus "stream exit 137"). Refuse;
         // the user retries once the old process reaps (milliseconds).
-        if (stream.running || recProc.running || transProc.running) {
+        if (stream.running || stream.starting || recProc.running || transProc.running) {
             console.warn("[Dictation] backend still stopping, start ignored");
+            root.lastError = "backend still stopping — try again";
             return;
         }
         const sc = (root.streamCommand ?? "").trim();
@@ -253,13 +264,19 @@ Item {
             recProc.running = true;
             return;
         }
-        root._startSession(root._effectiveLang());
+        root._startSession(root._effectiveLang(), false);
     }
 
-    // Streaming session body (also the layout-restart entry: bypasses the
-    // active/running guards — the old backend is already out by then).
-    // Never erases typed text: the cursor stays after the previous session.
-    function _startSession(lang: string): void {
+    // Streaming session body (also the layout-restart entry).
+    // Never erases typed text: the cursor stays after the previous session,
+    // so a restarted session arms a leading space for its first segment.
+    function _startSession(lang: string, isRestart: bool): void {
+        if (isRestart) {
+            const prev = typer.typedText ?? "";
+            root._needLeadingSpace = prev.length > 0 && !/\s$/.test(prev);
+        } else {
+            root._needLeadingSpace = false;
+        }
         root._sessionId += 1;
         root.lastError = "";
         root._committed = "";
@@ -281,12 +298,9 @@ Item {
         const session = `${root._runtimeDir}/pillShell-dictation-${Date.now()}.jsonl`;
         root._sessionFile = session;
         stream.sessionId = root._sessionId;
-        // Touch before the Loader binds FileView AND before the backend
-        // spawns (both are async; whoever wins, the file exists early).
-        stream.prepare(session);
-        stream.sessionFile = session;
-        stream.start(`DICT_LANG='${root._sessionLang}' DICT_CHUNK_MS=${root.chunkMs} DICT_SESSION_FILE='${session}' ${cmd}`);
-        // Grey wave until the backend acks (ready) or audio flows.
+        // Chained start (touch → FileView bind → backend): exact order,
+        // never a same-tick race on the missing file.
+        stream.prepareAndStart(session, `DICT_LANG='${root._sessionLang}' DICT_CHUNK_MS=${root.chunkMs} DICT_SESSION_FILE='${session}' ${cmd}`);
         root.phase = "switching";
         root.active = true;
         root._streamAlive = true;
@@ -327,6 +341,9 @@ Item {
         if (!root.active)
             return;
         root._sessionId += 1;
+        // Invalidate any chained backend start (touchProc completion checks
+        // the stream sid and aborts on mismatch).
+        stream.sessionId = root._sessionId;
         root._restarting = false;
         root._restartLang = "";
         refine.abort();
@@ -438,6 +455,12 @@ Item {
         }
         // Echo suppression lives in the Python backend (delta-gated), not
         // here: a QML time-window would also eat genuine quick repeats.
+        // Restart seam: the cursor sits right after the previous session's
+        // text, so the first committed segment gets a leading space.
+        if (root._needLeadingSpace && (text ?? "").length > 0) {
+            text = ` ${text}`;
+            root._needLeadingSpace = false;
+        }
         root._shiftPending();
         root._committed = root._committed.length > 0 ? `${root._committed} ${text}` : text;
         root.lastTranscript = text;
@@ -460,27 +483,48 @@ Item {
     }
 
     function _finish(): void {
-        // Layout restart consumes the finish: start the new session instead
-        // of going idle (old session file is removed first).
+        // Layout restart consumes the finish: the old session file is
+        // dropped, then the new session starts in place. `active` is never
+        // touched on this path, so the indicator and wave don't blink.
         const rl = (root._restarting && root._restartLang.length > 0) ? root._restartLang : "";
+        if (rl.length > 0) {
+            root._removeSessionFile(root._sessionFile);
+            root._sessionFile = "";
+            stream.sessionFile = "";
+            root._startSession(rl, true);
+            return;
+        }
         root._finishing = false;
         root._streamAlive = false;
         root._pending = 0;
         root._pendingTexts = [];
         root.phase = "idle";
         root.active = false;
+        // Invalidate any chained backend start still in flight (touch done,
+        // backend not yet spawned — e.g. Stop pressed within milliseconds of
+        // Start): its sid check aborts instead of spawning into idle.
+        root._sessionId += 1;
+        stream.sessionId = root._sessionId;
         root._removeSession(root._sessionFile);
         root._sessionFile = "";
         stream.sessionFile = "";
-        if (rl.length > 0) {
-            root._startSession(rl);
-            return;
+    }
+
+    // Deferred restart entry: starting the backend from a timer keeps us
+    // out of any Process onExited context (see onExited above).
+    Timer {
+        id: restartTimer
+        interval: 60
+        onTriggered: {
+            if (root._restarting && root._restartLang.length > 0 && root.active)
+                root._startSession(root._restartLang, true);
         }
     }
 
     function _fail(msg: string): void {
         console.warn("[Dictation]", msg);
         root._sessionId += 1;
+        stream.sessionId = root._sessionId;
         root._restarting = false;
         root._restartLang = "";
         refine.abort();
@@ -519,11 +563,15 @@ Item {
         return root._migrateTmp(root.captureFile, "pillShell-dictation.wav");
     }
 
+    function _removeSessionFile(path: string): void {
+        if ((path ?? "").length === 0)
+            return;
+        rmProc.command = ["rm", "-f", path];
+        rmProc.running = true;
+    }
+
     function _removeSession(path: string): void {
-        if ((path ?? "").length > 0) {
-            rmProc.command = ["rm", "-f", path];
-            rmProc.running = true;
-        }
+        root._removeSessionFile(path);
         // Legacy wav holds raw audio: drop it, but only when the legacy
         // path actually ran (no pointless rm per streaming session, and no
         // early-return skipping the wav when there was no session file).

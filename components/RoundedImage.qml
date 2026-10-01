@@ -24,6 +24,12 @@ Item {
         fillMode: Image.PreserveAspectCrop
         asynchronous: true
         visible: false
+        // Decode-side downscale to ~2x display size (CPU, high quality):
+        // GPU-only minification of a large source shimmers with grain,
+        // especially through the MultiEffect sampler (no mipmaps there).
+        smooth: true
+        mipmap: true
+        sourceSize: Qt.size(Math.max(1, Math.ceil(root.width * 2)), Math.max(1, Math.ceil(root.height * 2)))
     }
 
     // Rounded-rect mask rendered to a texture for MultiEffect (invisible).
