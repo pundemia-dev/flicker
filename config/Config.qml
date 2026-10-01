@@ -36,7 +36,9 @@ Singleton {
                     minimalWidth: 60,
                     minimalHeight: 6,
                     minimalRadius: 4,
-                    topMargin: 10
+                    topMargin: 10,
+                    haloWidth: 2,
+                    haloBorder: 2
                 })
             property var timings: ({
                     minimalIdleMs: 3000,
@@ -79,7 +81,8 @@ Singleton {
             property var arcs: ({
                     radius: 18,
                     thickness: 3,
-                    margin: 6
+                    margin: 6,
+                    glowWidth: 12
                 })
             property var corners: ({
                     enabled: true,
@@ -96,7 +99,16 @@ Singleton {
                     onlyUrgentToast: true,
                     centerStripeHeight: 5,
                     centerStripeWidth: 10,
-                    historyLimit: 50
+                    historyLimit: 50,
+                    // Flow toast lifetime: alone vs. with more queued behind.
+                    flowShowMs: 5000,
+                    flowShowQueuedMs: 3000,
+                    // Collapse-to-bar pause between queued flow cards.
+                    flowSwapGapMs: 300,
+                    // Notification card: left avatar/icon diameter; the app-icon
+                    // badge overlapping the avatar's bottom-right rim.
+                    avatarSize: 56,
+                    badgeSize: 16
                 })
             property var battery: ({
                     warnPercent: 50,
@@ -124,7 +136,65 @@ Singleton {
                 })
             property var dictation: ({
                     captureFile: "/tmp/pillShell-dictation.wav",
-                    transcribeCommand: ""
+                    transcribeCommand: "",
+                    // STT language: "auto" lets the engine detect ru/en on the
+                    // fly; "ru"/"en" pins it (faster + more accurate).
+                    language: "auto",
+                    // Pacing hint for the test stub backend (DICT_CHUNK_MS).
+                    // The realtime backend reads the mic in small fixed
+                    // frames and the model's own chunking lives server-side
+                    // (`nemo-speech serve`), so this changes no ASR latency.
+                    chunkMs: 800,
+                    // Streaming backend: "" = legacy batch (pw-record +
+                    // transcribeCommand), "stub" = built-in test emitter,
+                    // otherwise a shell command printing JSONL partial/final
+                    // lines (see scripts/dictation/stream-nemotron.sh).
+                    streamCommand: "stub",
+                    // Text->text segment finalizer (receives segment as $1,
+                    // lang as $2, stdout = improved text). "" = skip.
+                    finalizerCommand: "",
+                    // Gemma 4 E2B Refine over llama-server (OpenAI-compatible).
+                    refineEnabled: false,
+                    refineUrl: "http://127.0.0.1:8080/v1/chat/completions",
+                    refineModel: "gemma-4-E2B-it-Q4_K_M",
+                    refinePrompt: "Ты — движок чистки диктовки, а не чат-бот. Выведи ТОЛЬКО очищенный текст.",
+                    refineTimeoutS: 15,
+                    // Typing is wtype-only (no clipboard path by decision).
+                    // typeEnabled false = headless/dry-run (no typing).
+                    typeEnabled: true,
+                    typeDelayMs: 0,
+                    // Follow the compositor keyboard layout: the session
+                    // language comes from services/KeyboardLayout (mapped
+                    // through layout2lang) instead of `language` below.
+                    // Unmapped/unknown layouts fall back to `language`.
+                    followLayout: true,
+                    // Layout-switch mode: "restart" (stop with flush, start
+                    // a new session in the new language — fast, but a
+                    // mid-utterance switch splits the phrase). "dual"
+                    // (hot ru+en sessions, zero-latency routing) is PLANNED,
+                    // not implemented — anything but "restart" warns and
+                    // behaves as "restart".
+                    switchMode: "restart",
+                    // XKB layout → ASR language. Keyed by short code ("us")
+                    // or full name ("English (US)"); extend for your setup.
+                    layout2lang: ({
+                        us: "en",
+                        ru: "ru",
+                        "English (US)": "en",
+                        "Russian": "ru"
+                    }),
+                    // Stop watchdog: a backend deaf to SIGINT is SIGKILLed
+                    // after this. Budget: terminate+drain+commit+~2.5s
+                    // trailing decode + margin. A watchdog kill during a
+                    // graceful stop finishes off the tailed file, not _fail.
+                    stopTimeoutMs: 7000,
+                    logFile: "/tmp/pillShell-dictation.jsonl",
+                    // Hallucination drop-list: keep SHORT and engine-
+                    // specific. Whole-match only, but a real utterance
+                    // equal to a list entry is still dropped silently —
+                    // Nemotron (unlike Whisper) is not known to emit such
+                    // phrases, so the default stays empty.
+                    hallucinations: []
                 })
             property var compositor: ({
                     pollMs: 1200

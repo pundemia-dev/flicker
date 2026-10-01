@@ -15,7 +15,12 @@ QtObject {
     readonly property color accentYellow: "#D8BE52"
     readonly property color accentOrange: "#E58B4D"
     readonly property color waveColor: "#A8C1FF"
+    // Dictation wave while the backend is (re)starting and no model is
+    // loaded yet: neutral grey instead of the live blue.
+    readonly property color waveDim: "#6E7683"
     readonly property color arcTrack: "#6E7681"
+    readonly property color arcGlow: "#2E000000"
+    readonly property color islandHalo: "#01FFFFFF"
     // Dashboard cards (dark widgets on the true-black island body).
     readonly property color cardBg: "#1C1C1E"
     readonly property color cardTrack: "#2C2C2E"

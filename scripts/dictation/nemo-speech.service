@@ -1,0 +1,25 @@
+[Unit]
+Description=Nemotron 3.5 ASR streaming server for pillShell dictation
+
+# NOTE: no After=pipewire.service — the server never touches the mic itself
+# (the dictation backend streams PCM to it); it only needs the network loop.
+# NOTE: this keeps the ~0.6B model resident in RAM at all times. That is a
+# conscious latency tradeoff; stop/disable the unit if you want on-demand
+# loading instead.
+
+# Lives in the pillShell repo; enable via symlink (paths use %h = $HOME):
+#   ln -s ~/.config/quickshell/pillShell/scripts/dictation/nemo-speech.service \
+#         ~/.config/systemd/user/nemo-speech.service
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now nemo-speech
+# Health: curl http://127.0.0.1:8090/ready
+# NOTE: pillShell Refine (llama-server) keeps :8080; the ASR server is on :8090.
+
+[Service]
+ExecStart=%h/.local/bin/nemo-speech serve --asr-model %h/.cache/nemo-speech/models/nvidia/nemotron-3.5-asr-streaming-0.6b.q8_0.gguf --host 127.0.0.1 --port 8090 --device cpu
+Restart=on-failure
+RestartSec=5
+Environment=NEMO_SPEECH_MODEL_DIR=%h/.cache/nemo-speech/models
+
+[Install]
+WantedBy=default.target

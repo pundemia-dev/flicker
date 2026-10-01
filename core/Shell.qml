@@ -18,7 +18,8 @@ Scope {
     Brightness { id: brightnessService }
     Notifications { id: notificationsService }
     Recorder { id: recorderService }
-    Dictation { id: dictationService }
+    Dictation { id: dictationService; keyboardLayout: keyboardLayoutService }
+    KeyboardLayout { id: keyboardLayoutService }
     SystemUsage { id: systemUsageService }
     Weather { id: weatherService }
 
