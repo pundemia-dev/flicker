@@ -75,8 +75,6 @@ Item {
     Component {
         id: captureComp
         CaptureModule {
-            compositor: root.services.compositor
-            recorder: root.services.recorder
             onCloseRequested: root.closeRequested()
         }
     }
@@ -100,6 +98,7 @@ Item {
             players: root.services.players
             systemUsage: root.services.systemUsage
             weather: root.services.weather
+            sensors: root.services.sensors
             theme: root.services.theme
             dash: root.services.config.dashboard
             onCloseRequested: root.closeRequested()
@@ -111,6 +110,7 @@ Item {
             players: root.services.players
             theme: root.services.theme
             cfg: root.services.config.dashboard
+            surfaceRadius: root.services.config.island.radius
             onCloseRequested: root.closeRequested()
         }
     }
@@ -134,11 +134,10 @@ Item {
     }
     Component {
         id: recordingActionsComp
-        ActionButtonsModule {
-            kind: "recording"
+        RecordingActionsModule {
             recorder: root.services.recorder
-            network: root.services.network
             theme: root.services.theme
+            cfg: root.services.config.capture
             onCloseRequested: root.closeRequested()
         }
     }

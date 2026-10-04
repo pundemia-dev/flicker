@@ -4,6 +4,7 @@ import "../config"
 import "../services"
 import "../compositor"
 import "../modules/lock"
+import "../modules/capture"
 
 Scope {
     id: root
@@ -21,6 +22,7 @@ Scope {
     Dictation { id: dictationService; keyboardLayout: keyboardLayoutService }
     KeyboardLayout { id: keyboardLayoutService }
     SystemUsage { id: systemUsageService }
+    Sensors { id: sensorsService }
     Weather { id: weatherService }
 
     // Recording is WM-agnostic: the facade delegates to the Recorder service.
@@ -31,6 +33,13 @@ Scope {
 
     LockScope { id: lockScope }
 
+    CaptureScope {
+        id: captureService
+        recorder: recorderService
+        theme: themeService
+        compositor: compositorService
+    }
+
     IslandRegistry { id: islandRegistry }
 
     IslandIpc {
@@ -40,6 +49,8 @@ Scope {
         brightness: brightnessService
         players: playersService
         lock: lockScope
+        capture: captureService
+        recorder: recorderService
     }
 
     Variants {
@@ -65,8 +76,10 @@ Scope {
                 recorder: recorderService
                 dictation: dictationService
                 systemUsage: systemUsageService
+                sensors: sensorsService
                 weather: weatherService
                 lock: lockScope
+                capture: captureService
             }
 
             Corners {

@@ -73,7 +73,13 @@ Item {
         ghost.sourceItem = null;
     }
 
-    Component.onCompleted: commit()
+    Component.onCompleted: {
+        // Created hidden (showing: false): start invisible so the first
+        // showing flip plays the regular blur->fade entrance.
+        if (!root.showing)
+            contentRoot.opacity = 0;
+        commit();
+    }
     onShowingChanged: showing ? inAnim.restart() : outAnim.restart()
     onSwapKeyChanged: {
         if (showing)

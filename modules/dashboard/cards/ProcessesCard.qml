@@ -2,8 +2,9 @@ import QtQuick
 import QtQuick.Layouts
 import "../../../components"
 
-// Top CPU consumers from the SystemUsage service, each with a load-colored
-// mini bar. Shows a gathering-data placeholder until the first ps sample.
+// Top CPU consumers (4x1, iOS stat tiles): three equal columns, each with
+// the load as a big load-coloured number, the process name and a mini bar,
+// separated by hairlines. Placeholder until the first ps sample.
 DashboardCard {
     id: root
     required property var systemUsage
@@ -12,13 +13,10 @@ DashboardCard {
     readonly property int spanCols: 4
     readonly property int spanRows: 1
 
-    readonly property var rows: (systemUsage?.topProcesses) ?? []
+    readonly property int _slots: 3
+    readonly property var rows: ((systemUsage?.topProcesses) ?? []).slice(0, _slots)
 
-    // Grid-first: show as many 18px rows as fit the allocated height.
-    readonly property real _innerH: root.height - 2 * ((root.dash?.cardPadding) ?? 10)
-    readonly property int _maxRows: Math.max(1, Math.floor((_innerH - ((root.dash?.titleSize) ?? 13) * 1.3) / 21))
-
-    function barColor(cpu: real): color {
+    function loadColor(cpu: real): color {
         if (cpu >= 20)
             return root.theme?.accentRed ?? "#E4483E";
         if (cpu >= 10)
@@ -26,53 +24,70 @@ DashboardCard {
         return root.theme?.accentGreen ?? "#3DBD4E";
     }
 
-    ColumnLayout {
+    Text {
+        anchors.centerIn: parent
+        visible: root.rows.length === 0
+        text: "Сбор данных…"
+        color: root.theme?.cardDim ?? "#99EBEBF5"
+        font.pixelSize: root.dash?.titleSize ?? 13
+    }
+
+    RowLayout {
         anchors.fill: parent
         anchors.margins: root.dash?.cardPadding ?? 10
-        spacing: 3
-
-        CardTitle {
-            label: "Активные процессы"
-            theme: root.theme
-            dash: root.dash
-        }
-
-        Text {
-            visible: root.rows.length === 0
-            text: "Сбор данных…"
-            color: root.theme?.cardDim ?? "#99EBEBF5"
-            font.pixelSize: root.dash?.titleSize ?? 13
-        }
+        spacing: 0
+        visible: root.rows.length > 0
 
         Repeater {
-            model: root.rows.slice(0, root._maxRows)
+            model: root._slots
             delegate: RowLayout {
-                required property var modelData
+                id: slot
+                required property int index
+                readonly property var proc: root.rows[slot.index] ?? null
                 Layout.fillWidth: true
-                Layout.preferredHeight: 18
-                spacing: 10
+                Layout.fillHeight: true
+                Layout.preferredWidth: 1
+                spacing: 0
 
-                Text {
-                    text: modelData.name ?? ""
-                    color: "white"
-                    font.pixelSize: root.dash?.titleSize ?? 13
-                    elide: Text.ElideRight
+                Rectangle {
+                    Layout.preferredWidth: 1
+                    Layout.fillHeight: true
+                    Layout.topMargin: 6
+                    Layout.bottomMargin: 6
+                    color: root.theme?.cardTrack ?? "#2C2C2E"
+                    visible: slot.index > 0
+                }
+                ColumnLayout {
                     Layout.fillWidth: true
-                }
-                MiniBar {
-                    theme: root.theme
-                    Layout.preferredWidth: 48
                     Layout.alignment: Qt.AlignVCenter
-                    value: (modelData.cpu ?? 0) / 100
-                    fill: root.barColor(modelData.cpu ?? 0)
-                }
-                Text {
-                    text: `${Math.round(modelData.cpu ?? 0)}%`
-                    color: root.theme?.cardDim ?? "#99EBEBF5"
-                    font.pixelSize: root.dash?.titleSize ?? 13
-                    font.weight: Font.DemiBold
-                    horizontalAlignment: Text.AlignRight
-                    Layout.preferredWidth: 28
+                    Layout.leftMargin: slot.index > 0 ? 10 : 0
+                    Layout.rightMargin: slot.index < root._slots - 1 ? 10 : 0
+                    spacing: 1
+                    opacity: slot.proc ? 1 : 0
+
+                    // Changed digits roll (up on increase, down on decrease).
+                    RollingText {
+                        text: `${Math.round(slot.proc?.cpu ?? 0)}%`
+                        color: root.loadColor(slot.proc?.cpu ?? 0)
+                        pixelSize: 20
+                        weight: Font.DemiBold
+                    }
+                    Text {
+                        Layout.fillWidth: true
+                        text: slot.proc?.name ?? ""
+                        color: root.theme?.cardDim ?? "#99EBEBF5"
+                        font.pixelSize: (root.dash?.titleSize ?? 13) - 1
+                        elide: Text.ElideRight
+                    }
+                    MiniBar {
+                        theme: root.theme
+                        Layout.fillWidth: true
+                        Layout.topMargin: 4
+                        height: 4
+                        radius: 2
+                        value: (slot.proc?.cpu ?? 0) / 100
+                        fill: root.loadColor(slot.proc?.cpu ?? 0)
+                    }
                 }
             }
         }

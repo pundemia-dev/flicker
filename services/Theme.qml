@@ -40,4 +40,8 @@ QtObject {
     // Icon glyph font (fc family "tabler-icons"; the filled media-control set
     // lives in the U+F6xx plane: prev f697 pause f690 play f691 next f696).
     readonly property string iconFamily: "tabler-icons"
+    // Capture overlay: screen dim, crosshair and selection frame.
+    readonly property color captureDim: "#000000"
+    readonly property color captureCross: "#E9ECF1"
+    readonly property color captureSelection: "#E9ECF1"
 }

@@ -18,6 +18,9 @@ import "../components"
 //       duration: 300,                // timed curves only
 //       curve: "spring"               // "spring" (default) or Easing.Type
 //   })
+//   readonly property var sharedTransitions // optional: { module: contract }
+//                                     // when one element serves several
+//                                     // modules (wins over sharedTransition)
 //   function restoreShared()          // re-binds the element at home
 //   readonly property Item sharedHome      // optional: exact home box
 //                                     // (default: the owner itself)
@@ -129,9 +132,18 @@ Item {
         }
     }
 
+    // Contract `owner` offers for module `name` (null = none).
+    function contractFor(owner: var, name: string): var {
+        const many = owner?.sharedTransitions?.[name];
+        if (many)
+            return many;
+        const one = owner?.sharedTransition;
+        return one?.target === name ? one : null;
+    }
+
     // Bar -> module. `owner` carries the contract and the element.
-    function launch(owner: Item): void {
-        const c = owner?.sharedTransition;
+    function launch(owner: Item, name: string): void {
+        const c = root.contractFor(owner, name);
         const element = owner?.sharedElement;
         if (!c || !element)
             return;

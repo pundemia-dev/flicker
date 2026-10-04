@@ -37,12 +37,26 @@ Item {
         shotProc.running = true;
     }
 
-    function runRegionCapture(mode: string): void {
-        // slurp picks the region, grim captures it. The "ai" file is a plain
-        // screenshot meant for a later NN pipeline (no AI command wired yet).
-        const file = mode === "ai" ? Config.data.capture.aiFile : Config.data.capture.screenshotFile;
-        regionProc.command = ["bash", "-lc", `grim -g "$(slurp)" ${file}`];
-        regionProc.running = true;
+    // Windows of the output's active workspace, from the last poll:
+    // tile_pos_in_workspace_view + window_offset_in_tile (output-local
+    // logical). Windows without a view position (offscreen) are skipped.
+    function windowRects(name: string): var {
+        const ws = (root.workspaces ?? []).find(w => w.output === name && w.is_active);
+        if (!ws || !Array.isArray(root.windows))
+            return [];
+        return root.windows.filter(w => w.workspace_id === ws.id && w.layout?.tile_pos_in_workspace_view).map(w => {
+            const pos = w.layout.tile_pos_in_workspace_view;
+            const off = w.layout.window_offset_in_tile ?? [0, 0];
+            const size = w.layout.window_size ?? [0, 0];
+            return {
+                x: pos[0] + off[0],
+                y: pos[1] + off[1],
+                width: size[0],
+                height: size[1],
+                focused: w.is_focused === true,
+                title: w.title ?? ""
+            };
+        }).sort((a, b) => (b.focused ? 1 : 0) - (a.focused ? 1 : 0));
     }
 
     function outputsMap(raw: var): var {
@@ -117,7 +131,6 @@ Item {
 
     Process { id: spawnProc }
     Process { id: shotProc }
-    Process { id: regionProc }
 
     Process {
         id: windowsProc

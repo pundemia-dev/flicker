@@ -5,7 +5,7 @@ import "../../../components"
 // CPU / RAM / disk as three concentric rings + legend. Layout: fixed title
 // row pinned top-left, bottom row = square indicator box (left, as large as
 // fits) + legend column taking the remaining width with auto-scaled fonts.
-// Spans 2 rows in the grid (see DashboardModule for its width).
+// 2x2 square in the grid (see DashboardModule).
 DashboardCard {
     id: root
     required property var systemUsage
@@ -24,7 +24,7 @@ DashboardCard {
     // the legend keeps its target width, which keeps its text size fixed —
     // shrinking the card scales the rings, never the text.
     readonly property real _pad: (dash?.cardPadding) ?? 10
-    readonly property real _titleEst: Math.ceil(((dash?.titleSize) ?? 13) * 2.7)
+    readonly property real _titleEst: Math.ceil(((dash?.titleSize) ?? 13) * 1.4)
     readonly property real _colGap: 6
     readonly property real _rowGap: 12
     readonly property real _legendTarget: 32
@@ -57,7 +57,7 @@ DashboardCard {
 
             CardTitle {
                 Layout.fillWidth: true
-                label: "Нагрузка\nсистемы"
+                label: "Нагрузка"
                 theme: root.theme
                 dash: root.dash
             }
@@ -147,13 +147,12 @@ DashboardCard {
 
         spacing: 0
 
-        Text {
+        // Changed digits roll (up on increase, down on decrease).
+        RollingText {
             text: `${metric.value}%`
             color: metric.color
-            font.pixelSize: metric.valueFs
-            font.weight: Font.DemiBold
-            elide: Text.ElideRight
-            Layout.fillWidth: true
+            pixelSize: metric.valueFs
+            weight: Font.DemiBold
         }
         Text {
             text: metric.unit

@@ -14,6 +14,8 @@ Scope {
     required property var brightness
     required property var players
     required property var lock
+    required property var capture
+    required property var recorder
 
     readonly property var island: root.registry.forOutput(root.compositor?.focusedOutput ?? "")
 
@@ -22,8 +24,28 @@ Scope {
         function launcher(): void { root.island?.openLauncher(); }
         function quicksettings(): void { root.island?.openQuickSettings(); }
         function notifications(): void { root.island?.openNotificationCenter(); }
-        function capture(): void { root.island?.openCapture(); }
-        function dashboard(): void { root.island?.openModule("dashboard", {}); }
+        function capture(): void { root.island?.openCapture(""); }
+        // shot | record | color | window | ai (while open: switch to it).
+        function captureMode(mode: string): void { root.island?.openCapture(mode); }
+        // While capturing: the active screen's main action (Enter) / abort.
+        function captureScreen(): void { root.capture.confirm(); }
+        function captureCancel(): void { root.capture.cancel(); }
+        // Instant full-output screenshot of the focused output, no overlay.
+        function screenshot(): void { root.capture.actions.screenshotOutput(root.island?.screen?.name ?? ""); }
+        // Recording: toggle (stop, or open capture in record mode) / pause.
+        function record(): void {
+            if (root.recorder.recording)
+                root.recorder.stop();
+            else
+                root.island?.openCapture("record");
+        }
+        function recordPause(): void { root.recorder.togglePause(); }
+        // Recording controls in the island (= clicking the red clock plate).
+        function recordControls(): void {
+            if (root.recorder.recording)
+                root.island?.openModule("recording-actions", {});
+        }
+        function dashboard(): void { root.island?.openDashboard(); }
         function player(): void { root.island?.openModule("player", {}); }
         function lock(): void { root.lock.activate(); }
         function close(): void {

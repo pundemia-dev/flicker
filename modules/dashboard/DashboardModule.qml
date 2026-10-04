@@ -1,23 +1,24 @@
 import QtQuick
-import QtQuick.Layouts
 import "../../components"
 import "./cards"
 
-// Dashboard: grid-first layout. The grid is 6 columns x 4 rows of cards
-// (Config.dashboard.unit = one square side, px); a fixed 1-unit header
-// block sits above it. Each card hardcodes its footprint (spanCols/spanRows
-// in its own file), positions are explicit below, and card sizes are
-// locked via min=max=preferred = spanPx(span) — bare preferred loses to
-// fillWidth stretch + content minimums and columns split unevenly. Card
-// content adapts to the allocated rect (adaptive fonts, row counts, ring
-// geometry) — never the reverse. Island size in config must match:
-// 2*margins + header + gap + 4*unit + 3*gap (currently 538x450).
+// Dashboard: grid-first layout. A thin header strip (time left, date right,
+// Config.dashboard.headerHeight) sits above an 8 x 3 grid of square cells
+// (Config.dashboard.unit = cell side, px). Each card hardcodes its footprint
+// (spanCols/spanRows in its own file); positions are explicit below via
+// cellX/cellY, sizes via spanPx — no GridLayout stretch to fight. Card
+// content adapts to the allocated rect, never the reverse. Island size in
+// config must match: W = 2*margins + 8*unit + 7*gap,
+// H = 2*margins + header + gap + 3*unit + 2*gap (currently 714x322).
 //
-// 6x4 plan (C = columns span, R = rows span):
-//   row 0: weather (4x1) + system (2x2)
-//   row 1: battery (4x1) + system
-//   row 2: updates (2x1) + media (4x1)
-//   row 3: events (2x1) + processes (4x1)
+// 8x3 plan (mixed shapes; the 2x2 squares are staggered across rows so
+// no row reads as a line of identical squares):
+//   K K W W W W M M     K = calendar 2x2,    W = weather 4x1
+//   K K S S B B M M     M = media 2x2,       S = system 2x2
+//   T T S S P P P P     B = battery 2x1,     P = processes 4x1
+//                       T = sensors 2x1 (CPU °C + fans)
+// Updates/Events cards stay in cards/ but are off the grid (empty states
+// only until their backends exist).
 //
 // NOTE: no Flickable / fullscreen MouseArea here, deliberately. The
 // swipe-up module close is handled by GestureZones BELOW the island
@@ -32,138 +33,112 @@ Item {
     property var players: null
     property var systemUsage: null
     property var weather: null
+    property var sensors: null
     property var theme: null
     property var dash: null
 
     readonly property real _unit: (dash?.unit) ?? 80
-    readonly property int _cols: (dash?.cols) ?? 5
-    readonly property real _margins: (dash?.margins) ?? 14
-    readonly property real _spacing: (dash?.spacing) ?? 12
+    readonly property real _margins: (dash?.margins) ?? 9
+    readonly property real _spacing: (dash?.spacing) ?? 8
+    readonly property real _headerH: (dash?.headerHeight) ?? 40
+
+    // Shared-element slots (core/TransitionLayer): header time.
+    function sharedSlot(key: string): var {
+        return key === "time" ? header.timeSlot : null;
+    }
 
     // Pixel size of an n-unit span (cells + inner gaps).
     function spanPx(n: int): real {
         return n * root._unit + (n - 1) * root._spacing;
     }
+    function cellX(col: int): real {
+        return col * (root._unit + root._spacing);
+    }
+    function cellY(row: int): real {
+        return row * (root._unit + root._spacing);
+    }
 
-    Column {
-        id: content
-        anchors.fill: parent
-        anchors.margins: root._margins
-        spacing: root._spacing
+    ClockHeader {
+        id: header
+        x: root._margins
+        y: root._margins
+        width: root.width - 2 * root._margins
+        height: root._headerH
+        clock: root.clock
+        theme: root.theme
+        dash: root.dash
+    }
 
-        ClockHeader {
-            width: parent.width
-            height: root._unit
+    Item {
+        id: grid
+        x: root._margins
+        y: header.y + header.height + root._spacing
+        width: root.width - 2 * root._margins
+        height: root.height - y - root._margins
+
+        CalendarCard {
+            x: root.cellX(0)
+            y: root.cellY(0)
+            width: root.spanPx(spanCols)
+            height: root.spanPx(spanRows)
             clock: root.clock
             theme: root.theme
             dash: root.dash
         }
-
-        GridLayout {
-            width: parent.width
-            height: parent.height - root._unit - root._spacing
-            columns: root._cols
-            rowSpacing: root._spacing
-            columnSpacing: root._spacing
-
-            WeatherCard {
-                id: weatherCard
-                Layout.row: 0
-                Layout.column: 0
-                Layout.columnSpan: weatherCard.spanCols
-                Layout.fillWidth: true
-                Layout.preferredWidth: root.spanPx(weatherCard.spanCols)
-                Layout.preferredHeight: root.spanPx(weatherCard.spanRows)
-                weather: root.weather
-                clock: root.clock
-                theme: root.theme
-                dash: root.dash
-            }
-            SystemLoadCard {
-                id: systemCard
-                Layout.row: 0
-                Layout.column: 4
-                Layout.columnSpan: systemCard.spanCols
-                Layout.rowSpan: systemCard.spanRows
-                Layout.fillWidth: true
-                Layout.preferredWidth: root.spanPx(systemCard.spanCols)
-                Layout.minimumWidth: root.spanPx(systemCard.spanCols)
-                Layout.maximumWidth: root.spanPx(systemCard.spanCols)
-                Layout.preferredHeight: root.spanPx(systemCard.spanRows)
-                systemUsage: root.systemUsage
-                theme: root.theme
-                dash: root.dash
-            }
-            BatteryCard {
-                id: batteryCard
-                Layout.row: 1
-                Layout.column: 0
-                Layout.columnSpan: batteryCard.spanCols
-                Layout.fillWidth: true
-                Layout.preferredWidth: root.spanPx(batteryCard.spanCols)
-                Layout.minimumWidth: root.spanPx(batteryCard.spanCols)
-                Layout.maximumWidth: root.spanPx(batteryCard.spanCols)
-                Layout.preferredHeight: root.spanPx(batteryCard.spanRows)
-                battery: root.battery
-                theme: root.theme
-                dash: root.dash
-            }
-
-            UpdatesCard {
-                id: updatesCard
-                Layout.row: 2
-                Layout.column: 0
-                Layout.columnSpan: updatesCard.spanCols
-                Layout.fillWidth: true
-                Layout.preferredWidth: root.spanPx(updatesCard.spanCols)
-                Layout.minimumWidth: root.spanPx(updatesCard.spanCols)
-                Layout.maximumWidth: root.spanPx(updatesCard.spanCols)
-                Layout.preferredHeight: root.spanPx(updatesCard.spanRows)
-                theme: root.theme
-                dash: root.dash
-            }
-            MediaCard {
-                id: mediaCard
-                Layout.row: 2
-                Layout.column: 2
-                Layout.columnSpan: mediaCard.spanCols
-                Layout.fillWidth: true
-                Layout.preferredWidth: root.spanPx(mediaCard.spanCols)
-                Layout.minimumWidth: root.spanPx(mediaCard.spanCols)
-                Layout.maximumWidth: root.spanPx(mediaCard.spanCols)
-                Layout.preferredHeight: root.spanPx(mediaCard.spanRows)
-                players: root.players
-                theme: root.theme
-                dash: root.dash
-            }
-
-            EventsCard {
-                id: eventsCard
-                Layout.row: 3
-                Layout.column: 0
-                Layout.columnSpan: eventsCard.spanCols
-                Layout.fillWidth: true
-                Layout.preferredWidth: root.spanPx(eventsCard.spanCols)
-                Layout.minimumWidth: root.spanPx(eventsCard.spanCols)
-                Layout.maximumWidth: root.spanPx(eventsCard.spanCols)
-                Layout.preferredHeight: root.spanPx(eventsCard.spanRows)
-                theme: root.theme
-                dash: root.dash
-            }
-            ProcessesCard {
-                id: processesCard
-                Layout.row: 3
-                Layout.column: 2
-                Layout.columnSpan: processesCard.spanCols
-                Layout.fillWidth: true
-                Layout.preferredWidth: root.spanPx(processesCard.spanCols)
-                Layout.minimumWidth: root.spanPx(processesCard.spanCols)
-                Layout.maximumWidth: root.spanPx(processesCard.spanCols)
-                Layout.preferredHeight: root.spanPx(processesCard.spanRows)
-                systemUsage: root.systemUsage
-                theme: root.theme
-                dash: root.dash
-            }
+        SensorsCard {
+            x: root.cellX(0)
+            y: root.cellY(2)
+            width: root.spanPx(spanCols)
+            height: root.spanPx(spanRows)
+            sensors: root.sensors
+            theme: root.theme
+            dash: root.dash
+        }
+        WeatherCard {
+            x: root.cellX(2)
+            y: root.cellY(0)
+            width: root.spanPx(spanCols)
+            height: root.spanPx(spanRows)
+            weather: root.weather
+            clock: root.clock
+            theme: root.theme
+            dash: root.dash
+        }
+        SystemLoadCard {
+            x: root.cellX(2)
+            y: root.cellY(1)
+            width: root.spanPx(spanCols)
+            height: root.spanPx(spanRows)
+            systemUsage: root.systemUsage
+            theme: root.theme
+            dash: root.dash
+        }
+        MediaCard {
+            x: root.cellX(6)
+            y: root.cellY(0)
+            width: root.spanPx(spanCols)
+            height: root.spanPx(spanRows)
+            players: root.players
+            theme: root.theme
+            dash: root.dash
+        }
+        BatteryCard {
+            x: root.cellX(4)
+            y: root.cellY(1)
+            width: root.spanPx(spanCols)
+            height: root.spanPx(spanRows)
+            battery: root.battery
+            theme: root.theme
+            dash: root.dash
+        }
+        ProcessesCard {
+            x: root.cellX(4)
+            y: root.cellY(2)
+            width: root.spanPx(spanCols)
+            height: root.spanPx(spanRows)
+            systemUsage: root.systemUsage
+            theme: root.theme
+            dash: root.dash
         }
     }
 }

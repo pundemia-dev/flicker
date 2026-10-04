@@ -18,6 +18,9 @@ Item {
     required property var players
     property var theme: null
     property var cfg: null
+    // Island corner radius: the backdrop fills the whole module and the
+    // island's clip is rectangular, so the art rounds itself.
+    property real surfaceRadius: 0
     signal closeRequested
 
     readonly property var player: players.active
@@ -52,6 +55,29 @@ Item {
         return `${m}:${sec < 10 ? "0" : ""}${sec}`;
     }
 
+    // Backdrop (MediaCard pattern): the album art, heavily blurred, fills
+    // the island; a dark left-to-right scrim keeps the text legible.
+    // Track change crossfades the backdrop (no scale: it fills the
+    // rectangular-clipped island, anything > 1 would poke out the corners).
+    CrossfadeImage {
+        anchors.fill: parent
+        radius: root.surfaceRadius
+        source: root.players.artUrl
+        blur: 1
+        exitFade: false
+        stiffness: 2
+        damp: 0.5
+    }
+    Rectangle {
+        anchors.fill: parent
+        radius: root.surfaceRadius
+        gradient: Gradient {
+            orientation: Gradient.Horizontal
+            GradientStop { position: 0; color: "#66000000" }
+            GradientStop { position: 1; color: "#A6000000" }
+        }
+    }
+
     Row {
         anchors.fill: parent
         // 12 -> 21: module-edge to content gap (spec: x1.75).
@@ -70,7 +96,9 @@ Item {
             readonly property real radius: root.cfg?.cardRadius ?? 13
             property Item docked: null
 
-            RoundedImage {
+            // Track change: the new cover pops in from 0.85 with a small
+            // spring bounce over the old one shrinking away.
+            CrossfadeImage {
                 id: cover
                 anchors.fill: parent
                 visible: coverSlot.docked === null
@@ -79,6 +107,8 @@ Item {
                 fallbackColor: "#2B2F36"
                 fallbackGlyph: "♫"
                 glyphSize: 32
+                enterScale: 0.85
+                exitScale: 0.92
             }
         }
 
@@ -110,7 +140,7 @@ Item {
                     Text {
                         width: parent.width
                         text: root.players.trackArtist
-                        color: "#98A4B6"
+                        color: "#B3EBEBF5"
                         font.pixelSize: 14
                         elide: Text.ElideRight
                     }
@@ -125,7 +155,7 @@ Item {
                     width: 42
                     height: 42
                     radius: 21
-                    color: lyricsMa.containsMouse ? "#39414E" : "#2A303A"
+                    color: lyricsMa.containsMouse ? "#40FFFFFF" : "#26FFFFFF"
 
                     Text {
                         id: lyricsLabel
@@ -185,6 +215,8 @@ Item {
                         width: parent.width
                         height: 8
                         value: root.lengthKnown ? Math.min(1, root.position / root.length) : 0
+                        trackColor: "#33FFFFFF"
+                        fillColor: "#F0F4FB"
                     }
 
                     Item {
@@ -195,13 +227,13 @@ Item {
                             id: elapsedText
                             anchors.left: parent.left
                             text: root.fmtTime(root.position)
-                            color: "#98A4B6"
+                            color: "#B3EBEBF5"
                             font.pixelSize: 12
                         }
                         Text {
                             anchors.right: parent.right
                             text: root.lengthKnown ? `-${root.fmtTime(Math.max(0, root.length - root.position))}` : "—"
-                            color: "#98A4B6"
+                            color: "#B3EBEBF5"
                             font.pixelSize: 12
                         }
                     }
@@ -225,8 +257,8 @@ Item {
             const cx = width / 2, cy = height / 2, r = width / 2;
             ctx.clearRect(0, 0, width, height);
             const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
-            g.addColorStop(0, "#39414E");
-            g.addColorStop(0.85, "#39414E");
+            g.addColorStop(0, "#33FFFFFF");
+            g.addColorStop(0.85, "#33FFFFFF");
             g.addColorStop(1, "transparent");
             ctx.fillStyle = g;
             ctx.beginPath();

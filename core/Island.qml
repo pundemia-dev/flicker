@@ -22,8 +22,11 @@ PanelWindow {
     required property var recorder
     required property var dictation
     required property var systemUsage
+    required property var sensors
     required property var weather
     required property var lock
+    // Capture orchestrator (modules/capture/CaptureScope, shell-level).
+    required property var capture
     // Shared per-screen island registry (IPC routes to the focused output).
     required property var registry
 
@@ -126,6 +129,18 @@ PanelWindow {
         root.haloVisible ? root.heldBottom + root.haloPad + 1 : 0,
         gestureCfg.minimalActiveZoneHeight + 8)
 
+    // Capture: the island background has been handed to the capture square;
+    // the island is invisible (not unmapped) until it replays appearFromEdge.
+    property bool stolen: false
+    // Island size when capture opened: the empty capture module keeps it, so
+    // only the content blur->fades out before the hand-over.
+    property var captureFrom: ({ width: 0, height: 0 })
+    Binding {
+        target: root.contentItem
+        property: "opacity"
+        value: root.stolen ? 0 : 1
+    }
+
     property IslandState state: IslandState {}
     property NotificationQueue notificationQueue: NotificationQueue {}
     // When the flow card currently on screen started showing (for the
@@ -198,6 +213,8 @@ PanelWindow {
         return root.state.activeModule;
     }
     readonly property var moduleSize: {
+        if (root.moduleKey === "capture")
+            return root.captureFrom;
         const all = root.config.modules ?? {};
         const size = all[root.moduleKey] ?? all[root.state.activeModule]
             ?? ({ width: root.islandCfg.moduleWidth, height: root.islandCfg.moduleHeight });
@@ -318,8 +335,8 @@ PanelWindow {
     function openModule(name: string, payload: var): void {
         // Shared element (spec): an indicator handing its element over
         // (payload.shared = contract holder) flies it into the module.
-        if (payload?.shared && payload.shared.sharedTransition?.target === name)
-            transitionLayer.launch(payload.shared);
+        if (payload?.shared && transitionLayer.contractFor(payload.shared, name))
+            transitionLayer.launch(payload.shared, name);
         state.openModule(name, payload);
         // Modules opened from Minimal return there after the idle timeout.
         if (state.currentState === state.module && state.previousState === state.minimal)
@@ -365,6 +382,11 @@ PanelWindow {
         return { notification: notif, mode: "flow", shared: indicators.clockOwner };
     }
 
+    // Dashboard: the bar clock flies into the header's time (shared element).
+    function openDashboard(): void {
+        openModule("dashboard", { shared: indicators.clockOwner });
+    }
+
     function openLauncher(): void {
         openModule("launcher", {});
     }
@@ -373,8 +395,79 @@ PanelWindow {
         openModule("quicksettings", {});
     }
 
-    function openCapture(): void {
+    // Capture (spec): the screens are grabbed first (CaptureScope.begin),
+    // then startCaptureSteal() blur->fades the content out at the current
+    // size and hands the background over (stealForCapture). A second call
+    // while capturing switches/cycles the capture mode.
+    function openCapture(mode: string): void {
+        root.capture.begin(root.screen, root.capture.active || root.capture.grabbing || root.stolen ? null : root, mode ?? "");
+    }
+
+    function startCaptureSteal(): void {
+        root.captureFrom = { width: root.islandWidth, height: root.islandHeight };
         openModule("capture", {});
+    }
+
+    // Grab failed / cancelled before the hand-over.
+    function abortCapture(): void {
+        if (root.state.activeModule === "capture")
+            root.closeModule();
+    }
+
+    // Global band the capture backdrop keeps LIVE (frozen elsewhere): the
+    // island now and as the bar it re-appears as, up to the screen top.
+    function captureHole(): var {
+        const pad = root.config.capture.holePad + root.haloPad;
+        const w = Math.max(islandRect.width, Math.min(root.barFittedWidth, root.islandCfg.maxWidth)) + pad * 2;
+        return {
+            screen: root.screen?.name ?? "",
+            x: (root.screen?.x ?? 0) + (root.width - w) / 2,
+            y: root.screen?.y ?? 0,
+            width: w,
+            height: root.islandCfg.topMargin + Math.max(islandRect.height, root.islandCfg.height) + pad
+        };
+    }
+
+    // The emptied island becomes the capture square: hand the global rect
+    // over, vanish (springs off, so the reset below jumps), and replay
+    // appearFromEdge as the "second instance" — strip slides in from the
+    // top edge and morphs into the bar unless fullscreen.
+    function stealForCapture(): void {
+        if (root.state.activeModule !== "capture")
+            return;
+        const rect = {
+            x: (root.screen?.x ?? 0) + islandRect.x,
+            y: (root.screen?.y ?? 0) + islandRect.y,
+            width: islandRect.width,
+            height: islandRect.height,
+            radius: islandRect.radius
+        };
+        if (!root.capture.steal(rect)) {
+            root.closeModule();
+            return;
+        }
+        root.stolen = true;
+        root.closeModule();
+        root.state.setMinimal();
+        root.started = false;
+        captureReappear.restart();
+    }
+
+    // Steal once the old content has faded (handover + ghost fade-out).
+    Timer {
+        id: captureSteal
+        interval: root.timingCfg.fadeOutMs
+        onTriggered: root.stealForCapture()
+    }
+    onShownModuleChanged: if (root.shownModule === "capture") captureSteal.restart()
+
+    Timer {
+        id: captureReappear
+        interval: root.config.capture.secondIslandDelayMs
+        onTriggered: {
+            root.stolen = false;
+            startupTimer.restart();
+        }
     }
 
     function openLock(): void {
@@ -787,7 +880,7 @@ PanelWindow {
                 return;
             root.dashboardDragging = true;
             if (!root.moduleOpen)
-                root.openModule("dashboard", {});
+                root.openDashboard();
             root.dashboardPreviewDy = dy;
         }
         onDashboardDragReleased: dy => {
@@ -822,10 +915,10 @@ PanelWindow {
         border.color: root.theme.islandRim
         clip: true
 
-        Behavior on width { Spring {} }
-        Behavior on height { Spring {} }
-        Behavior on radius { Spring {} }
-        Behavior on y { Spring {} }
+        Behavior on width { enabled: !root.stolen; Spring {} }
+        Behavior on height { enabled: !root.stolen; Spring {} }
+        Behavior on radius { enabled: !root.stolen; Spring {} }
+        Behavior on y { enabled: !root.stolen; Spring {} }
 
         // Passive hover tracker: keeps a module opened from Minimal alive
         // while the cursor is over it; leaving restarts the idle timeout.
@@ -899,6 +992,7 @@ PanelWindow {
                         recorder: root.recorder,
                         dictation: root.dictation,
                         systemUsage: root.systemUsage,
+                        sensors: root.sensors,
                         weather: root.weather,
                         clock: root.clock,
                         battery: root.battery,
@@ -964,6 +1058,8 @@ PanelWindow {
                 ticker: root.tickerVisible,
                 contentKey: root.contentKey,
                 locked: root.lock.locked,
+                stolen: root.stolen,
+                capture: root.capture.debugInfo(),
                 queue: root.notificationQueue.size,
                 notifCount: (root.notifications.history ?? []).length,
                 notifs: (root.notifications.history ?? []).slice(0, 5).map(n => ({

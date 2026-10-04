@@ -35,10 +35,26 @@ Item {
         shotProc.running = true;
     }
 
-    function runRegionCapture(mode: string): void {
-        const file = mode === "ai" ? Config.data.capture.aiFile : Config.data.capture.screenshotFile;
-        regionProc.command = ["bash", "-lc", `grim -g "$(slurp)" ${file}`];
-        regionProc.running = true;
+    // driftwm canvas: window `position` is its CENTRE in canvas coords, the
+    // output `camera` is the viewport centre (verified against a grim shot).
+    property var lastState: null
+    function windowRects(name: string): var {
+        const st = root.lastState;
+        const out = (st?.outputs ?? []).find(o => o?.name === name);
+        if (!st || !out)
+            return [];
+        const zoom = out.zoom ?? 1;
+        const cam = out.camera ?? [0, 0];
+        const osize = out.size ?? [0, 0];
+        return (st.windows ?? []).filter(w => w?.position && w?.size).map(w => ({
+                    x: (w.position[0] - cam[0]) * zoom + osize[0] / 2 - w.size[0] * zoom / 2,
+                    y: (w.position[1] - cam[1]) * zoom + osize[1] / 2 - w.size[1] * zoom / 2,
+                    width: w.size[0] * zoom,
+                    height: w.size[1] * zoom,
+                    focused: w.is_focused === true,
+                    title: w.title ?? ""
+                })).filter(r => r.x < osize[0] && r.y < osize[1] && r.x + r.width > 0 && r.y + r.height > 0)
+            .sort((a, b) => (b.focused ? 1 : 0) - (a.focused ? 1 : 0));
     }
 
     // Window size >= output size (±2px) at zoom 1, centred on the output's
@@ -60,6 +76,7 @@ Item {
     function apply(st: var): void {
         if (!st)
             return;
+        root.lastState = st;
         const outputs = Array.isArray(st.outputs) ? st.outputs : [];
         const fsOutputs = (Array.isArray(st.fullscreen) ? st.fullscreen : []).map(f => f?.output ?? "");
         const byOutput = {};
@@ -88,7 +105,6 @@ Item {
 
     Process { id: spawnProc }
     Process { id: shotProc }
-    Process { id: regionProc }
 
     Process {
         id: initProc

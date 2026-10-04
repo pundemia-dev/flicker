@@ -25,21 +25,36 @@ Item {
 
     property bool showIcon: false
 
-    // Shared element contract (core/TransitionLayer): the time flies into
-    // the notification flow card's "time" slot and becomes that card's
-    // arrival time (text/colour/size come from the slot). Not offered while
-    // the recording/hotspot plate replaces the clock face.
+    // Shared element contracts (core/TransitionLayer), per target module.
+    // Not offered while the recording/hotspot plate replaces the clock face.
+    //  - notifications: the time flies into the flow card's "time" slot and
+    //    becomes that card's arrival time (text/colour/size from the slot).
+    //  - dashboard: flies into the header's time and grows to its size;
+    //    text is NOT in the contract, so the label's live binding keeps
+    //    ticking while docked.
     readonly property Item sharedElement: clockLabel
-    readonly property var sharedTransition: ({
-            target: "notifications",
-            slot: "time",
-            properties: {
-                text: "slot",
-                color: "slot",
-                "font.pixelSize": "slot",
-                "font.weight": "slot"
+    readonly property var sharedTransitions: ({
+            notifications: {
+                target: "notifications",
+                slot: "time",
+                properties: {
+                    text: "slot",
+                    color: "slot",
+                    "font.pixelSize": "slot",
+                    "font.weight": "slot"
+                },
+                curve: "spring"
             },
-            curve: "spring"
+            dashboard: {
+                target: "dashboard",
+                slot: "time",
+                properties: {
+                    color: "slot",
+                    "font.pixelSize": "slot",
+                    "font.weight": "slot"
+                },
+                curve: "spring"
+            }
         })
     // Exact home box (the label's natural box, centred) + live home values,
     // so the return flight lands on the CURRENT time, not the launch one.

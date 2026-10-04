@@ -11,5 +11,5 @@ QtObject {
     function releaseFocus(): void {}
     function spawn(cmd: string): void {}
     function screenshot(region: string): void {}
-    function runRegionCapture(mode: string): void {}
+    function windowRects(name: string): var { return []; }
 }

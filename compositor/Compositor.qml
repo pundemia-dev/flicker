@@ -39,8 +39,11 @@ Item {
     function releaseFocus(): void { backend.releaseFocus(); }
     function spawn(cmd: string): void { backend.spawn(cmd); }
     function screenshot(region: string): void { backend.screenshot(region); }
-    function runRegionCapture(mode: string): void { backend.runRegionCapture(mode); }
-    function startRecording(region: string): void { recorder?.start(region); }
+    // Capture "window" mode: visible windows on an output as output-local
+    // logical rects [{x, y, width, height, focused, title}] (topmost first
+    // where known). Empty = unsupported (the mode is hidden).
+    function windowRects(name: string): var { return backend.windowRects?.(name) ?? []; }
+    function startRecording(region: string): void { recorder?.start(region, ""); }
     function stopRecording(): void { recorder?.stop(); }
 
     Niri { id: niriBackend; active: root.detect.backendName === "niri" }

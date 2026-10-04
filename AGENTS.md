@@ -24,14 +24,16 @@ Not a git repo. No tests, no linter, no formatter.
   mismatched radii!) and IPC routing between them is ambiguous. Before starting
   one, check BOTH forms: `pgrep -af "quickshell|qs -c"`. Kill yours immediately
   after (`kill <PID>`, literal PID — `pkill -f`/subshell kills are blocked).
-- Visual check: `grim /tmp/shot.png`, crop top-center. NOTE: grim takes ~1.9s to
-  capture, which exceeds the OSD auto-close (1.3s) — temporarily raise
-  `timings.osdAutoCloseMs` in config.json when screenshotting short-lived states.
+- Visual check: `grim /tmp/shot.png`, crop top-center. grim is fast here now (Oct 2026:
+  ~60ms `-t ppm`, ~125ms png); earlier sessions saw ~1.9s — if so, raise
+  `timings.osdAutoCloseMs` when screenshotting short-lived states.
 - IPC: `quickshell -p $PWD ipc call <target> <fn>` (with the user's instance running,
   address yours via `quickshell ipc --id <by-id dir> call ...`). `island` is ONE handler
   (`core/IslandIpc.qml`) routed via `core/IslandRegistry.qml` to the island on
   `compositor.focusedOutput` — never put an IpcHandler in per-screen Island. Targets: `island` (launcher, quicksettings,
-  notifications, capture, dashboard, player, lock, close, minimal, island, osd, debugState,
+  notifications, capture (again while open = next mode), captureMode(shot|record|color|
+  window|ai), captureScreen (= Enter in the active tool), captureCancel, screenshot
+  (instant, no overlay), record (toggle), recordPause, recordControls, dashboard, player, lock, close, minimal, island, osd, debugState,
   volumeUp/Down/Mute, micMute, brightnessUp/Down, playPause, nextTrack, prevTrack),
   `lock` (activate/isLocked — deliberately NO unlock/toggle over IPC; unlocking needs PAM),
   `dictation` (start/stop/toggle/cancel/status).
@@ -178,6 +180,9 @@ Not a git repo. No tests, no linter, no formatter.
 - Launcher needs keyboard: Island sets `WlrLayershell.keyboardFocus: OnDemand`
   only while the launcher module is open, else `None`.
 - Avoid QML property names that collide with handler syntax (e.g. `on`).
+- Item built-ins shadow same-named JS functions: `function layer()` on an Item →
+  "Property 'layer' ... is not a function" (it resolves to the `layer` group). Same for
+  `state`, `data`, `children`, `visible`, ... — pick distinct names (`layerAt`).
 - `openModule()` must set `activePayload` BEFORE `activeModule` — ModuleHost's
   Loader creates the module the moment `activeModule` changes and reads the
   payload at that instant.
@@ -214,6 +219,12 @@ Not a git repo. No tests, no linter, no formatter.
   outside the rounding. ContentSwap therefore masks its layers (live, ghost, edge fade)
   to the rounded island shape (`surfaceRadius`, binary MultiEffect mask) while a
   transition runs.
+- `components/RollingText.qml` = Apple numericText-style per-character drum
+  roll (only changed chars roll, slots matched from the RIGHT via Row
+  RightToLeft, auto direction: value up → roll UP, down → roll DOWN (user-corrected), Spring
+  per slot, tabular digits via `font.features {"tnum": 1}`). Used by the
+  system card metrics. Verified Oct 2026 with a slowed spring in a scratch
+  FloatingWindow (`quickshell -p <dir>/shell.qml`, components symlinked).
 - Canvas `shadow*` (`shadowColor`/`shadowBlur`/offsets) do NOTHING in Qt:
   the Context2D properties exist (assignments don't throw) but render no
   shadow (verified Sep 2026). Build glows from layered translucent strokes
@@ -224,8 +235,9 @@ Not a git repo. No tests, no linter, no formatter.
 - One file = one responsibility; ~200 lines is the split signal.
 - No hardcoded sizes/thresholds — Config/Theme only.
 - Indicators and modules never create windows; they live inside / extend the island.
-- External tools: nmcli (wifi/hotspot), brightnessctl, grim+slurp (screenshots),
-  wf-recorder (recording), pw-record (dictation capture).
+- External tools: nmcli (wifi/hotspot), brightnessctl, grim (+magick crops, wl-copy,
+  tesseract OCR, curl+jq Lens upload) for capture, wf-recorder + parecord + ffmpeg
+  (recording), pw-record (dictation capture), uv (scripts/capture/*.py inline deps).
 
 ## Working vs. stubbed (update as you go)
 
@@ -234,7 +246,7 @@ Working end-to-end (verified via IPC + screenshots + debugState, Sep 2026): bar 
 at island.maxWidth with priority eviction; clock, arcs (concentric with the bar-end
 rounding centres, no digits, grey track + bottom-up coloured fill, soft black halo) incl. bottom-up
 battery fill, mic/music/dictation indicators, light halo around the body), per-module island sizes
-(verified: dashboard 538×450, OSD 400×72, capture 520×112),
+(verified: dashboard 538×450, OSD 400×72),
 Minimal state (fullscreen-driven + IPC, per-screen), Overlay visibility over fullscreen,
 modules launcher/quicksettings/dashboard/player/osd/capture/dictation/notifications
 (center: iOS grouped list + mini-games when empty, verified via IPC + screenshots
@@ -261,11 +273,23 @@ replace in place, CloseNotification removes, 53 sent → 50 kept + 3 Notificatio
 `//@ pragma IconTheme` in shell.qml is REQUIRED for iconPath lookups (else the
 provider's broken-image placeholder renders)), dashboard drawer (drag-follow + snap, code-complete),
 dashboard cards (one file per card in `modules/dashboard/cards/` + shared
-`DashboardCard`/`CardTitle`/`MiniBar`/`RingArc`; grid-first: fixed 1-unit
-header block + 6x4 card grid (unit 80px, island 538x450); spans hardcoded
-per card (system 2x2, wide 4x1, narrow 2x1), positions in `DashboardModule`,
-widths locked via min=max=preferred (bare preferred loses to fillWidth
-stretch + content minimums — grid splits evenly, system goes non-square),
+`DashboardCard`/`CardTitle`/`MiniBar`/`RingArc`; grid-first, iOS-widget look
+(Oct 2026 redesign): thin header strip (time left | date right, shared
+baseline, `dashboard.headerHeight`) + 8x3 grid (unit 80px, island 714x322; user chose growing in width):
+mixed shapes (user: a row of equal squares reads monotonous) —
+`KKWWWWMM / KKSSBBMM / TTSSPPPP` (2x2 squares staggered across rows):
+calendar 2x2 (iOS month, Monday-first, today on a red disc, no backend), weather 4x1 (always 1 unit tall, user), media 2x2
+(blurred-cover backdrop via `RoundedImage.blur`, overscanned so rounded edges
+stay solid; play/pause has PlayerModule's glyph-swap pop), system 2x2,
+battery 2x1 (ring + laptop/bolt glyph), processes 4x1 (3 stat columns), sensors 2x1 (CPU °C heat-coloured by
+`tempWarm`/`tempHot` + avg fan rpm + temp sparkline; `services/Sensors.qml`
+discovers paths once — hwmon coretemp/k10temp + every `fan*_input` under
+/sys/devices (T2 applesmc `APP0001` is NOT in /sys/class/hwmon) — and skips
+amdgpu/nouveau/radeon: a sleeping dGPU answers EBUSY, never wake it). A
+connections card (Wi-Fi/BT) was tried and rejected by the user. Tabler
+codepoints: `uvx --from fonttools` + getBestCmap(). Cards are placed
+with explicit x/y (`cellX`/`cellY`/`spanPx`), no GridLayout. Updates/Events
+cards stay in cards/ but are off the grid (empty states only);
 content adapts (adaptive fonts/row counts); live: clock header RU, CPU/RAM/disk rings via
 `services/SystemUsage`, battery, top processes, now-playing; weather card =
 gradient by two continuous sun factors (daylight `d` = smoothstep ramp
@@ -369,8 +393,64 @@ Simplified / not implemented yet (see pillShell.md for the intended behaviour):
   Island body is truly black (`Theme.islandBg #000000`, `effects.islandOpacity`
   1.0) except Minimal. Do NOT fake blur with a blurred wallpaper image —
   the island lives over app windows, wallpaper would mismatch.
-- Capture: region selection delegates to `slurp`; the spec's dim+crosshair, flying square and
-  second island instance are absent.
+- (DONE Oct 2026) Capture = shell-level `modules/capture/` (CaptureScope in Shell, injected
+  into Island as `capture`; NOT a normal module), full port of pShell's capture tools.
+  Flow: `Island.openCapture(mode)` → `CaptureScope.begin()` grabs EVERY output first
+  (`grim -t ppm`, one process, stamped `tempDir/src-<out>-<stamp>.ppm`) → overlays map
+  (Overlay-layer PanelWindow per screen) → `island.startCaptureSteal()` opens the EMPTY
+  `capture` module at the current size (`captureFrom`) so only the content blur->fades →
+  `stealForCapture()` hands the global island rect to `capture.steal()`, hides the island
+  via `contentItem` opacity (`stolen`, springs disabled so the reset jumps; never unmap)
+  and replays appearFromEdge (= the spec's "second instance"). Grab-before-animation
+  matters: the frozen frame must show the clean bar, not a mid-fade island.
+  Overlay layers: `CaptureBackdrop` (frozen grab, drawn as 3 clipped pieces around a LIVE
+  hole = `Island.captureHole()` band, so the steal + second instance stay visible) →
+  `CaptureDim` (cut = tool's `cutRect`) → global crosshair → mode tool (Loader) →
+  `CaptureSquare` (ContentSwap icon, glyph switches at the handover). Square/crosshair are
+  ONE global state (`CaptureMotion`, global logical px) shifted per screen: size/radius
+  springs to `squareSize`, flight = spring-driven quadratic bezier onto cursor+
+  `chaseOffset` (`arcBend`), then chase springs (seamless: chaseX follows the target
+  instantly while flying). Both hide while a selection exists.
+  Tools (contract: `cutRect`, `dimmed`, `handleEscape()`, `handleKey(e)`, `confirm()`):
+  `editor/RegionEditor` (shot/record/ai — flameshot editor split into EditorModel (rows +
+  snapshot undo/redo), EditorInput (select/move/resize/draw/moveObj, wheel thickness, RMB
+  palette, dbl-click smart region), SelectionFrame, EditorToolbar (ring layout), Annotation
+  Item (10 tools; blur/pixelate sample a hidden full Image), PaletteRing, OcrPanel
+  (tesseract on the pure grab crop, langs chips, re-crop on frame release), AudioChooser
+  (record pending), EditorComposite (offscreen 1:1 physical composite → grabToImage →
+  `out-<screen>.png` → deliver)); `color/ColorLoupe` + `ColorPanel` (pipette: 1×1 Canvas
+  sampling, loupe = binary MultiEffect circle mask under a 2px ring, HSL sliders, formats,
+  recent colours — memories are session-only on CaptureActions, never written to config);
+  `window/WindowPicker` (rects from `compositor.windowRects(screen)`; click → selection
+  preset for the editor). Window geometry: driftwm `position` = window CENTRE in canvas
+  coords, output `camera` = viewport centre (verified vs grim); niri uses
+  `tile_pos_in_workspace_view + window_offset_in_tile` (NOT live-tested). Mode "window"
+  hides when no backend returns rects. A screen claims the session (`editScreen`) on the
+  first selection/panel; only it keeps a tool and the Exclusive keyboard.
+  Ordering trap (fixed): `confirm()` without a selection must ONLY select all (+commit in
+  shot) — selecting triggers the mode follow-up (audio chips / OCR), confirming it in the
+  same call started a recording without the audio choice.
+  Recording: `services/Recorder` runs `scripts/capture/record.sh` (pShell port): audio
+  none|system|mic|both (null-sink mix + loopbacks), pause = segment split (SIGUSR1), live
+  audio switch (`.audioctl` + SIGUSR2), discard, VAAPI via `recorder.hwDevice`.
+  wf-recorder 0.6 HERE drops the video with `--audio` (pulse) and the audio with
+  `--audio-backend=pipewire` — so record.sh captures video (wf-recorder) and audio
+  (`parecord --latency-msec=50`; default latency loses ~2s of buffer on SIGINT)
+  separately and muxes per segment (`-c:v copy -af apad -shortest`, silent track for
+  "none" so concat stays compatible). All its PipeWire nodes are `pillshell_rec*` →
+  ignored by the mic indicator. Island controls: `RecordingActionsModule` (timer, discard,
+  audio cycle, pause, stop) on the red plate click / IPC recordControls.
+  uv scripts (`regions.py` opencv smart regions, niri `nudge.py`) run via
+  `CaptureActions.uvScript()` = `uv run --offline ... || uv run ...`: online `uv run
+  --script` re-resolved deps on every start (~55s vs 1.6s offline).
+  Verified on driftwm (IPC + debugState + screenshots): grab→steal→flight→chase, frozen
+  backdrop + live hole, dim math (×0.65), shot commit 3/3 (PNG from the frozen grab, no
+  overlay), AI → OCR panel, record → audio chips → recording (h264+aac, pause/stop via
+  IPC), window highlight → editor preset, pipette loupe, recording controls render,
+  record.sh modes none/system(+pause+switch to mic)/both standalone. NOT live-tested (no
+  mouse/keyboard tool): drawing tools, text annotations, palette, toolbar clicks, resize
+  handles, colour panel editing, OCR language chips, Lens upload, Esc chain, multi-monitor.
+  Selections are per screen (pShell parity); only aim visuals span monitors.
 - (DONE Oct 2026) Shared element transitions: `core/TransitionLayer.qml` (top of the
   island window) lifts the owner's `sharedElement` (reparent, never recreated), flies it
   to the module slot `sharedSlot(key)` (ModuleHost resolver; slot = Item with
@@ -380,7 +460,13 @@ Simplified / not implemented yet (see pillShell.md for the intended behaviour):
   anchors.fill, and flies home on close/replace (`onActiveModuleChanged`), then calls
   `restoreShared()` to re-bind. Contract on the owner (`sharedTransition`: target, slot,
   properties, curve "spring" | Easing + duration). Trigger: `openModule(name,
-  { shared: owner })`. Used by Music → player cover and ClockPlate → notification flow
+  { shared: owner })`. One element serving several modules declares
+  `sharedTransitions: { <module>: contract }` (`TransitionLayer.contractFor`);
+  ClockPlate → dashboard header time (`openDashboard()`, gesture + IPC) omits
+  `text` from the contract so the docked label's live binding keeps ticking.
+  A slot must be a WRAPPER Item: the guest docks as its child, so hide only
+  the slot's own label inside (hiding the slot hides the guest too).
+  Used by Music → player cover and ClockPlate → notification flow
   card "time" slot (clock text morphs to the card's text/colour/font, so it shows the
   ARRIVAL time; `sharedHome` = exact label box, `sharedHomeValues` = live clock values for
   the return; paths like "font.pixelSize", strings switch at p 0.5, start values are
@@ -392,8 +478,14 @@ Simplified / not implemented yet (see pillShell.md for the intended behaviour):
 - `appearFromEdge` (startup / capture strip): startup slides the Minimal strip in
   from the top edge with a spring (`started` flag in Island.qml), then morphs it
   into the bar on its spot (`startupMorph` timer + `timings.startupMorphDelayMs`);
-  the Capture second instance is absent.
+  Capture reuses it for its second instance.
 - LocalSend is a placeholder drop zone (never opened); Timer indicator exists but no timer service feeds it.
+- Player backdrop: blurred album art fills the module (MediaCard pattern,
+  `RoundedImage.blur` rounded to `island.radius` via `surfaceRadius` — island clip is
+  rectangular) + horizontal dark scrim; controls use translucent white on top.
+  Track change: backdrop and cover are `components/CrossfadeImage.qml` (two layers,
+  one Spring driver; cover pops 0.85→1 over the old one shrinking, backdrop fades
+  in over an opaque old frame — `exitFade: false`, no scale >1 on clipped surfaces).
 - Player lyrics: the «Текст» pill in the player module is a visual placeholder (hover only,
   no action — user: a layout change/lyrics view comes later). Source decided by the user:
   lrclib.net via `curl -4` (the Weather fetch pattern, no API key) — plain + synced lyrics;

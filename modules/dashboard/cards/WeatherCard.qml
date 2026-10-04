@@ -3,8 +3,8 @@ import QtQuick.Layouts
 import Quickshell
 import "../../../components"
 
-// Weather card: city top-left, big degrees bottom-left; icon top-right,
-// description + day min/max below it. The card body is a bottom-to-top
+// Weather card (4x1 strip): city top-left, big degrees bottom-left; icon
+// top-right, description + day min/max packed bottom-right. The card body is a bottom-to-top
 // gradient whose colors encode weather + sun geometry (exact rule below),
 // animated on change instead of snapping.
 //
@@ -39,10 +39,7 @@ DashboardCard {
     readonly property bool ok: (weather?.available) ?? false
     readonly property real _pad: (dash?.cardPadding) ?? 10
     readonly property real _innerH: root.height - 2 * _pad
-    readonly property real _tempFs: Math.max(24, Math.min(42, _innerH - 18))
-    // Right column width, single-sourced: the city bound below derives
-    // from it, so the arrow always glues to the text.
-    readonly property real _rightW: 132
+    readonly property real _tempFs: Math.max(24, Math.min(46, _innerH - 20))
     readonly property real _descFs: (dash?.titleSize) ?? 13
     readonly property real _mmFs: Math.max(10, ((dash?.titleSize) ?? 13) - 1)
 
@@ -252,72 +249,60 @@ DashboardCard {
         }
     }
 
-    // Anchors, not a RowLayout: the layout's stretch pass left the right
-    // column short of the edge (left column kept its implicit width, so
-    // the zone ended 90px early). Anchors pin it flush right.
     Item {
         anchors.fill: parent
         anchors.margins: root._pad
 
-        ColumnLayout {
-            id: leftCol
+        // City (hugs its text so the arrow glues to the last glyph; long
+        // names elide) pinned top-left.
+        Row {
             anchors.left: parent.left
-            anchors.right: rightZone.left
-            anchors.rightMargin: 10
             anchors.top: parent.top
-            anchors.bottom: parent.bottom
-            spacing: 0
-
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: 0
-
-                // No fillWidth: the city hugs its text so the arrow glues
-                // to the last glyph. Long names elide.
-                Text {
-                    text: root.cityStr
-                    color: root.theme?.cardDim ?? "#99EBEBF5"
-                    font.pixelSize: root._descFs
-                    elide: Text.ElideRight
-                    Layout.maximumWidth: leftCol.width - 16
-                }
-                Text {
-                    // Map-navigation cursor: base arrow rotated NE.
-                    text: "➤"
-                    rotation: -45
-                    color: root.theme?.cardDim ?? "#99EBEBF5"
-                    font.pixelSize: root._descFs
-                }
-            }
-            Item { Layout.fillHeight: true }
+            width: parent.width - rightZone.width - 8
             Text {
-                text: root.tempStr
+                id: city
+                text: root.cityStr
                 color: "white"
-                font.pixelSize: root._tempFs
+                font.pixelSize: root._descFs
                 font.weight: Font.DemiBold
-                // Digits have no descenders: fixed leading lets the
-                // temperature fill the leftover height exactly.
-                lineHeight: 1.0
-                lineHeightMode: Text.FixedHeight
+                elide: Text.ElideRight
+                width: Math.min(implicitWidth, parent.width - 16)
+            }
+            Text {
+                // Map-navigation cursor: base arrow rotated NE.
+                text: "➤"
+                rotation: -45
+                color: "white"
+                font.pixelSize: root._descFs - 2
+                anchors.verticalCenter: city.verticalCenter
             }
         }
+        // Big temperature pinned bottom-left. Digits have no descenders:
+        // fixed leading lets it sit on the card's bottom padding.
+        Text {
+            anchors.left: parent.left
+            anchors.bottom: parent.bottom
+            text: root.tempStr
+            color: "white"
+            font.pixelSize: root._tempFs
+            font.weight: Font.Normal
+            lineHeight: 1.0
+            lineHeightMode: Text.FixedHeight
+        }
 
-        // Right zone: icon on top, description + min/max packed at the
-        // bottom (the gap lives after the icon). The 1-row card is 60px
-        // tall inside, so the icon size is capped by what is left for the
-        // two text lines (config.dashboard.iconSize).
-        ColumnLayout {
+        // Right zone: icon top-right, description + min/max at the bottom.
+        Item {
             id: rightZone
             anchors.right: parent.right
             anchors.top: parent.top
             anchors.bottom: parent.bottom
-            width: root._rightW
-            spacing: 2
+            width: 150
 
             Item {
-                Layout.preferredWidth: root._iconSize
-                Layout.preferredHeight: root._iconSize
-                Layout.alignment: Qt.AlignRight
+                anchors.right: parent.right
+                anchors.top: parent.top
+                width: root._iconSize
+                height: root._iconSize
 
                 AnimatedImage {
                     id: iconAnim
@@ -330,32 +315,33 @@ DashboardCard {
                 Text {
                     anchors.centerIn: parent
                     text: root.iconEmoji
-                    font.pixelSize: 20
+                    font.pixelSize: root._iconSize * 0.8
                     visible: !iconAnim.visible
                 }
             }
-            Item { Layout.fillHeight: true }
-            Text {
-                text: root.descStr
-                color: root.theme?.cardDim ?? "#99EBEBF5"
-                font.pixelSize: root._descFs
-                elide: Text.ElideRight
-                horizontalAlignment: Text.AlignRight
-                Layout.fillWidth: true
+            Column {
+                anchors.right: parent.right
+                anchors.left: parent.left
+                anchors.bottom: parent.bottom
+                spacing: 0
+
+                Text {
+                    width: parent.width
+                    text: root.descStr
+                    color: "white"
+                    font.pixelSize: root._descFs
+                    font.weight: Font.DemiBold
+                    horizontalAlignment: Text.AlignRight
+                    elide: Text.ElideRight
+                }
+                Text {
+                    width: parent.width
+                    text: root.mmStr
+                    color: root.theme?.cardDim ?? "#99EBEBF5"
+                    font.pixelSize: root._mmFs
+                    horizontalAlignment: Text.AlignRight
+                }
             }
-            Text {
-                text: root.mmStr
-                color: "white"
-                font.pixelSize: root._mmFs
-                horizontalAlignment: Text.AlignRight
-                elide: Text.ElideRight
-                Layout.fillWidth: true
-            }
-            // Bottom air: arrow tips reach the line bottom while digit
-            // bottoms sit on the baseline, so without this the min/max
-            // row reads tighter to the edge than the temperature does.
-            // 2px, not 4: the 1-row card has no slack left.
-            Item { height: 2 }
         }
     }
 }

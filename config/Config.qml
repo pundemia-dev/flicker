@@ -148,9 +148,13 @@ Singleton {
                     pollMs: 4000,
                     hotspotName: "Hotspot"
                 })
+            // Screen recording (services/Recorder + scripts/capture/record.sh):
+            // audioDefault "auto" = last choice | none | system | mic | both.
             property var recorder: ({
-                    outputFile: "/tmp/pillShell-recording.mp4",
-                    pidFile: "/tmp/pillShell-rec.pid"
+                    recordDir: "~/Videos",
+                    audioDefault: "auto",
+                    hwAccel: true,
+                    hwDevice: "/dev/dri/renderD128"
                 })
             property var dictation: ({
                     captureFile: "/tmp/pillShell-dictation.wav",
@@ -262,16 +266,23 @@ Singleton {
                     spacing: 8,
                     margins: 9,
                     cardPadding: 10,
-                    // Grid-first layout: unit side (px) + column count. Row
-                    // count emerges from card spans. Island size must match:
-                    // W/H = 2*margins + 5*unit + 4*spacing (modules.dashboard).
+                    // Grid-first layout: unit side (px) + column count; a thin
+                    // header strip (time | date) sits above. Island size must
+                    // match (modules.dashboard): W = 2*margins + 8*unit +
+                    // 7*spacing, H = 2*margins + headerHeight + spacing +
+                    // 3*unit + 2*spacing.
                     unit: 80,
-                    cols: 6,
+                    cols: 8,
+                    headerHeight: 40,
+                    // Sensors card: sparkline samples, heat bands (°C).
+                    sensorHistory: 40,
+                    tempWarm: 60,
+                    tempHot: 80,
                     titleSize: 13,
                     dotSize: 8,
                     valueSize: 24,
                     bigValueSize: 32,
-                    headerTimeSize: 44,
+                    headerTimeSize: 30,
                     headerDateSize: 15,
                     iconSize: 24
                 })
@@ -280,21 +291,79 @@ Singleton {
             property var modules: ({
                     launcher: ({ width: 560, height: 210 }),
                     quicksettings: ({ width: 560, height: 210 }),
-                    dashboard: ({ width: 538, height: 450 }),
+                    dashboard: ({ width: 714, height: 322 }),
                     player: ({ width: 448, height: 230 }),
                     notifications: ({ width: 520, height: 180 }),
                     "notifications:flow": ({ width: 520, height: 150 }),
                     "notifications:center": ({ width: 520, height: 460 }),
                     osd: ({ width: 400, height: 72 }),
-                    capture: ({ width: 520, height: 112 }),
                     dictation: ({ width: 480, height: 132 }),
                     localsend: ({ width: 440, height: 120 }),
-                    "recording-actions": ({ width: 360, height: 84 }),
+                    "recording-actions": ({ width: 380, height: 84 }),
                     "hotspot-actions": ({ width: 360, height: 84 })
                 })
+            // Capture (modules/capture): stolen-island square + flight/chase
+            // springs, dim/crosshair, region editor (annotation toolbar, palette),
+            // colour picker, OCR/Lens panels, window mode, smart regions.
             property var capture: ({
                     screenshotFile: "/tmp/pillShell-shot.png",
-                    aiFile: "/tmp/pillShell-ai.png"
+                    tempDir: "/tmp/pillShell-capture",
+                    saveDir: "~/Pictures/Screenshots",
+                    copyToClipboard: true,
+                    modes: ["shot", "record", "color", "window", "ai"],
+                    defaultMode: "shot",
+                    squareSize: 44,
+                    squareRadius: 14,
+                    iconSize: 20,
+                    iconBlurMax: 10,
+                    iconAt: 0.35,
+                    chaseOffsetX: 22,
+                    chaseOffsetY: 22,
+                    chaseSpring: 3.0,
+                    chaseDamping: 0.3,
+                    chaseMass: 1.2,
+                    flightSpring: 2.4,
+                    flightDamping: 0.42,
+                    arcBend: 0.6,
+                    dimOpacity: 0.35,
+                    crosshairOpacity: 0.5,
+                    crosshairWidth: 1,
+                    selectionBorder: 1,
+                    minSelection: 6,
+                    holePad: 8,
+                    fadeInMs: 220,
+                    fadeOutMs: 160,
+                    shotDelayMs: 80,
+                    secondIslandDelayMs: 140,
+                    handleSize: 9,
+                    edgeGrab: 10,
+                    toolButtonSize: 34,
+                    toolSpacing: 6,
+                    toolIconSize: 17,
+                    toolRadius: 11,
+                    drawThickness: 3,
+                    maxThickness: 24,
+                    pixelateFactor: 8,
+                    effectBlurMax: 48,
+                    palette: ["#f04438", "#f79009", "#fde047", "#22c55e", "#3b82f6", "#a855f7", "#000000", "#ffffff"],
+                    paletteSwatch: 26,
+                    thicknessHintMs: 700,
+                    loupeSize: 168,
+                    loupeZoom: 8,
+                    colorDefaultFormat: "auto",
+                    colorPanelWidth: 300,
+                    colorPanelMoveThreshold: 33,
+                    colorPanelFollowRadius: 16.7,
+                    recentColors: 12,
+                    ocrDefaultLang: "auto",
+                    ocrPanelWidth: 380,
+                    lensUploadUrl: "https://uguu.se/upload",
+                    smartRegions: true,
+                    panelRadius: 18,
+                    panelPad: 14,
+                    textBaseSize: 16,
+                    counterBaseSize: 18,
+                    hitPad: 4
                 })
         }
     }

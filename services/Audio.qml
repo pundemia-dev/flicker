@@ -76,7 +76,10 @@ Scope {
         const nm = `${node.name ?? ""}`.toLowerCase();
         return app === "pw-record" || app === "wf-recorder"
             || bin === "pw-record" || bin === "wf-recorder"
-            || nm.indexOf("pw-record") !== -1 || nm.indexOf("wf-recorder") !== -1;
+            || nm.indexOf("pw-record") !== -1 || nm.indexOf("wf-recorder") !== -1
+            // record.sh: its parecord stream (client pillshell_rec_audio)
+            // and the "both" mode mic/system loopbacks into the mix sink.
+            || app.indexOf("pillshell_rec") !== -1 || nm.indexOf("pillshell_rec") !== -1;
     }
 
     // User exclusion list (config.audio.micExclude): case-insensitive

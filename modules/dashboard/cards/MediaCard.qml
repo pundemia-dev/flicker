@@ -1,100 +1,138 @@
 import QtQuick
-import QtQuick.Layouts
 import "../../../components"
 
-// Now-playing mini card (fills the grid slot next to Updates). Real data
-// from the Players service; transport buttons call straight into it.
+// Now-playing card (2x2 square, iOS Now Playing widget): the album art,
+// heavily blurred and darkened, fills the card; sharp cover top-left,
+// play/pause disc top-right, title + artist packed at the bottom. Real
+// data from the Players service; the button calls straight into it.
 DashboardCard {
     id: root
     required property var players
 
     // Grid footprint in units, hardcoded here (grid-first).
-    readonly property int spanCols: 4
-    readonly property int spanRows: 1
+    readonly property int spanCols: 2
+    readonly property int spanRows: 2
 
-    // Grid-first: transport buttons scale to the allocated height
-    // (title + track + gaps eat ~40px), clamped to the classic size.
-    readonly property real _innerH: root.height - 2 * ((root.dash?.cardPadding) ?? 10)
-    readonly property real _btnSize: Math.max(16, Math.min(28, _innerH - 40))
+    readonly property real _pad: (dash?.cardPadding) ?? 10
+    readonly property real _coverSide: Math.round((root.height - 2 * _pad) * 0.44)
+    readonly property real _btnSize: Math.round(_coverSide * 0.55)
+    readonly property real _titleFs: (dash?.titleSize) ?? 13
 
     readonly property bool hasTrack: (players?.active) !== null && (players?.active) !== undefined
+    readonly property bool playing: (players?.musicActive) ?? false
+    readonly property string art: (players?.artUrl) ?? ""
+    readonly property string titleStr: root.hasTrack ? ((players?.trackTitle) || "Без названия") : "Ничего не играет"
+    readonly property string artistStr: root.hasTrack ? ((players?.trackArtist) ?? "") : "Музыка"
 
-    readonly property string trackStr: {
-        if (!root.hasTrack)
-            return "Ничего не играет";
-        const title = players.trackTitle ?? "";
-        const artist = players.trackArtist ?? "";
-        if (!title)
-            return "No media";
-        return artist ? `${title} — ${artist}` : title;
+    // Backdrop: blurred art (rounded to the card) + dark scrim for text.
+    RoundedImage {
+        anchors.fill: parent
+        radius: root.radius
+        source: root.art
+        blur: 1
+        visible: root.art !== ""
+    }
+    Rectangle {
+        anchors.fill: parent
+        radius: root.radius
+        visible: root.art !== ""
+        gradient: Gradient {
+            GradientStop { position: 0; color: "#59000000" }
+            GradientStop { position: 1; color: "#A6000000" }
+        }
     }
 
-    ColumnLayout {
+    Item {
         anchors.fill: parent
-        anchors.margins: root.dash?.cardPadding ?? 10
-        spacing: 2
+        anchors.margins: root._pad
 
-        CardTitle {
-            label: "Сейчас играет"
-            theme: root.theme
-            dash: root.dash
+        RoundedImage {
+            id: cover
+            anchors.left: parent.left
+            anchors.top: parent.top
+            width: root._coverSide
+            height: root._coverSide
+            radius: 10
+            source: root.art
+            fallbackColor: root.theme?.cardTrack ?? "#2C2C2E"
+            fallbackGlyph: "♫"
+            glyphSize: Math.round(root._coverSide * 0.45)
         }
-        Text {
-            text: root.trackStr
-            color: "white"
-            font.pixelSize: root.dash?.titleSize ?? 13
-            elide: Text.ElideRight
-            Layout.fillWidth: true
-        }
-        Item { Layout.fillHeight: true }
-        RowLayout {
-            spacing: 8
+
+        Rectangle {
+            anchors.right: parent.right
+            anchors.top: parent.top
+            width: root._btnSize
+            height: root._btnSize
+            radius: width / 2
+            color: playMa.pressed ? "#59FFFFFF" : "#2EFFFFFF"
             visible: root.hasTrack
+            opacity: (root.players?.canTogglePlaying) ?? false ? 1 : 0.4
 
-            MediaBtn {
-                label: "⏮"
-                theme: root.theme
-                btnSize: root._btnSize
-                onClicked: root.players?.previous()
+            Text {
+                id: playGlyph
+                anchors.centerIn: parent
+                // Optical centring: the play triangle's mass sits left.
+                anchors.horizontalCenterOffset: text === "" ? 1 : 0
+                text: root.playing ? "" : ""
+                color: "white"
+                font.family: root.theme?.iconFamily ?? "tabler-icons"
+                font.pixelSize: Math.round(root._btnSize * 0.5)
+                // Glyph-swap pop, same as PlayerModule's TransportBtn
+                // (user-approved exception to the Spring-only rule):
+                // scale dips to 0 on the accel curve, the new glyph swaps
+                // in, scale returns on the decel curve.
+                Behavior on text {
+                    SequentialAnimation {
+                        NumberAnimation {
+                            target: playGlyph
+                            property: "scale"
+                            to: 0
+                            duration: 133
+                            easing.type: Easing.BezierSpline
+                            easing.bezierCurve: [0.3, 0, 1, 1, 1, 1]
+                        }
+                        PropertyAction {}
+                        NumberAnimation {
+                            target: playGlyph
+                            property: "scale"
+                            to: 1
+                            duration: 133
+                            easing.type: Easing.BezierSpline
+                            easing.bezierCurve: [0, 0, 0, 1, 1, 1]
+                        }
+                    }
+                }
             }
-            MediaBtn {
-                label: (root.players?.musicActive) ?? false ? "⏸" : "▶"
-                theme: root.theme
-                btnSize: root._btnSize
+            MouseArea {
+                id: playMa
+                anchors.fill: parent
                 onClicked: root.players?.playPause()
             }
-            MediaBtn {
-                label: "⏭"
-                theme: root.theme
-                btnSize: root._btnSize
-                onClicked: root.players?.next()
+        }
+
+        Column {
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.bottom: parent.bottom
+            spacing: 1
+
+            Text {
+                width: parent.width
+                text: root.titleStr
+                color: "white"
+                font.pixelSize: root._titleFs
+                font.weight: Font.DemiBold
+                elide: Text.ElideRight
             }
-        }
-    }
-
-    component MediaBtn: Rectangle {
-        id: btn
-        property string label: ""
-        property var theme: null
-        property real btnSize: 28
-        signal clicked
-
-        width: btn.btnSize
-        height: btn.btnSize
-        radius: btn.btnSize / 2
-        color: ma.containsMouse ? "#39414E" : (btn.theme?.cardTrack ?? "#2C2C2E")
-
-        Text {
-            anchors.centerIn: parent
-            text: btn.label
-            color: "#DFE6F2"
-            font.pixelSize: 12
-        }
-        MouseArea {
-            id: ma
-            anchors.fill: parent
-            hoverEnabled: true
-            onClicked: btn.clicked()
+            Text {
+                width: parent.width
+                text: root.artistStr
+                color: root.theme?.cardDim ?? "#99EBEBF5"
+                font.pixelSize: root._titleFs - 1
+                elide: Text.ElideRight
+                visible: text !== ""
+            }
         }
     }
 }
