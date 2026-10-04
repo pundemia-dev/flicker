@@ -13,7 +13,10 @@ Item {
     readonly property var ed: root.editor
     readonly property var cfg: root.editor.cfg
 
-    readonly property var buttons: [
+    // Record is hidden while a recording runs (Recorder.start would refuse
+    // and the overlay would just close).
+    readonly property var buttons: root.allButtons.filter(b => b.kind !== "record" || !root.ed.capture.recorder.recording)
+    readonly property var allButtons: [
         { kind: "tool", tool: "pencil", glyph: "" },
         { kind: "tool", tool: "line", glyph: "" },
         { kind: "tool", tool: "arrow", glyph: "" },
@@ -34,6 +37,35 @@ Item {
         { kind: "record", glyph: "" },
         { kind: "close", glyph: "" }
     ]
+
+    // Birth (first appearance per selection): every button starts under the
+    // chasing square (centre, local coords; the square is drawn above the
+    // tools) and springs out to its ring slot while fading in. Later
+    // re-appearances (after a frame move/resize) just glide between slots.
+    property bool born: false
+    property bool springy: false
+    property bool bornOnce: false
+    property point origin: Qt.point(0, 0)
+
+    function birth(): void {
+        const m = root.ed.capture.motion;
+        root.origin = Qt.point(m.centerX - root.ed.ox - root.btn / 2, m.centerY - root.ed.oy - root.btn / 2);
+        root.springy = false;
+        root.born = false;
+        root.springy = true;
+        root.born = true;
+        root.bornOnce = true;
+    }
+
+    onVisibleChanged: if (visible && !root.bornOnce) root.birth()
+
+    Connections {
+        target: root.ed
+        function onHasSelectionChanged(): void {
+            if (!root.ed.hasSelection)
+                root.bornOnce = false;
+        }
+    }
 
     readonly property real btn: root.cfg.toolButtonSize
     readonly property real sep: root.cfg.toolSpacing
@@ -122,8 +154,12 @@ Item {
             required property var modelData
             required property int index
             theme: root.ed.theme
-            x: (root.positions[index] ?? Qt.point(0, 0)).x
-            y: (root.positions[index] ?? Qt.point(0, 0)).y
+            x: root.born ? (root.positions[index] ?? Qt.point(0, 0)).x : root.origin.x
+            y: root.born ? (root.positions[index] ?? Qt.point(0, 0)).y : root.origin.y
+            opacity: (root.born ? 1 : 0) * (disabled ? 0.4 : 1)
+            Behavior on x { enabled: root.springy; Spring { stiffness: root.cfg.birthSpring; damp: root.cfg.birthDamping } }
+            Behavior on y { enabled: root.springy; Spring { stiffness: root.cfg.birthSpring; damp: root.cfg.birthDamping } }
+            Behavior on opacity { enabled: root.springy; NumberAnimation { duration: root.cfg.fadeInMs } }
             width: root.btn
             height: root.btn
             radius: root.cfg.toolRadius

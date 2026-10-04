@@ -89,8 +89,12 @@ PanelWindow {
     Loader {
         id: toolLoader
         anchors.fill: parent
-        active: root.capture.active && !root.capture.closing
-            && (root.capture.editScreen === "" || root.capture.editScreen === root.name)
+        // Kept through the fade-out (fades with the dim): unloading at
+        // `closing` dropped the selection cut, so the whole screen flashed
+        // dim and the toolbar popped away.
+        active: root.capture.active && (root.capture.editScreen === "" || root.capture.editScreen === root.name)
+        enabled: !root.capture.closing
+        opacity: root.capture.closing ? root.motion.dimLevel : 1
         sourceComponent: root.capture.mode === "color" ? colorComp
             : (root.capture.mode === "window" ? windowComp : editorComp)
     }
@@ -152,6 +156,7 @@ PanelWindow {
         width: root.motion.w
         height: root.motion.h
         radius: root.motion.r
+        tipRadius: root.motion.rTip
         theme: root.theme
         cfg: root.cfg
         glyph: root.capture.glyph(root.capture.mode)

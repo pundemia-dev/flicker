@@ -12,6 +12,15 @@ Item {
     required property var cfg
     signal closeRequested
 
+    // Stopped elsewhere (IPC / plate): nothing left to control.
+    Connections {
+        target: root.recorder
+        function onRecordingChanged(): void {
+            if (!root.recorder.recording)
+                root.closeRequested();
+        }
+    }
+
     readonly property var audioGlyphs: ({ none: "", system: "", mic: "", both: "" })
 
     Row {

@@ -85,6 +85,18 @@ Item {
             ocr.recrop();
     }
 
+    // Mode switched among shot / record / ai with a live selection.
+    Connections {
+        target: root.capture
+        function onModeChanged(): void {
+            if (!root.hasSelection)
+                return;
+            root.pendingRecord = root.capture.mode === "record";
+            if (root.capture.mode === "ai" && !ocr.open)
+                ocr.toggle();
+        }
+    }
+
     function setSelection(r: var): void {
         root.selX = r.x;
         root.selY = r.y;
@@ -200,6 +212,8 @@ Item {
         if (root.pendingRecord)
             root.startRecording("");
         else if (ocr.open) {
+            if (ocr.running)
+                return; // Enter would close before the text arrives
             if (ocr.text !== "")
                 root.actions.copyText(ocr.text, "Текст скопирован");
             root.capture.done();
@@ -245,7 +259,7 @@ Item {
 
     // ── Smart regions (optional): double-click snaps to a content box ──
     property var smartRects: []
-    readonly property var smartHover: root.cfg.smartRegions && !root.hasSelection && root.capture.mode !== "record"
+    readonly property var smartHover: root.cfg.smartRegions && !root.hasSelection
         ? root.smartRectAt(root.cursorX, root.cursorY) : null
 
     function smartRectAt(x: real, y: real): var {
@@ -257,8 +271,16 @@ Item {
         return best;
     }
 
+    // Detected once per grab: editors are rebuilt on mode / screen
+    // switches, the detector (~1.6s CPU) must not rerun each time.
+    Component.onCompleted: {
+        const cached = root.actions.smartCache[root.srcPath];
+        if (cached)
+            root.smartRects = cached;
+    }
+
     Process {
-        running: root.cfg.smartRegions
+        running: root.cfg.smartRegions && !root.actions.smartCache[root.srcPath]
         command: root.actions.uvScript("regions.py", [root.srcPath])
         stdout: StdioCollector {
             id: regionsOut
@@ -268,6 +290,7 @@ Item {
                 } catch (e) {
                     root.smartRects = [];
                 }
+                root.actions.cacheSmart(root.srcPath, root.smartRects);
             }
         }
     }

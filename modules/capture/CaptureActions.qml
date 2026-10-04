@@ -17,6 +17,20 @@ Scope {
     property string lastColorFormat: "hex"
     property string lastOcrLangs: ""
     property var recentColors: []
+    // Smart-region boxes per grab path (one grab = one detection).
+    property var smartCache: ({})
+
+    function cacheSmart(src: string, rects: var): void {
+        // Keep only this session's grabs (paths share the "-<stamp>.ppm" tail).
+        const tail = src.slice(src.lastIndexOf("-"));
+        const c = {};
+        for (const k in root.smartCache)
+            if (k.endsWith(tail))
+                c[k] = root.smartCache[k];
+        c[src] = rects;
+        root.smartCache = c;
+    }
+
     // Installed tesseract languages ("osd" is a script detector, skipped).
     property var ocrLangsAvailable: []
 

@@ -16,6 +16,7 @@ MouseArea {
     property int edges: 0          // bits: 1=left 2=right 4=top 8=bottom
     property var origRow: null
     property var penPts: []
+    property var pressSmart: null
 
     enabled: !root.ed.committing
     acceptedButtons: Qt.LeftButton | Qt.RightButton
@@ -191,6 +192,8 @@ MouseArea {
         root.pressX = mouse.x;
         root.pressY = mouse.y;
         if (!e.hasSelection) {
+            // Candidate under the press (the frame hides once dragging).
+            root.pressSmart = e.smartRectAt(mouse.x, mouse.y);
             e.dragMode = "select";
             root.updateSelect(mouse.x, mouse.y);
             return;
@@ -221,6 +224,7 @@ MouseArea {
         root.m.selectedObj = -1;
         root.m.selObjRect = null;
         e.pendingRecord = false;
+        root.pressSmart = e.smartRectAt(mouse.x, mouse.y);
         e.dragMode = "select";
         root.updateSelect(mouse.x, mouse.y);
     }
@@ -262,10 +266,13 @@ MouseArea {
     onReleased: mouse => {
         const e = root.ed, mode = e.dragMode;
         if (mode === "select") {
-            // Plain click = the whole screen (flameshot).
+            // Plain click = the highlighted smart region under the cursor
+            // (what the blue candidate frame promises), else the whole
+            // screen (flameshot). Taken at press: the frame hides while dragging.
             const click = Math.abs(mouse.x - root.pressX) < root.ed.cfg.minSelection && Math.abs(mouse.y - root.pressY) < root.ed.cfg.minSelection;
+            const smart = click ? root.pressSmart : null;
             e.dragMode = "";
-            e.setSelection(click ? Qt.rect(0, 0, width, height) : Qt.rect(e.selX, e.selY, e.selW, e.selH));
+            e.setSelection(!click ? Qt.rect(e.selX, e.selY, e.selW, e.selH) : (smart ?? Qt.rect(0, 0, width, height)));
             return;
         }
         if (mode === "draw")

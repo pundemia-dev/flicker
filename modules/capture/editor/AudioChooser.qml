@@ -31,13 +31,41 @@ Item {
         return e.selY + e.selH - s - bar.height;
     }
 
-    opacity: visible ? 1 : 0
-    Behavior on opacity { NumberAnimation { duration: root.cfg.fadeInMs } }
+    // Birth like the toolbar: the bar starts under the chasing square and
+    // springs out to its slot while fading in (first appearance only).
+    property bool born: false
+    property bool springy: false
+    property bool bornOnce: false
+    property point origin: Qt.point(0, 0)
+
+    onVisibleChanged: {
+        if (!visible || root.bornOnce)
+            return;
+        const m = root.ed.capture.motion;
+        root.origin = Qt.point(m.centerX - root.ed.ox - bar.width / 2, m.centerY - root.ed.oy - bar.height / 2);
+        root.springy = false;
+        root.born = false;
+        root.springy = true;
+        root.born = true;
+        root.bornOnce = true;
+    }
+
+    Connections {
+        target: root.ed
+        function onHasSelectionChanged(): void {
+            if (!root.ed.hasSelection)
+                root.bornOnce = false;
+        }
+    }
 
     Rectangle {
         id: bar
-        x: root.px
-        y: root.py
+        x: root.born ? root.px : root.origin.x
+        y: root.born ? root.py : root.origin.y
+        opacity: root.born ? 1 : 0
+        Behavior on x { enabled: root.springy; Spring { stiffness: root.cfg.birthSpring; damp: root.cfg.birthDamping } }
+        Behavior on y { enabled: root.springy; Spring { stiffness: root.cfg.birthSpring; damp: root.cfg.birthDamping } }
+        Behavior on opacity { enabled: root.springy; NumberAnimation { duration: root.cfg.fadeInMs } }
         width: row.implicitWidth + root.cfg.toolSpacing * 2
         height: root.cfg.toolButtonSize + root.cfg.toolSpacing * 2
         radius: height / 2
@@ -59,6 +87,14 @@ Item {
                     height: root.cfg.toolButtonSize
                     radius: height / 2
                     color: preselected ? root.theme.accentRed : (chipMa.containsMouse ? root.theme.cardTrack : root.theme.cardBg)
+
+                    GlowRim {
+                        radius: chip.radius
+                        color: root.theme.buttonGlow
+                        spread: root.theme.buttonGlowWidth
+                        peakAlpha: root.theme.buttonGlowAlpha
+                        rings: root.theme.buttonGlowRings
+                    }
 
                     Row {
                         id: chipRow

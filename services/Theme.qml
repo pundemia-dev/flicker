@@ -44,4 +44,11 @@ QtObject {
     readonly property color captureDim: "#000000"
     readonly property color captureCross: "#E9ECF1"
     readonly property color captureSelection: "#E9ECF1"
+    // Barely-there light glow around buttons (components/GlowRim) so they
+    // read on dark content: total spread px, 1px rings, innermost alpha.
+    // Keep the alpha tiny — at ~0.2 it reads as an outline (user).
+    readonly property color buttonGlow: "#FFFFFF"
+    readonly property real buttonGlowWidth: 6
+    readonly property int buttonGlowRings: 6
+    readonly property real buttonGlowAlpha: 0.05
 }

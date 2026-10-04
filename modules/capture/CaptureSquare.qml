@@ -2,8 +2,10 @@ import QtQuick
 import "../../core"
 import "../../config"
 
-// The stolen island background as a rounded square with the current mode
-// icon. Icon arrival and mode changes go through ContentSwap (blur->fade).
+// The stolen island background as the cursor bubble (pShell CursorGuide
+// shape: every corner fully round except the top-left one, which points at
+// the cursor) with the current mode icon. Icon arrival and mode changes go
+// through ContentSwap (blur->fade).
 Rectangle {
     id: root
     required property var theme
@@ -12,6 +14,8 @@ Rectangle {
     property color glyphColor: "white"
     property var swapKey
     property bool iconShown: false
+    property real tipRadius: 0
+    topLeftRadius: root.tipRadius
     // Rendered icon: switches at the ContentSwap handover, not on the mode
     // change itself (the new glyph must not pop in before the blur).
     property string shownGlyph: root.glyph

@@ -26,6 +26,8 @@ Item {
     property real w: 0
     property real h: 0
     property real r: 0
+    // Top-left corner (points at the cursor, pShell CursorGuide shape).
+    property real rTip: 0
     property real flight: 0
     property bool chasing: false
     readonly property bool flying: flightAnim.running
@@ -83,9 +85,11 @@ Item {
         sizeAnimW.from = rect.width;
         sizeAnimH.from = rect.height;
         sizeAnimR.from = rect.radius;
+        sizeAnimTip.from = rect.radius;
         sizeAnimW.restart();
         sizeAnimH.restart();
         sizeAnimR.restart();
+        sizeAnimTip.restart();
         flightAnim.restart();
     }
 
@@ -94,6 +98,7 @@ Item {
     Spring { id: sizeAnimW; target: root; property: "w"; to: root.cfg.squareSize }
     Spring { id: sizeAnimH; target: root; property: "h"; to: root.cfg.squareSize }
     Spring { id: sizeAnimR; target: root; property: "r"; to: root.cfg.squareRadius }
+    Spring { id: sizeAnimTip; target: root; property: "rTip"; to: root.cfg.squareTipRadius }
 
     SpringAnimation {
         id: flightAnim

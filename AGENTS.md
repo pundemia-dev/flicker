@@ -414,7 +414,9 @@ Simplified / not implemented yet (see pillShell.md for the intended behaviour):
   Tools (contract: `cutRect`, `dimmed`, `handleEscape()`, `handleKey(e)`, `confirm()`):
   `editor/RegionEditor` (shot/record/ai — flameshot editor split into EditorModel (rows +
   snapshot undo/redo), EditorInput (select/move/resize/draw/moveObj, wheel thickness, RMB
-  palette, dbl-click smart region), SelectionFrame, EditorToolbar (ring layout), Annotation
+  palette; a plain click selects the highlighted smart region under the cursor, else
+  the whole screen — pShell's click-always-fullscreen + dbl-click-only snap read as "auto
+  select doesn't work" (user, Oct 2026)), SelectionFrame, EditorToolbar (ring layout), Annotation
   Item (10 tools; blur/pixelate sample a hidden full Image), PaletteRing, OcrPanel
   (tesseract on the pure grab crop, langs chips, re-crop on frame release), AudioChooser
   (record pending), EditorComposite (offscreen 1:1 physical composite → grabToImage →
@@ -430,6 +432,24 @@ Simplified / not implemented yet (see pillShell.md for the intended behaviour):
   Ordering trap (fixed): `confirm()` without a selection must ONLY select all (+commit in
   shot) — selecting triggers the mode follow-up (audio chips / OCR), confirming it in the
   same call started a recording without the audio choice.
+  Also fixed (bug hunt Oct 2026, verified via IPC + debugState `toolSelection`/`smartRects`):
+  shot/record/ai share ONE RegionEditor, so `switchMode` among them must keep the scope's
+  `hasSelection` (resetting it desynced scope vs editor: crosshair/square back over the
+  frame, Tab cycling) — the editor re-applies the follow-up on `onModeChanged`; the tool
+  Loader stays alive through `closing` and fades with `dimLevel` (unloading dropped the
+  selection cut → full-screen dim flash); a capture hotkey during the fade queues a NEW
+  session (`queued`); toolbar hides Record while recording; RecordingActionsModule closes
+  itself when recording stops elsewhere; no capture while locked; Enter ignored while OCR
+  runs; smart regions cached per grab (`CaptureActions.smartCache`) — editors are rebuilt
+  on every mode/screen switch.
+  Cursor bubble (user, Oct 2026): pShell CursorGuide shape — `squareRadius` = full round,
+  top-left `squareTipRadius` (Rectangle.topLeftRadius, Qt 6.7+; morphs from the island
+  radius via `CaptureMotion.rTip`); shot mode glyph = scissors (eb1b). Toolbar buttons and
+  the audio-chip bar are BORN from under the bubble: first appearance per selection snaps
+  them to the bubble centre (`capture.motion`, springs/opacity disabled), then springs
+  (`birthSpring`/`birthDamping`) to their slots while fading in; the bubble lingers
+  `squareHideDelayMs` before fading so they visibly leave it. Tools are below the bubble
+  in z (overlay order), that is what hides them at birth.
   Recording: `services/Recorder` runs `scripts/capture/record.sh` (pShell port): audio
   none|system|mic|both (null-sink mix + loopbacks), pause = segment split (SIGUSR1), live
   audio switch (`.audioctl` + SIGUSR2), discard, VAAPI via `recorder.hwDevice`.
@@ -451,6 +471,12 @@ Simplified / not implemented yet (see pillShell.md for the intended behaviour):
   mouse/keyboard tool): drawing tools, text annotations, palette, toolbar clicks, resize
   handles, colour panel editing, OCR language chips, Lens upload, Esc chain, multi-monitor.
   Selections are per screen (pShell parity); only aim visuals span monitors.
+  Buttons: `components/IconButton` (+ audio chips) carry a barely-visible white glow
+  (`components/GlowRim`: 1px border rings OUTSIDE the shape, alpha falling smoothly;
+  Theme `buttonGlow*`, peak 0.05 over 6px) so they read on dark content. User: a light
+  haze, NOT a fill/wash and NOT an outline (0.2 alpha over 3px already read as a stroke);
+  sizes from
+  `capture.toolButtonSize/toolIconSize/toolRadius` (51/26/17 since the 1.5× bump).
 - (DONE Oct 2026) Shared element transitions: `core/TransitionLayer.qml` (top of the
   island window) lifts the owner's `sharedElement` (reparent, never recreated), flies it
   to the module slot `sharedSlot(key)` (ModuleHost resolver; slot = Item with

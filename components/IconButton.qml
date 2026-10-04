@@ -1,7 +1,8 @@
 import QtQuick
 
 // Round/rounded Tabler-glyph button (capture toolbar, panels, recording
-// actions). Hover lightens, `checked` takes the accent, press pops the
+// actions). A small fading white rim (GlowRim) keeps it readable on dark
+// content; hover lightens, `checked` takes the accent, press pops the
 // scale on a spring.
 Rectangle {
     id: root
@@ -21,6 +22,14 @@ Rectangle {
     opacity: root.disabled ? 0.4 : 1
     scale: ma.pressed && !root.disabled ? 0.9 : 1
     Behavior on scale { Spring { stiffness: 6; damp: 0.4; eps: 0.002 } }
+
+    GlowRim {
+        radius: root.radius
+        color: root.theme.buttonGlow
+        spread: root.theme.buttonGlowWidth
+        peakAlpha: root.theme.buttonGlowAlpha
+        rings: root.theme.buttonGlowRings
+    }
 
     Text {
         anchors.centerIn: parent

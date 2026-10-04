@@ -400,6 +400,8 @@ PanelWindow {
     // size and hands the background over (stealForCapture). A second call
     // while capturing switches/cycles the capture mode.
     function openCapture(mode: string): void {
+        if (root.lock.locked)
+            return;
         root.capture.begin(root.screen, root.capture.active || root.capture.grabbing || root.stolen ? null : root, mode ?? "");
     }
 
