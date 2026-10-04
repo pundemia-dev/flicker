@@ -171,8 +171,12 @@ Item {
         refineUrl: Config.data.dictation.refineUrl ?? ""
         refineModel: Config.data.dictation.refineModel ?? ""
         refinePrompt: Config.data.dictation.refinePrompt ?? ""
-        refineTimeoutS: Config.data.dictation.refineTimeoutS ?? 15
+        refineTimeoutS: Config.data.dictation.refineTimeoutS ?? 30
+        serverCommand: Config.data.dictation.refineServerCommand ?? ""
+        serverTimeoutS: Config.data.dictation.refineServerTimeoutS ?? 120
+        idleTtlS: Config.data.dictation.refineIdleTtlS ?? 0
         hallucinations: Config.data.dictation.hallucinations ?? []
+        corrections: Config.data.dictation.corrections ?? ({})
         logFile: Config.data.dictation.logFile ?? ""
         onDone: (text, lang, how) => root._commit(text, lang, how)
         onDropped: (text, lang, reason) => {
@@ -252,6 +256,7 @@ Item {
             root._restarting = false;
             root._restartLang = "";
             root._sessionLang = root._effectiveLang();
+            refine.ensureModel();
             typer.reset();
             typer.typeDelayMs = Config.data.dictation.typeDelayMs ?? 0;
             typer.typeEnabled = root.typeEnabled;
@@ -270,6 +275,7 @@ Item {
     // Streaming session body (also the layout-restart entry).
     // Never erases typed text: the cursor stays after the previous session,
     // so a restarted session arms a leading space for its first segment.
+    // The refine model loads first so it warms while the backend connects.
     function _startSession(lang: string, isRestart: bool): void {
         if (isRestart) {
             const prev = typer.typedText ?? "";
@@ -290,6 +296,9 @@ Item {
         root._restarting = false;
         root._restartLang = "";
         root._sessionLang = (lang ?? "").length > 0 ? lang : "auto";
+        // Load the refine model first: it warms in parallel while the
+        // backend connects (no-op when externally managed or running).
+        refine.ensureModel();
         typer.reset();
         typer.typeDelayMs = Config.data.dictation.typeDelayMs ?? 0;
         typer.typeEnabled = root.typeEnabled;
@@ -347,6 +356,7 @@ Item {
         root._restarting = false;
         root._restartLang = "";
         refine.abort();
+        refine.releaseModel();
         stream.kill();
         if (recProc.running)
             recProc.signal(9);
@@ -404,7 +414,12 @@ Item {
     function _retype(): void {
         const pend = root._joinParts(root._pendingTexts);
         const head = root._committed.length > 0 ? (pend.length > 0 ? `${root._committed} ${pend}` : root._committed) : pend;
-        root.liveText = root._draft.length > 0 ? (head.length > 0 ? `${head} ${root._draft}` : root._draft) : head;
+        let live = root._draft.length > 0 ? (head.length > 0 ? `${head} ${root._draft}` : root._draft) : head;
+        // Restart seam preview: the space is shown from the first partial,
+        // committed for real in _commit (which also clears the flag).
+        if (root._needLeadingSpace && live.length > 0)
+            live = ` ${live}`;
+        root.liveText = live;
         typer.applyText(root.liveText);
     }
 
@@ -435,7 +450,10 @@ Item {
             return;
         }
         root.segmentFinal(t, lang);
-        root._pendingTexts.push(t);
+        // Preview the final form (corrections+rules applied, like the commit
+        // will) instead of flashing raw fillers that vanish a moment later.
+        const shown = refine._applyRules(refine._applyCorrections(t));
+        root._pendingTexts.push(shown.length > 0 ? shown : t);
         root._pending += 1;
         // Show the raw segment immediately; the refined text replaces it
         // in place on done. While the mic is live the phase stays
@@ -451,6 +469,14 @@ Item {
         if (!root.active) {
             root._shiftPending();
             root._pending = Math.max(0, root._pending - 1);
+            return;
+        }
+        // Empty commits never reach here (empty-ruled is a drop), but guard
+        // anyway: committing "" would leave a stray space in _committed.
+        if ((text ?? "").length === 0) {
+            root._shiftPending();
+            root._pending = Math.max(0, root._pending - 1);
+            root._maybeFinish();
             return;
         }
         // Echo suppression lives in the Python backend (delta-gated), not
@@ -500,6 +526,9 @@ Item {
         root._pendingTexts = [];
         root.phase = "idle";
         root.active = false;
+        // Session fully off: unload the refine model (restart path above
+        // keeps it — reloading gigabytes per Caps tap would be absurd).
+        refine.releaseModel();
         // Invalidate any chained backend start still in flight (touch done,
         // backend not yet spawned — e.g. Stop pressed within milliseconds of
         // Start): its sid check aborts instead of spawning into idle.
@@ -528,6 +557,7 @@ Item {
         root._restarting = false;
         root._restartLang = "";
         refine.abort();
+        refine.releaseModel();
         // Never leave the mic running: kill the backend (SIGKILL, the
         // SIGINT flush already had its chance) and the legacy procs.
         stream.kill();

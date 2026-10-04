@@ -31,6 +31,17 @@ Scope {
 
     LockScope { id: lockScope }
 
+    IslandRegistry { id: islandRegistry }
+
+    IslandIpc {
+        registry: islandRegistry
+        compositor: compositorService
+        audio: audioService
+        brightness: brightnessService
+        players: playersService
+        lock: lockScope
+    }
+
     Variants {
         model: Quickshell.screens
 
@@ -38,7 +49,8 @@ Scope {
             required property ShellScreen modelData
 
             Island {
-                screen: modelData
+                targetScreen: modelData
+                registry: islandRegistry
                 config: Config.data
                 theme: themeService
                 compositor: compositorService
@@ -58,7 +70,7 @@ Scope {
             }
 
             Corners {
-                screen: modelData
+                targetScreen: modelData
                 visible: !lockScope.locked
             }
         }

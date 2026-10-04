@@ -33,6 +33,9 @@ Item {
     required property real islandY
     required property real islandWidth
     required property real islandHeight
+    // Live clock centre (window coords): the clock is not centred in the
+    // island when left indicators are present, so the zone follows it.
+    required property real clockCenterX
     required property var cfg
 
     signal requestPresentationMinimal()
@@ -87,7 +90,16 @@ Item {
                 root.maxDy = dy;
 
             // Dashboard drawer: continuous progress, decision on release.
+            // An upward drag before any downward motion is presentation mode
+            // instead: the clock zone covers the whole clock-only bar, so
+            // without this hand-off presentation could never fire there.
             if (root.dashboardTracking) {
+                if (root.maxDy <= 0 && dy < -root.cfg.presentationDragThreshold) {
+                    root.dashboardTracking = false;
+                    root.fired = true;
+                    root.requestPresentationMinimal();
+                    return;
+                }
                 root.dashboardDragProgress(root.maxDy);
                 return;
             }
@@ -102,7 +114,9 @@ Item {
             }
 
             // Minimal: hold reveals the bar, a downward drag commits to Island.
-            if (root.isMinimal) {
+            // Keyed on holdActive, NOT isMinimal: the reveal flips isMinimal
+            // to false on press, which made this branch unreachable.
+            if (root.holdActive) {
                 if (!root.swipedDown && dy > root.cfg.sideDragThreshold) {
                     root.swipedDown = true;
                     root.minimalSwipeDown();
@@ -143,7 +157,7 @@ Item {
             const inBand = y >= root.islandY && y <= root.islandY + root.islandHeight;
             const inBar = inBand && x >= root.islandX && x <= root.islandX + root.islandWidth;
             if (inBar) {
-                const cx = root.islandX + root.islandWidth / 2;
+                const cx = root.clockCenterX;
                 const cy = root.islandY + root.islandHeight / 2;
                 const clockHalfW = root.cfg.clockZoneWidth / 2;
                 const clockHalfH = root.cfg.clockZoneHeight / 2;

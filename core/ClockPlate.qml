@@ -25,6 +25,48 @@ Item {
 
     property bool showIcon: false
 
+    // Shared element contract (core/TransitionLayer): the time flies into
+    // the notification flow card's "time" slot and becomes that card's
+    // arrival time (text/colour/size come from the slot). Not offered while
+    // the recording/hotspot plate replaces the clock face.
+    readonly property Item sharedElement: clockLabel
+    readonly property var sharedTransition: ({
+            target: "notifications",
+            slot: "time",
+            properties: {
+                text: "slot",
+                color: "slot",
+                "font.pixelSize": "slot",
+                "font.weight": "slot"
+            },
+            curve: "spring"
+        })
+    // Exact home box (the label's natural box, centred) + live home values,
+    // so the return flight lands on the CURRENT time, not the launch one.
+    readonly property Item sharedHome: labelHome
+    readonly property var sharedHomeValues: ({
+            text: root.clock.time,
+            color: root.theme.islandFg,
+            "font.pixelSize": root.theme.fontSizeClock,
+            "font.weight": Font.Medium
+        })
+    function restoreShared(): void {
+        clockLabel.anchors.centerIn = root;
+        clockLabel.width = Qt.binding(() => clockLabel.implicitWidth);
+        clockLabel.height = Qt.binding(() => clockLabel.implicitHeight);
+        clockLabel.text = Qt.binding(() => root.clock.time);
+        clockLabel.color = Qt.binding(() => root.theme.islandFg);
+        clockLabel.font.pixelSize = Qt.binding(() => root.theme.fontSizeClock);
+        clockLabel.font.weight = Font.Medium;
+    }
+
+    Item {
+        id: labelHome
+        anchors.centerIn: parent
+        width: clockLabel.implicitWidth
+        height: clockLabel.implicitHeight
+    }
+
     implicitWidth: Math.max(clockLabel.implicitWidth, plate.width)
     implicitHeight: Math.max(clockLabel.implicitHeight, plate.height)
 

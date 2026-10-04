@@ -40,6 +40,10 @@ Item {
         }
     }
 
+    function sharedSlot(key: string): var {
+        return key === "cover" ? coverSlot : null;
+    }
+
     function fmtTime(s: real): string {
         if (!(s > 0))
             return "0:00";
@@ -54,22 +58,33 @@ Item {
         anchors.margins: 16
         spacing: 14
 
-        // Cover art (shared element transition target "player"), rounded
-        // like dashboard cards (config dashboard.cardRadius).
-        RoundedImage {
-            id: cover
+        // Cover slot (shared element "cover", see core/TransitionLayer):
+        // the bar's album cover flies in and docks here. The module's own
+        // cover is the fallback for opens without a flight (IPC, hover on
+        // a collapsed indicator) and hides while an element is docked.
+        Item {
+            id: coverSlot
             width: parent.height
             height: parent.height
-            radius: root.cfg?.cardRadius ?? 13
-            source: root.players.artUrl
-            fallbackColor: "#2B2F36"
-            fallbackGlyph: "♫"
-            glyphSize: 32
+            // Corner radius the flying cover morphs to ("slot" contract).
+            readonly property real radius: root.cfg?.cardRadius ?? 13
+            property Item docked: null
+
+            RoundedImage {
+                id: cover
+                anchors.fill: parent
+                visible: coverSlot.docked === null
+                radius: coverSlot.radius
+                source: root.players.artUrl
+                fallbackColor: "#2B2F36"
+                fallbackGlyph: "♫"
+                glyphSize: 32
+            }
         }
 
         Item {
             id: info
-            width: parent.width - cover.width - parent.spacing
+            width: parent.width - coverSlot.width - parent.spacing
             height: parent.height
 
             // Title + artist block, lyrics button to its right — pinned to

@@ -1,12 +1,13 @@
 import QtQuick
 import Quickshell
 import Quickshell.Wayland
-import Quickshell.Io
 import "../components"
 
 PanelWindow {
     id: root
-    required property ShellScreen screen
+    // NOT named `screen`: that would shadow WindowInterface.screen, so the
+    // real window screen is never set and every island lands on one output.
+    required property ShellScreen targetScreen
     required property var config
     required property var theme
     required property var compositor
@@ -23,8 +24,10 @@ PanelWindow {
     required property var systemUsage
     required property var weather
     required property var lock
+    // Shared per-screen island registry (IPC routes to the focused output).
+    required property var registry
 
-    screen: root.screen
+    screen: root.targetScreen
     color: "transparent"
     visible: !root.lock.locked
     // Overlay (not Top): niri does not composite Top-layer surfaces above a
@@ -32,7 +35,11 @@ PanelWindow {
     // island (minimal strip, tickers, modules opened from minimal) to work
     // during fullscreen, so the island lives on Overlay.
     WlrLayershell.layer: WlrLayer.Overlay
-    WlrLayershell.keyboardFocus: root.state.activeModule === "launcher" ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
+    // Keyboard only while a module needs it: the launcher's search field and
+    // the notification center's mini-games (OnDemand: focus on click).
+    WlrLayershell.keyboardFocus: root.state.activeModule === "launcher"
+        || (root.state.activeModule === "notifications" && (root.state.activePayload?.mode ?? "") === "center")
+        ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
     WlrLayershell.exclusionMode: ExclusionMode.Ignore
     anchors.top: true
     anchors.left: true
@@ -65,6 +72,15 @@ PanelWindow {
             width: root.moduleOpen ? 0 : Math.round(root.gestureCfg.quickSettingsZoneWidth)
             height: Math.round(root.gestureCfg.quickSettingsZoneHeight)
         }
+        // Minimal active zone (spec): from the top screen edge down past the
+        // strip, so presses above the strip land here instead of falling
+        // through to the window below.
+        Region {
+            x: Math.round((root.width - root.gestureCfg.minimalActiveZoneWidth) / 2)
+            y: 0
+            width: root.minimalZoneActive ? Math.round(root.gestureCfg.minimalActiveZoneWidth) : 0
+            height: Math.round(root.gestureCfg.minimalActiveZoneHeight)
+        }
     }
     // The layer surface stays tight around the island (plus arcs overhang
     // and the minimal active zone) purely to keep the window small; input
@@ -72,13 +88,51 @@ PanelWindow {
     // In the bar state the side arcs stick out past the island (concentric
     // with the end roundings), so the surface also covers their overhang.
     readonly property real arcsBottom: root.islandY + root.islandHeight / 2 + arcsShape.extent + 1
-    implicitHeight: Math.max(root.islandY + root.islandHeight + 8,
+    // Lowest painted edge: the TARGET island bottom (so the surface grows at
+    // once when a module opens), the ANIMATED body (so it shrinks only as
+    // the spring does — sizing from the target alone cut the collapsing
+    // island and the shared element flying home off at the bottom), and an
+    // element in flight in the TransitionLayer.
+    readonly property real paintBottom: Math.max(root.islandY + root.islandHeight,
+        islandRect.y + islandRect.height, transitionLayer.flightBottom, root.surfaceReserve)
+    // The Notification Center resizes itself while open (group fan-out,
+    // dismissals): reserve its cap height for the whole session so those
+    // morphs never resize the layer surface mid-animation (a frame stall).
+    readonly property real surfaceReserve: root.moduleOpen && root.moduleKey === "notifications:center"
+        ? root.islandY + ((root.config.modules ?? {})["notifications:center"]?.height ?? 0) : 0
+    // The surface must NOT follow paintBottom per frame: every layer-shell
+    // resize reallocates the buffer and round-trips the compositor, which
+    // froze collapse transitions. Grow at once (ratchet up), hold the peak
+    // while anything still moves, shrink ONCE when everything has settled:
+    // at most two resizes per transition. The extra area is transparent and
+    // outside the input mask.
+    property real heldBottom: 0
+    // Rounded up with headroom: spring overshoot (a few px) must not trigger
+    // a resize per frame.
+    function surfaceStep(v: real): real {
+        return Math.ceil((v + 8) / 16) * 16;
+    }
+    onPaintBottomChanged: if (root.paintBottom > root.heldBottom) root.heldBottom = root.surfaceStep(root.paintBottom)
+    readonly property bool geometrySettled: Math.abs(islandRect.height - root.islandHeight) < 0.5
+        && Math.abs(islandRect.y - root.islandY) < 0.5 && transitionLayer.flightBottom === 0
+    onGeometrySettledChanged: if (root.geometrySettled) surfaceShrink.restart()
+    Timer {
+        id: surfaceShrink
+        interval: 60
+        onTriggered: if (root.geometrySettled) root.heldBottom = root.surfaceStep(root.paintBottom)
+    }
+    implicitHeight: Math.max(root.heldBottom + 8,
         (root.shouldDrawIslandShape && !root.moduleOpen) ? root.arcsBottom : 0,
-        root.haloVisible ? root.islandY + root.islandHeight + root.haloPad + 1 : 0,
+        root.haloVisible ? root.heldBottom + root.haloPad + 1 : 0,
         gestureCfg.minimalActiveZoneHeight + 8)
 
     property IslandState state: IslandState {}
     property NotificationQueue notificationQueue: NotificationQueue {}
+    // When the flow card currently on screen started showing (for the
+    // 5s → 3s shortening once more notifications queue up behind it).
+    property double flowShownAt: 0
+    // Dequeued card waiting out the collapse-to-bar gap before showing.
+    property var pendingFlow: null
     // Minimal-hold reveal (press the active zone to peek at the bar).
     property bool temporaryRevealFromMinimal: false
     property bool holdRevealing: false
@@ -98,8 +152,9 @@ PanelWindow {
     readonly property var indicatorCfg: config.indicators
 
     readonly property bool minimal: state.currentState === state.minimal
+    // Bare strip (no hold reveal / ticker): the minimal active zone is live.
+    readonly property bool minimalZoneActive: minimal && !temporaryRevealFromMinimal && !tickerVisible
     readonly property bool moduleOpen: state.currentState === state.module
-    readonly property bool showBarContent: !moduleOpen
     // Per-screen compositor state (global value as fallback).
     readonly property var screenInfo: (compositor?.perScreen ?? {})[screen.name] ?? null
     readonly property bool fsActive: screenInfo ? (screenInfo.fullscreen ?? false) : (compositor?.fullscreen ?? false)
@@ -109,7 +164,27 @@ PanelWindow {
     readonly property string contentKey: root.moduleOpen
         ? `module:${root.state.activeModule}:${root.state.openCount}`
         : (root.tickerVisible ? "ticker" : "bar")
-    readonly property bool shouldDrawIslandShape: !minimal || temporaryRevealFromMinimal || tickerVisible
+    // Sequential bar -> Minimal (test): the island keeps the bar shape while
+    // the arcs tuck under it, and collapses only once they report `tucked`
+    // (arcsHoldTimeout is the safety net).
+    property bool arcsHold: false
+    readonly property bool shouldDrawIslandShape: !minimal || temporaryRevealFromMinimal || tickerVisible || arcsHold
+
+    // Content actually rendered. Lags the state: ContentSwap commits it at
+    // the swap midpoint (old content faded out), so the old module stays on
+    // screen while it fades and the new one never pops in before its fade-in.
+    // Payload goes live once the swap settles (in-place updates, e.g. OSD).
+    property string shownModule: ""
+    property var shownPayload: null
+    property bool shownTicker: false
+    readonly property var hostPayload: contentSwap.settled ? root.state.activePayload : root.shownPayload
+
+    function commitShownContent(): void {
+        // Payload before module: ModuleHost's Loader reads it on creation.
+        root.shownPayload = root.moduleOpen ? root.state.activePayload : null;
+        root.shownModule = root.moduleOpen ? root.state.activeModule : "";
+        root.shownTicker = root.tickerVisible && !root.moduleOpen;
+    }
 
     // Module size from config.modules (key "notifications:flow"/"notifications:center"
     // splits the notifications module by payload mode); island.moduleWidth/Height
@@ -124,8 +199,22 @@ PanelWindow {
     }
     readonly property var moduleSize: {
         const all = root.config.modules ?? {};
-        return all[root.moduleKey] ?? all[root.state.activeModule]
+        const size = all[root.moduleKey] ?? all[root.state.activeModule]
             ?? ({ width: root.islandCfg.moduleWidth, height: root.islandCfg.moduleHeight });
+        return root.moduleKey === "notifications:center"
+            ? ({ width: size.width, height: Math.min(size.height, root.centerFitHeight) })
+            : size;
+    }
+    // Notification Center fits its content (config height = cap). Until the
+    // module is rendered (ContentSwap handover) estimate it from the
+    // history: empty = game deck height, else the cap.
+    readonly property real centerFitHeight: {
+        const rendered = root.shownModule === "notifications"
+            && (root.hostPayload?.mode ?? "") === "center" ? moduleHost.preferredHeight : -1;
+        if (rendered > 0)
+            return rendered;
+        return (root.notifications.history ?? []).length === 0
+            ? root.config.notifications.gameHeight : Number.POSITIVE_INFINITY;
     }
 
     // Bar width fits the content (spec: no fixed bar width): a single Row
@@ -154,7 +243,9 @@ PanelWindow {
     Component.onCompleted: {
         state.setMinimal();
         startupTimer.start();
+        root.registry.register(root);
     }
+    Component.onDestruction: root.registry.unregister(root)
 
     // Real backdrop blur via niri's ext-background-effect-v1 (pShell pattern):
     // the island rect is published as the compositor blur region. Two region
@@ -215,6 +306,7 @@ PanelWindow {
     }
 
     onFsActiveChanged: {
+        fsRevealIdle.stop();
         if (root.moduleOpen)
             return;
         if (root.fsActive)
@@ -224,12 +316,53 @@ PanelWindow {
     }
 
     function openModule(name: string, payload: var): void {
+        // Shared element (spec): an indicator handing its element over
+        // (payload.shared = contract holder) flies it into the module.
+        if (payload?.shared && payload.shared.sharedTransition?.target === name)
+            transitionLayer.launch(payload.shared);
         state.openModule(name, payload);
         // Modules opened from Minimal return there after the idle timeout.
         if (state.currentState === state.module && state.previousState === state.minimal)
             moduleIdle.restart();
         else
             moduleIdle.stop();
+        // Flow cards auto-close (5s alone, 3s with more queued); anything
+        // else replaces the flow and takes over its timer.
+        if (name === "notifications" && (payload?.mode ?? "") === "flow")
+            armFlowTimer();
+        else
+            flowAutoClose.stop();
+    }
+
+    // (Re)arms the flow auto-close: 5s when nothing else waits, 3s when the
+    // queue has more behind the current card.
+    function armFlowTimer(): void {
+        root.flowShownAt = Date.now();
+        flowAutoClose.interval = root.notificationQueue.size > 0 ? root.config.notifications.flowShowQueuedMs : root.config.notifications.flowShowMs;
+        flowAutoClose.restart();
+    }
+
+    // A new arrival queued behind the visible flow card shortens its total
+    // time on screen to the queued budget (3s from when it appeared).
+    function shortenFlow(): void {
+        if (root.state.activeModule !== "notifications")
+            return;
+        if ((root.state.activePayload?.mode ?? "") !== "flow")
+            return;
+        const target = root.config.notifications.flowShowQueuedMs;
+        const elapsed = Date.now() - root.flowShownAt;
+        if (elapsed >= target)
+            root.closeModule();
+        else {
+            flowAutoClose.interval = target - elapsed;
+            flowAutoClose.restart();
+        }
+    }
+
+    // Flow card payload; the bar clock flies into the card's time slot
+    // (shared element) unless the recording/hotspot plate has replaced it.
+    function flowPayload(notif: var): var {
+        return { notification: notif, mode: "flow", shared: indicators.clockOwner };
     }
 
     function openLauncher(): void {
@@ -253,20 +386,48 @@ PanelWindow {
     }
 
     function showOsd(title: string, icon: string, value: real): void {
-        openModule("osd", {
-                title: title,
-                icon: icon,
-                value: Math.max(0, Math.min(1, value))
-            });
+        const payload = {
+            title: title,
+            icon: icon,
+            value: Math.max(0, Math.min(1, value))
+        };
+        // Already up: update in place. Re-opening bumps openCount and replays
+        // the whole swap on every key repeat (the OSD flickers).
+        if (root.moduleOpen && root.state.activeModule === "osd") {
+            root.state.activePayload = payload;
+            root.noteModuleInteraction();
+        } else {
+            openModule("osd", payload);
+        }
         osdAutoClose.restart();
+    }
+
+    // Any interaction with a module opened from Minimal restarts its idle
+    // timeout (spec: return after the LAST interaction).
+    function noteModuleInteraction(): void {
+        if (moduleIdle.running)
+            moduleIdle.restart();
     }
 
     function closeModule(): void {
         moduleIdle.stop();
+        flowAutoClose.stop();
         state.closeModule();
-        if (notificationQueue.size > 0) {
-            const next = notificationQueue.dequeue();
-            openModule("notifications", { notification: next, mode: "flow" });
+        // previousState may be stale: fullscreen changes are ignored while a
+        // module is open (onFsActiveChanged), so reconcile here. Back in
+        // Minimal without fullscreen, the idle timer must run or the strip
+        // never returns to the bar.
+        // Back in the bar under fullscreen (stale previousState, or a module
+        // opened from the swiped-down bar): it hides like a revealed bar.
+        if (root.state.currentState === root.state.island && root.fsActive && !root.temporaryRevealFromMinimal)
+            root.armFsReveal();
+        else if (root.state.currentState === root.state.minimal && !root.fsActive)
+            minimalIdle.restart();
+        // Queue advance goes through a visible collapse to the bar first:
+        // hold the next card for the gap, then expand back with it.
+        if (root.pendingFlow == null && notificationQueue.size > 0) {
+            root.pendingFlow = notificationQueue.dequeue();
+            flowSwapGap.restart();
         }
     }
 
@@ -278,18 +439,29 @@ PanelWindow {
 
     Connections {
         target: root.notifications
+        // Sender closed / expired / trimmed: never show it later, and take
+        // the card down if it is the one on screen right now.
+        function onNotificationClosed(notif) {
+            root.notificationQueue.remove(notif);
+            if (root.pendingFlow === notif)
+                root.pendingFlow = null;
+            if (root.moduleOpen && root.state.activeModule === "notifications"
+                && root.state.activePayload?.notification === notif)
+                root.closeModule();
+        }
         function onNotificationReceived(notif) {
             const urgency = notif?.urgency ?? 1;
             if (root.config.notifications.onlyUrgentToast && urgency < 1)
                 return;
             if (root.moduleOpen) {
                 root.notificationQueue.enqueue(notif);
+                root.shortenFlow();
                 return;
             }
             if (root.state.currentState === root.state.minimal || root.fsActive) {
                 root.showTicker(notif);
             } else {
-                root.openModule("notifications", { notification: notif, mode: "flow" });
+                root.openModule("notifications", root.flowPayload(notif));
             }
         }
     }
@@ -305,6 +477,36 @@ PanelWindow {
         }
     }
 
+    // Fullscreen keeps the island Minimal. A swiped-down (revealed) bar
+    // stays while the cursor is over it and hides back to Minimal
+    // minimalIdleMs after the cursor leaves, if still fullscreen.
+    // Always (re)arms under fullscreen: the trigger re-checks hover, since
+    // hover state can be stale right after a drag grab is released.
+    function armFsReveal(): void {
+        if (root.fsActive)
+            fsRevealIdle.restart();
+        else
+            fsRevealIdle.stop();
+    }
+
+    Timer {
+        id: fsRevealIdle
+        interval: root.timingCfg.minimalIdleMs
+        onTriggered: {
+            if (root.state.currentState !== root.state.island || !root.fsActive || root.temporaryRevealFromMinimal)
+                return;
+            if (islandHover.hovered)
+                return; // leaving re-arms it (islandHover)
+            root.state.setMinimal();
+        }
+    }
+
+    Timer {
+        id: arcsHoldTimeout
+        interval: 1000
+        onTriggered: root.arcsHold = false
+    }
+
     Timer {
         id: minimalIdle
         interval: root.timingCfg.minimalIdleMs
@@ -318,8 +520,15 @@ PanelWindow {
         id: moduleIdle
         interval: root.timingCfg.moduleIdleFromMinimalMs
         onTriggered: {
-            if (root.state.currentState === root.state.module && root.state.previousState === root.state.minimal)
-                root.closeModule();
+            if (root.state.currentState !== root.state.module || root.state.previousState !== root.state.minimal)
+                return;
+            // Still in use: the cursor is over the island, or the launcher
+            // owns the keyboard (it closes itself on Esc/launch).
+            if (islandHover.hovered || root.state.activeModule === "launcher") {
+                moduleIdle.restart();
+                return;
+            }
+            root.closeModule();
         }
     }
 
@@ -328,6 +537,34 @@ PanelWindow {
         interval: root.timingCfg.osdAutoCloseMs
         onTriggered: if (root.state.activeModule === "osd")
             root.closeModule()
+    }
+
+    // Flow toast lifetime (closeModule dequeues the next queued card, if any).
+    Timer {
+        id: flowAutoClose
+        onTriggered: {
+            if (root.state.activeModule === "notifications" && (root.state.activePayload?.mode ?? "") === "flow")
+                root.closeModule();
+        }
+    }
+
+    // Collapse-to-bar gap between queued flow cards: the island visibly
+    // shrinks to the bar, then expands back with the next card.
+    Timer {
+        id: flowSwapGap
+        interval: root.config.notifications.flowSwapGapMs
+        onTriggered: {
+            const next = root.pendingFlow;
+            root.pendingFlow = null;
+            if (next == null)
+                return;
+            if (root.moduleOpen)
+                // User opened something during the gap: put the card back
+                // to the front of the queue, it shows after that closes.
+                root.notificationQueue.requeue(next);
+            else
+                root.openModule("notifications", root.flowPayload(next));
+        }
     }
 
     Timer {
@@ -364,8 +601,26 @@ PanelWindow {
     // on the nested JsonAdapter object).
     Connections {
         target: root.state
-        function onCurrentStateChanged(): void { root.updateIslandBlur(); }
-        function onActiveModuleChanged(): void { root.updateIslandBlur(); }
+        function onCurrentStateChanged(): void {
+            // Entering Minimal with the arcs on screen: hold the bar until
+            // they tuck. The arcs' hide spring has not moved yet here, so
+            // their opacity still tells whether they were visible.
+            if (root.started && root.state.currentState === root.state.minimal
+                && !root.temporaryRevealFromMinimal && arcsShape.opacity > 0.5) {
+                root.arcsHold = true;
+                arcsHoldTimeout.restart();
+            } else if (root.state.currentState !== root.state.minimal) {
+                root.arcsHold = false;
+                arcsHoldTimeout.stop();
+            }
+            root.updateIslandBlur();
+        }
+        function onActiveModuleChanged(): void {
+            // The shared element's module closed or was replaced: fly home.
+            if (transitionLayer.module !== "" && root.state.activeModule !== transitionLayer.module)
+                transitionLayer.returnHome();
+            root.updateIslandBlur();
+        }
     }
 
     Connections {
@@ -424,6 +679,10 @@ PanelWindow {
         cfg: root.config.arcs
         batteryCfg: root.config.battery
         visibleInState: root.state.currentState === root.state.island && !root.moduleOpen && !root.tickerVisible
+        onTucked: {
+            root.arcsHold = false;
+            arcsHoldTimeout.stop();
+        }
     }
 
     // Light halo around the island body (the arcs' halo treatment, but
@@ -492,6 +751,7 @@ PanelWindow {
         islandY: root.islandY
         islandWidth: root.islandWidth
         islandHeight: root.islandHeight
+        clockCenterX: islandRect.x + indicators.clockCenterX
         cfg: root.gestureCfg
         onRequestPresentationMinimal: {
             root.state.setMinimal();
@@ -520,6 +780,7 @@ PanelWindow {
             root.temporaryRevealFromMinimal = false;
             root.state.setIsland();
             minimalIdle.restart();
+            root.armFsReveal();
         }
         onDashboardDragProgress: dy => {
             if (dy <= 0)
@@ -566,13 +827,29 @@ PanelWindow {
         Behavior on radius { Spring {} }
         Behavior on y { Spring {} }
 
+        // Passive hover tracker: keeps a module opened from Minimal alive
+        // while the cursor is over it; leaving restarts the idle timeout.
+        HoverHandler {
+            id: islandHover
+            onHoveredChanged: {
+                root.noteModuleInteraction();
+                if (root.state.currentState === root.state.island)
+                    root.armFsReveal();
+            }
+        }
+
         ContentSwap {
+            id: contentSwap
             anchors.fill: parent
+            onCommitted: root.commitShownContent()
             showing: true
             swapKey: root.contentKey
             // Wash layer follows the island's (animated) corner radius.
             surfaceRadius: islandRect.radius
             blurEnabled: !root.config.effects.disableBlur
+            blurMax: root.config.effects.contentBlurMax ?? 32
+            edgeFade: root.config.effects.contentEdgeFade ?? 24
+            fadeColor: root.theme.islandBg
             blurInMs: root.timingCfg.blurInMs
             fadeInMs: root.timingCfg.fadeInMs
             blurOutMs: root.timingCfg.blurOutMs
@@ -585,7 +862,7 @@ PanelWindow {
             Item {
                 anchors.fill: parent
                 visible: opacity > 0.01
-                opacity: root.showBarContent && root.shouldDrawIslandShape ? 1 : 0
+                opacity: root.shownModule === "" && root.shouldDrawIslandShape ? 1 : 0
                 Behavior on opacity { NumberAnimation { duration: root.timingCfg.fadeOutMs } }
 
                 IndicatorLayout {
@@ -607,10 +884,11 @@ PanelWindow {
             }
 
             ModuleHost {
+                id: moduleHost
                 anchors.fill: parent
-                visible: root.moduleOpen
-                moduleName: root.state.activeModule
-                payload: root.state.activePayload
+                visible: root.shownModule !== ""
+                moduleName: root.shownModule
+                payload: root.hostPayload
                 services: ({
                         audio: root.audio,
                         players: root.players,
@@ -636,7 +914,7 @@ PanelWindow {
             Item {
                 anchors.fill: parent
                 visible: opacity > 0.01
-                opacity: root.tickerVisible && !root.moduleOpen ? 1 : 0
+                opacity: root.shownTicker && root.tickerVisible ? 1 : 0
                 clip: true
                 Behavior on opacity { NumberAnimation { duration: root.timingCfg.fadeInMs } }
 
@@ -664,81 +942,58 @@ PanelWindow {
         }
     }
 
-    IpcHandler {
-        target: "island"
-        function launcher(): void { root.openLauncher(); }
-        function quicksettings(): void { root.openQuickSettings(); }
-        function notifications(): void { root.openNotificationCenter(); }
-        function capture(): void { root.openCapture(); }
-        function dashboard(): void { root.openModule("dashboard", {}); }
-        function player(): void { root.openModule("player", {}); }
-        function lock(): void { root.openLock(); }
-        function close(): void {
-            if (root.moduleOpen)
-                root.closeModule();
-        }
-        function minimal(): void { root.state.setMinimal(); }
-        function island(): void { root.state.setIsland(); }
-        function osd(title: string, icon: string, value: real): void { root.showOsd(title, icon, value); }
+    // Shared element transitions: above all island content (spec).
+    TransitionLayer {
+        id: transitionLayer
+        slotResolver: (name, key) => moduleHost.sharedSlot(name, key)
+    }
 
-        // Key-driven OSD (bind in niri: qs -c pillShell ipc call island <fn>)
-        function volumeUp(): void {
-            root.audio.incrementVolume();
-            root.showOsd("Volume", root.audio.muted ? "🔇" : "🔊", root.audio.volume);
-        }
-        function volumeDown(): void {
-            root.audio.decrementVolume();
-            root.showOsd("Volume", root.audio.muted ? "🔇" : "🔊", root.audio.volume);
-        }
-        function volumeMute(): void {
-            root.audio.toggleMute();
-            root.showOsd("Volume", root.audio.muted ? "🔇" : "🔊", root.audio.volume);
-        }
-        function micMute(): void {
-            root.audio.toggleSourceMute();
-            root.showOsd("Microphone", "🎙", root.audio.sourceMuted ? 0 : root.audio.sourceVolume);
-        }
-        function brightnessUp(): void {
-            root.brightness.increase();
-            root.showOsd("Brightness", "☀", root.brightness.brightness);
-        }
-        function brightnessDown(): void {
-            root.brightness.decrease();
-            root.showOsd("Brightness", "☀", root.brightness.brightness);
-        }
-        function playPause(): void { root.players.playPause(); }
-        function nextTrack(): void { root.players.next(); }
-        function prevTrack(): void { root.players.previous(); }
-
-        // Runtime introspection (debugging the state machine headlessly).
-        function debugState(): string {
-            return JSON.stringify({
-                    state: root.state.currentState,
-                    previousState: root.state.previousState,
-                    activeModule: root.state.activeModule,
-                    openCount: root.state.openCount,
-                    island: [root.islandX, root.islandY, root.islandWidth, root.islandHeight],
-                    started: root.started,
-                    fsActive: root.fsActive,
-                    ticker: root.tickerVisible,
-                    contentKey: root.contentKey,
-                    locked: root.lock.locked,
-                    queue: root.notificationQueue.size,
-                    mic: {
-                        active: root.audio.micActive,
-                        app: root.audio.micAppName,
-                        streams: root.audio.captureStreams.length
-                    },
-                    bar: {
-                        fitted: root.barFittedWidth,
-                        stable: indicators.stableRowWidth,
-                        row: indicators.barRowWidth,
-                        kept: indicators.keptCount,
-                        clock: indicators.clockWidth,
-                        edgeD: indicators.edgePadD,
-                        loaders: indicators.loaderState
-                    }
-                });
-        }
+    // IPC lives in IslandIpc (one handler routed to the focused output's
+    // island); this is the introspection it exposes as debugState.
+    function debugState(): string {
+        return JSON.stringify({
+                screen: root.screen?.name ?? "",
+                state: root.state.currentState,
+                shownModule: root.shownModule,
+                previousState: root.state.previousState,
+                activeModule: root.state.activeModule,
+                openCount: root.state.openCount,
+                island: [root.islandX, root.islandY, root.islandWidth, root.islandHeight],
+                started: root.started,
+                fsActive: root.fsActive,
+                ticker: root.tickerVisible,
+                contentKey: root.contentKey,
+                locked: root.lock.locked,
+                queue: root.notificationQueue.size,
+                notifCount: (root.notifications.history ?? []).length,
+                notifs: (root.notifications.history ?? []).slice(0, 5).map(n => ({
+                        app: n?.appName ?? "",
+                        icon: n?.appIcon ?? "",
+                        image: (n?.image ?? "").length > 0,
+                        summary: n?.summary ?? ""
+                    })),
+                mic: {
+                    active: root.audio.micActive,
+                    app: root.audio.micAppName,
+                    streams: root.audio.captureStreams.length
+                },
+                dictation: {
+                    active: root.dictation.active,
+                    phase: root.dictation.phase,
+                    live: root.dictation.liveText,
+                    typed: root.dictation.typedText,
+                    last: root.dictation.lastTranscript,
+                    error: root.dictation.lastError
+                },
+                bar: {
+                    fitted: root.barFittedWidth,
+                    stable: indicators.stableRowWidth,
+                    row: indicators.barRowWidth,
+                    kept: indicators.keptCount,
+                    clock: indicators.clockWidth,
+                    edgeD: indicators.edgePadD,
+                    loaders: indicators.loaderState
+                }
+            });
     }
 }

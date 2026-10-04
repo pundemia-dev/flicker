@@ -15,6 +15,9 @@ Item {
     property int workspaceCount: 1
     // { "<output>": { fullscreen: bool, workspace: int, workspaceCount: int } }
     property var perScreen: ({})
+    property string focusedOutput: ""
+    // Only the detected backend polls its compositor.
+    property bool active: false
     property var windows: []
     property var workspaces: []
     property var outputs: ({})
@@ -78,6 +81,7 @@ Item {
         // Global view (focused workspace / focused window).
         const focusedWs = ws.find(w => w.is_focused);
         root.workspace = focusedWs?.idx ?? 1;
+        root.focusedOutput = focusedWs?.output ?? "";
         root.workspaceCount = ws.length;
         const focusedWin = wins.find(w => w.is_focused);
         const focusedOut = focusedWin
@@ -159,7 +163,7 @@ Item {
 
     Timer {
         interval: Config.data.compositor.pollMs
-        running: true
+        running: root.active
         repeat: true
         onTriggered: {
             windowsProc.running = true;

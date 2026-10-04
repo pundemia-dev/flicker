@@ -18,6 +18,20 @@ Rectangle {
     readonly property string artUrl: players?.artUrl ?? ""
     // Stable width for the eviction math (never depends on `evicted`).
     readonly property real desiredWidth: diameter
+    // Shared element contract (core/TransitionLayer): the cover flies into
+    // the player module's "cover" slot, morphing to the slot's radius.
+    readonly property Item sharedElement: cover
+    readonly property var sharedTransition: ({
+            target: "player",
+            slot: "cover",
+            properties: { radius: "slot" },
+            curve: "spring"
+        })
+    function restoreShared(): void {
+        cover.anchors.fill = root;
+        cover.radius = Qt.binding(() => root.diameter / 2);
+    }
+
     // Enter animation (see Microphone.qml): grow in instead of popping.
     property bool entered: false
     Component.onCompleted: entered = true
@@ -51,7 +65,7 @@ Rectangle {
     MouseArea {
         anchors.fill: parent
         hoverEnabled: true
-        onClicked: root.requestOpen("player", {})
-        onEntered: root.requestOpen("player", {})
+        onClicked: root.requestOpen("player", { shared: root })
+        onEntered: root.requestOpen("player", { shared: root })
     }
 }

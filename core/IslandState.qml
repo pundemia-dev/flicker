@@ -43,11 +43,14 @@ QtObject {
     }
 
     function closeModule(): void {
-        activeModule = "";
-        activePayload = null;
-        // Belt and suspenders for states already poisoned with
+        // State FIRST: clearing activeModule while still in "module" made
+        // the island briefly target the fallback module size
+        // (island.moduleWidth/Height) on every close — a jerk toward 560x210
+        // before collapsing. Belt and suspenders for states poisoned with
         // previousState === module: fall back to the bar instead of
         // re-entering a module-less module state.
         currentState = previousState === module ? island : previousState;
+        activeModule = "";
+        activePayload = null;
     }
 }

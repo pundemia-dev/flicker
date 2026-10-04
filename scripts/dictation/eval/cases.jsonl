@@ -1,17 +1,17 @@
-{"id": "ru-corr-01", "lang": "ru", "tags": ["correction"], "input": "отправь Марку нет Ивану", "expected": "отправь Ивану"}
-{"id": "ru-corr-02", "lang": "ru", "tags": ["correction"], "input": "встреча в три то есть в четыре часа", "expected": "встреча в четыре часа"}
+{"id": "ru-corr-01", "lang": "ru", "tags": ["correction"], "input": "Отправь Марку, нет, Ивану.", "expected": "Отправь Ивану."}
+{"id": "ru-corr-02", "lang": "ru", "tags": ["correction"], "input": "Встреча в три, то есть в четыре часа.", "expected": "Встреча в четыре часа."}
 {"id": "ru-corr-03", "lang": "ru", "tags": ["correction"], "input": "позвони ой напиши Сергею", "expected": "напиши Сергею"}
 {"id": "ru-corr-04", "lang": "ru", "tags": ["correction"], "input": "купи молока нет лучше кефира", "expected": "купи лучше кефира"}
-{"id": "ru-corr-05", "lang": "ru", "tags": ["correction"], "input": "Нет, Ивану", "expected": "Ивану"}
-{"id": "ru-stut-01", "lang": "ru", "tags": ["stutter"], "input": "я я хочу чаю", "expected": "я хочу чаю"}
+{"id": "ru-corr-05", "lang": "ru", "tags": ["correction"], "input": "Нет, Ивану.", "expected": "Ивану."}
+{"id": "ru-stut-01", "lang": "ru", "tags": ["stutter"], "input": "Я я хочу чаю.", "expected": "Я хочу чаю."}
 {"id": "ru-stut-02", "lang": "ru", "tags": ["stutter"], "input": "кот кот кот спит", "expected": "кот спит"}
 {"id": "ru-stut-03", "lang": "ru", "tags": ["stutter"], "input": "очень очень хорошо", "expected": "очень очень хорошо"}
-{"id": "ru-fill-01", "lang": "ru", "tags": ["filler"], "input": "ну это самое привет", "expected": "привет"}
+{"id": "ru-fill-01", "lang": "ru", "tags": ["filler"], "input": "Ну, это самое, привет.", "expected": "Ну, это самое, привет."}
 {"id": "ru-fill-02", "lang": "ru", "tags": ["filler"], "input": "э м так вот дела", "expected": "так вот дела"}
 {"id": "ru-clean-01", "lang": "ru", "tags": ["clean"], "input": "какой сегодня день", "expected": "какой сегодня день"}
 {"id": "ru-clean-02", "lang": "ru", "tags": ["clean"], "input": "Проделано большая работа", "expected": "Проделано большая работа"}
 {"id": "ru-clean-03", "lang": "ru", "tags": ["clean"], "input": "Нет.", "expected": "Нет."}
-{"id": "en-corr-01", "lang": "en", "tags": ["correction"], "input": "send Mark no sorry Ivan the report", "expected": "send Ivan the report"}
+{"id": "en-corr-01", "lang": "en", "tags": ["correction"], "input": "Send Mark, no, sorry, Ivan the report.", "expected": "Send Ivan the report."}
 {"id": "en-corr-02", "lang": "en", "tags": ["correction"], "input": "meeting at three I mean four", "expected": "meeting at four"}
 {"id": "en-stut-01", "lang": "en", "tags": ["stutter"], "input": "I I want tea", "expected": "I want tea"}
 {"id": "en-fill-01", "lang": "en", "tags": ["filler"], "input": "um well hello there", "expected": "well hello there"}

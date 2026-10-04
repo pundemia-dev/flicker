@@ -44,6 +44,11 @@ Item {
 
     // Live clock width (plate grows with the recording timer text).
     readonly property real clockWidth: clockPlate.implicitWidth
+    // Clock as a shared-element owner (null while the recording/hotspot
+    // plate replaces the clock face).
+    readonly property Item clockOwner: clockPlate.active ? null : clockPlate
+    // Clock centre in this item's coords (follows the row's springs).
+    readonly property real clockCenterX: barRow.x + clockPlate.x + clockPlate.width / 2
     // Animated indicator widths (0 while hidden/evicted).
     readonly property real indicatorsNow: (micLoader.item?.width ?? 0)
         + (musicLoader.item?.width ?? 0)

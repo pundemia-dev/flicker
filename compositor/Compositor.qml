@@ -17,6 +17,9 @@ Item {
     readonly property int workspace: backend.workspace ?? 1
     readonly property int workspaceCount: backend.workspaceCount ?? 1
     readonly property var perScreen: backend.perScreen ?? ({})
+    // Output name of the focused workspace ("" = unknown): IPC targets the
+    // island on this output.
+    readonly property string focusedOutput: backend.focusedOutput ?? ""
 
     function screenInfo(name: string): var {
         return root.perScreen[name] ?? null;
@@ -40,7 +43,7 @@ Item {
     function startRecording(region: string): void { recorder?.start(region); }
     function stopRecording(): void { recorder?.stop(); }
 
-    Niri { id: niriBackend }
+    Niri { id: niriBackend; active: root.detect.backendName === "niri" }
     Hyprland { id: hyprBackend }
-    Drift { id: driftBackend }
+    Drift { id: driftBackend; active: root.detect.backendName === "drift" }
 }

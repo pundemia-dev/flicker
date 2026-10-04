@@ -16,6 +16,18 @@ Item {
     required property var services
     signal closeRequested
 
+    // Shared-element slot of the CURRENTLY rendered module (TransitionLayer):
+    // null until that module exists or when it declares no such slot.
+    function sharedSlot(name: string, key: string): var {
+        if (root.moduleName !== name || !host.item || typeof host.item.sharedSlot !== "function")
+            return null;
+        return host.item.sharedSlot(key);
+    }
+
+    // Content-fitted height the current module asks for (-1 = none; Island
+    // then uses the config.modules size). Only the notification center sets it.
+    readonly property real preferredHeight: host.item?.preferredHeight ?? -1
+
     Loader {
         id: host
         anchors.fill: parent
@@ -56,6 +68,7 @@ Item {
             payload: root.payload
             notificationsService: root.services.notifications
             cfg: root.services.config.notifications
+            theme: root.services.theme
             onCloseRequested: root.closeRequested()
         }
     }

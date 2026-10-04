@@ -8,8 +8,9 @@ import "../config"
 // empty input mask so it never swallows clicks.
 PanelWindow {
     id: root
-    required property ShellScreen screen
-    screen: root.screen
+    // Not `screen`: that shadows WindowInterface.screen (see Island.qml).
+    required property ShellScreen targetScreen
+    screen: root.targetScreen
     color: "transparent"
     WlrLayershell.layer: WlrLayer.Top
     WlrLayershell.exclusionMode: ExclusionMode.Ignore

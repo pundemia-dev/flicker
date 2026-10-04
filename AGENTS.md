@@ -27,11 +27,14 @@ Not a git repo. No tests, no linter, no formatter.
 - Visual check: `grim /tmp/shot.png`, crop top-center. NOTE: grim takes ~1.9s to
   capture, which exceeds the OSD auto-close (1.3s) — temporarily raise
   `timings.osdAutoCloseMs` in config.json when screenshotting short-lived states.
-- IPC: `quickshell -p $PWD ipc call <target> <fn>`. Targets: `island` (launcher, quicksettings,
+- IPC: `quickshell -p $PWD ipc call <target> <fn>` (with the user's instance running,
+  address yours via `quickshell ipc --id <by-id dir> call ...`). `island` is ONE handler
+  (`core/IslandIpc.qml`) routed via `core/IslandRegistry.qml` to the island on
+  `compositor.focusedOutput` — never put an IpcHandler in per-screen Island. Targets: `island` (launcher, quicksettings,
   notifications, capture, dashboard, player, lock, close, minimal, island, osd, debugState,
   volumeUp/Down/Mute, micMute, brightnessUp/Down, playPause, nextTrack, prevTrack),
   `lock` (activate/isLocked — deliberately NO unlock/toggle over IPC; unlocking needs PAM),
-  `dictation` (start/stop/toggle).
+  `dictation` (start/stop/toggle/cancel/status).
 
 ## Architecture wiring (non-obvious)
 
@@ -67,14 +70,28 @@ Not a git repo. No tests, no linter, no formatter.
   `startRecording/stopRecording` API but delegates to `services/Recorder.qml` (single
   source of truth for the flag + wf-recorder process). Backends must NOT spawn wf-recorder.
   Compositor also needs `recorder: recorderService` injected in `core/Shell.qml`.
+- The user runs BOTH niri and driftwm (check `pgrep -a driftwm` / `NIRI_SOCKET` before
+  assuming). Drift backend: `driftwm msg subscribe --json` snapshots (`{"State":...}`),
+  fullscreen = top-level `State.fullscreen[].output` (window `mode: "Fit"` is NOT
+  fullscreen), no workspaces; protocol source in /usr/src/debug/driftwm/*/src/ipc/protocol.rs.
+  Backends get `active` from Detect — only the detected one polls/subscribes.
 - Compositor exposes per-screen state: `perScreen` map + `fullscreenOn(name)`/`workspaceOn(name)`
   with global fallback. Island uses `screen.name`. Niri backend polls `windows` + `workspaces`
   + `outputs`; this niri (26.04) has NO `is_fullscreen` in windows JSON, so fullscreen =
   `is_fullscreen === true` OR `window_size == logical output size` (±2px).
 - `Process.signal(2)` sends SIGINT (pShell pattern); `terminate("SIGINT")` does NOT work —
   use `signal()` for graceful stops (see Dictation).
+- ContentSwap commits content at the handover (after the blur-in stage): Island renders `shownModule`/
+  `hostPayload` (set in `commitShownContent`), NOT `state.activeModule` — otherwise the
+  new module pops in at full opacity before the fade. In-place updates (OSD repeat) set
+  `state.activePayload` without reopening (no `openCount` bump, no swap).
 - ALL content swaps go through `core/ContentSwap.qml` (two-stage blur→fade); all movement/size
   animation through `components/Spring.qml`. Never add linear/ease transitions or shaders.
+  EXCEPTION (user decision): the side arcs' hide/show (`Arcs.hideProgress`) is a timed
+  NumberAnimation (`arcs.hideMs`/`showMs`, InOutCubic / OutBack), not a spring. Sequence:
+  bar holds its shape (`Island.arcsHold`) until the tuck reaches `arcs.collapseAt`, then
+  collapses to Minimal; hiding arcs use the bar width frozen at hide time (horizontal) and
+  the live island centre (vertical).
 - Config: `config/config.json` watched by `config/Config.qml` (pragma Singleton, JsonAdapter,
   hot-reload). New tunable = add to BOTH the JsonAdapter defaults and config.json; read as
   `Config.data.<group>.<key>`. Pure visual tokens live in `services/Theme.qml`.
@@ -85,11 +102,34 @@ Not a git repo. No tests, no linter, no formatter.
   stuck as an empty module-sized rect; `setIsland`/`setMinimal` refuse to leave "module").
   `core/IslandState.qml` guards both openModule (keeps the original pre-module state) and
   closeModule (falls back to island on a poisoned previousState).
+- Fullscreen = Minimal until fullscreen ends (`minimalIdle` never lifts it). A swipe-down
+  reveal under fullscreen stays while `islandHover` is hovered and drops back to Minimal
+  `minimalIdleMs` after the cursor leaves (`fsRevealIdle`/`armFsReveal` in Island.qml);
+  closing a module into the bar under fullscreen arms the same timer.
 - MprisPlayer position reads are always live (Quickshell interpolates), but the
   positionChanged signal must be emitted manually while playing — the documented pattern
   (1s Timer, `onTriggered: player.positionChanged()`, running bound to Playing) is in
   `modules/player/PlayerModule.qml`. `length` mirrors `position` when `lengthSupported`
   is false — guard progress/remaining on that.
+- Notification Center (`modules/notifications/center/`, Oct 2026, user decision over the
+  spec's stripes): iOS-style list grouped by appName (newest group first; collapsed stack =
+  front tile (red group counter on the avatar top-right, `NotificationCard.groupCount`) + `centerStackDepth` bottom-anchored plates, tap fans out under a header with
+  «Свернуть»/✕; swiping a collapsed stack clears the group), swipe-left/✕ dismiss →
+  `NotificationEntry.dismiss()`, tap → `invokeDefault()` (+dismiss, close) only if the sender
+  has a "default" action. Wheel-only scroll (no Flickable). Tiles and the game deck GRAB
+  presses, so each forwards swipe-up as `closeRequested` itself. Island height is
+  content-fitted: module `preferredHeight` → `ModuleHost.preferredHeight` →
+  `Island.centerFitHeight`, capped by `modules["notifications:center"].height`. While the center is open `Island.surfaceReserve`
+  holds the layer surface at that cap (in-place morphs never resize the surface mid-spring),
+  and every center spring uses the island's default `Spring {}` params — mismatched curves
+  read as a two-phase "step" on group fan-out.
+  Empty history = mini-game deck (`modules/notifications/games/`: GameDeck + DinoGame (port
+  of dim-ghub/caelestia-shell `components/DinoGame.qml`, sprites in `assets/dino/`
+  recoloured white) + FlappyGame; order `notifications.games`, horizontal swipe / [ ] / Tab
+  switch, explicit Component registry in GameDeck). Island grants `keyboardFocus: OnDemand`
+  while the center is open (click the game for Space/arrows). Last game + best scores live
+  on the Notifications service (session only). Do NOT name game props `top`/`floor`-like
+  Item members (`top` → "Cannot override FINAL property").
 - MPRIS multi-player: `services/Players.qml` picks `active` dms-style (prefer a playing
   player, remember the last playing one, a paused player beats registered-idle ones at
   cold start). Plain `players[0]` picks early-registrants like Telegram (registers
@@ -103,6 +143,9 @@ Not a git repo. No tests, no linter, no formatter.
   (undefined forever). Source `id`s in `core/Shell.qml` are therefore suffixed
   (`themeService`, `audioService`, ...). Same trap for any property named like a
   type/attached name.
+- NEVER declare `property ... screen` on a PanelWindow: it shadows
+  `WindowInterface.screen` (qmllint `property-override`), the real window screen is
+  never set and every per-screen window lands on one output. Use `targetScreen`.
 - `Item`'s DEFAULT property is `data`. Declaring `required property var data`
   silently shadows it, so child items are dropped and the component renders
   empty. Use `payload` (see OsdModule/NotificationsModule).
@@ -120,6 +163,16 @@ Not a git repo. No tests, no linter, no formatter.
   `Quickshell.Wayland`; players `Quickshell.Services.Mpris`; battery
   `UPower.devices`; bluetooth `Bluetooth.defaultAdapter`; apps
   `DesktopEntries.applications`.
+- Island window height (`implicitHeight`) must follow `Island.paintBottom` = max(TARGET
+  island bottom, ANIMATED `islandRect` bottom, `transitionLayer.flightBottom`). Sizing from
+  the target alone shrinks the layer surface instantly on module close and crops the
+  collapsing body and the shared element flying home (fixed Oct 2026). BUT never resize
+  per frame (layer-shell resize = buffer realloc + compositor round-trip → freezes):
+  `heldBottom` ratchets up (16px steps + headroom), holds while anything moves and
+  shrinks once on `geometrySettled` — ~2 resizes per transition (verified Oct 2026).
+- `IslandState.closeModule()` sets `currentState` BEFORE clearing `activeModule`: the
+  reverse order briefly made the island target the fallback module size (560x210) on
+  every close.
 - Fullscreen decorative/large surfaces must set `mask: Region {}` (empty) or they
   swallow all input; keep PanelWindow heights tight around the island.
 - Launcher needs keyboard: Island sets `WlrLayershell.keyboardFocus: OnDemand`
@@ -147,6 +200,20 @@ Not a git repo. No tests, no linter, no formatter.
 - Path elements (`PathMove`/`PathLine`, NOT `*To` — Qt6 names, live in QtQuick
   itself) inside `ShapePath` do NOT see the parent `Shape`'s own properties
   via scope lookup (`baseX is not defined`); qualify with an id or an outer id.
+- MultiEffect `maskEnabled` is a HARD alpha threshold here (Qt 6.11, verified Oct 2026
+  with an isolated sweep): a gradient maskSource stays binary, `maskSpreadAtMin` only
+  shifts the cut (`min*(1+s)-s`). No soft alpha masks via MultiEffect — for soft edges
+  over the opaque island paint background-colour gradients instead (`components/
+  EdgeFade.qml`, used by ContentSwap: edge fade only while blur exists, strength =
+  max(live blur, ghost opacity), width `effects.contentEdgeFade`).
+  Rounded IMAGES therefore do not use a MultiEffect mask (stair-stepped corners):
+  `components/RoundedImage.qml` is a `Shape` (CurveRenderer, `PathRectangle`)
+  filled via `ShapePath.fillItem` from a layered wrapper around the Image
+  (the layer bakes PreserveAspectCrop; a bare Image texture would not).
+  The island's `clip: true` is RECTANGULAR: anything painted into its corners shows
+  outside the rounding. ContentSwap therefore masks its layers (live, ghost, edge fade)
+  to the rounded island shape (`surfaceRadius`, binary MultiEffect mask) while a
+  transition runs.
 - Canvas `shadow*` (`shadowColor`/`shadowBlur`/offsets) do NOTHING in Qt:
   the Context2D properties exist (assignments don't throw) but render no
   shadow (verified Sep 2026). Build glows from layered translucent strokes
@@ -170,8 +237,29 @@ battery fill, mic/music/dictation indicators, light halo around the body), per-m
 (verified: dashboard 538×450, OSD 400×72, capture 520×112),
 Minimal state (fullscreen-driven + IPC, per-screen), Overlay visibility over fullscreen,
 modules launcher/quicksettings/dashboard/player/osd/capture/dictation/notifications
-(center; flow + FIFO queue verified in code, live D-Bus unreachable — pShell owns the
-notification server), dashboard drawer (drag-follow + snap, code-complete),
+(center: iOS grouped list + mini-games when empty, verified via IPC + screenshots
+(collapsed stack, expanded group, scroll cap 460, game deck idle) — taps/swipes/games
+NOT live-tested; flow FIFO queue with 5s single / 3s queued lifetimes
+(`flowShowMs`/`flowShowQueuedMs`) + collapse-to-bar gap between cards
+(`flowSwapGapMs`, `pendingFlow` + `requeue` keep FIFO on user intervention),
+verified headless on a nested bus with scaled timings, live D-Bus unreachable —
+pShell owns the notification server; card layout `NotificationCard`: avatar (sender `image`, else app
+icon, else initial letter) + app-icon badge on the avatar rim, title … time
+(today HH:MM / Вчера, HH:MM / Пн HH:MM / dd.mm.yyyy), body, 3 lines max incl. title;
+icon resolution chain: D-Bus app_icon → bare name smuggled via image-path
+(notify-send 0.8.x) → `DesktopEntries` match by Name/id-suffix/exec in
+`desktopIconFor` (Telegram Desktop sends empty app_icon; list populates async —
+kicked on startup, first-seconds race accepted); incoming server objects are
+marked `tracked` on receipt or `image://qsimage/…` avatars (image-data senders)
+die with the notification;
+history entries are live `services/NotificationEntry.qml` mirrors (Quickshell applies
+`replaces_id` IN PLACE on the same Notification — no second onNotification), every
+tracked object is released: sender close/expire → `closed` → `forget` (out of history,
+`notificationClosed` → Island drops it from queue/pending/visible flow card), entries
+past `historyLimit` are `expire()`d (verified on a nested bus via `dbus-run-session`:
+replace in place, CloseNotification removes, 53 sent → 50 kept + 3 NotificationClosed);
+`//@ pragma IconTheme` in shell.qml is REQUIRED for iconPath lookups (else the
+provider's broken-image placeholder renders)), dashboard drawer (drag-follow + snap, code-complete),
 dashboard cards (one file per card in `modules/dashboard/cards/` + shared
 `DashboardCard`/`CardTitle`/`MiniBar`/`RingArc`; grid-first: fixed 1-unit
 header block + 6x4 card grid (unit 80px, island 538x450); spans hardcoded
@@ -193,7 +281,42 @@ their slow first fetch lands; events = empty state, no calendar backend yet),
 swipe-down
 reveal from Minimal, swipe-up module close, mic exclusion of dictation/recording
 (live: pw-record runs, no mic dot, wave expands island 420→448 and back), dictation
-start/stop via IPC incl. SIGINT finalize (`signal(2)`), recording routed through the
+streaming (JSONL partial/final over stdout, `streamCommand` "stub"/custom/legacy-batch,
+SIGINT flush (`signal(2)`), wtype-only typer with BackSpace rewrite, hallucination
+filter, optional text finalizer + Gemma 4 E2B Refine via llama-server, `transcripts.jsonl`,
+IPC start/stop/cancel/status + `dictation` block in debugState; real Nemotron 3.5 backend
+wires in via `scripts/dictation/stream-nemotron.sh`; layout-followed language
+(`services/KeyboardLayout`: drift subscribe / niri event-stream → `layout2lang`,
+session restarts on layout switch when `followLayout`, mode `restart`;
+pinned beats auto per the Nemotron card, but the layout must match the
+spoken language — engine auto-detect is `followLayout: false` + `language:
+"auto"`; backend `ready` (session.updated ack) flips the island from the grey
+`switching` phase to live; Refine is rules → gate → LLM → validator
+(deterministic filler/stutter cleanup, LLM only on correction shapes with a
+`ruled` fast path (previewed in pending before commit), personal `corrections`
+map for ASR confusions the deletion contract can't express; validator:
+truncation/invented/provenance (per-word: exact or typo-close via
+char-Levenshtein, replaces the length ratio)/over-deletion (drops >2 words
+past half)/script-flip guards + thought/preamble strip; gate sees adjacent AND windowed (≤6w)
+fuzzy repeats; prompt allows fusing split words / fixing 1-2-letter typos
+against visible input words; eval harness in `scripts/dictation/eval/`
+— 60 cases + run/score, needs a live llama-server; managed model lifecycle
+(`refineServerCommand`: ensureModel on session start, /health poll till 200
+with instant ruled fallback while warming, releaseModel (SIGTERM + 5s SIGKILL
+watchdog) on session end — never on layout restart, respawn on unexpected
+death; empty command = external server, no lifecycle);
+server notes: static system prompt reuses KV-cache (`--cache-prompt` default
+on), thinking stays OFF (no `<|think|>`, launch with `--reasoning off`;
+Gemma 4 answers leak as `<|channel>thought…<channel|>` if it slips on), cap llama-server threads
+(`-t`) to leave CPU headroom for Nemotron (`--device cpu`), cold start
+(always-resident vs on-demand) undecided; index-deletion prompt (model
+returns word indices to delete) is an untried alternative); the dictation wave is a real voice meter
+(`PwNodePeakMonitor` on the default source, grey while switching,
+auto-scaled: noise-floor gate (1.15x — peaks arrive cbrt-compressed) +
+running maximum with a speech-level prior, so silence sits flat and any
+mic swings full height; ready-guard on the source node, meter reseeds on
+source change, 1s freeze watchdog bounces capture if peak sticks nonzero),
+recording routed through the
 Recorder service (single source of truth) incl. live red clock plate (elapsed timer,
 island keeps bar size; stop returns the clock, wf-recorder reaped, file finalized), per-screen fullscreen/workspace, OSD only on
 keys/IPC with auto-close, module→previousState (incl. back-to-Minimal from Minimal),
@@ -234,18 +357,38 @@ Simplified / not implemented yet (see pillShell.md for the intended behaviour):
   int-rounded first (fractional springs truncated outward + re-kicked on
   subpixel jitter otherwise). Deliberately NOT solved by staircase-painting
   the island to the mask (tried Sep 2026: needs output-scale plumbing,
-  Qt renders the layer buffer at integer scale, exactness unverifiable). `components/BlurSurface.qml` is the in-window wash
-  for the blur→fade pattern (its radius follows `ContentSwap.surfaceRadius` =
-  island radius — never `height/2`, that draws a capsule inside tall modules).
-  The wash is transparent: any white overlay would lift the opaque body off
-  true black (8% white turned #000000 into #141414, Sep 2026).
+  Qt renders the layer buffer at integer scale, exactness unverifiable). `components/BlurSurface.qml` is the in-window CONTENT blur (MultiEffect
+  via `layer.effect`, `amount` 0..1, layer switched off at 0 so idle content is crisp and
+  unlayered); `ContentSwap` drives it: swap = blur rises on old → handover (old frame
+  frozen into a blurred ghost `ShaderEffectSource` live:false, owner switches content) →
+  ghost fades out WHILE new fades in under blur → blur falls; ghost keeps its capture
+  size (top-centred) so island resizes never stretch it; radius `effects.contentBlurMax`, off with `effects.disableBlur`
+  (verified Oct 2026 with stretched timings in a scratch copy: bar clock blurs out,
+  dashboard emerges blurred). No white wash anywhere: an 8% white overlay turned the
+  true-black body #000000 into #141414 (Sep 2026).
   Island body is truly black (`Theme.islandBg #000000`, `effects.islandOpacity`
   1.0) except Minimal. Do NOT fake blur with a blurred wallpaper image —
   the island lives over app windows, wallpaper would mismatch.
 - Capture: region selection delegates to `slurp`; the spec's dim+crosshair, flying square and
   second island instance are absent.
-- Shared element transitions: `core/TransitionLayer.qml` is an empty placeholder; the album
-  cover does not reparent into the player module.
+- (DONE Oct 2026) Shared element transitions: `core/TransitionLayer.qml` (top of the
+  island window) lifts the owner's `sharedElement` (reparent, never recreated), flies it
+  to the module slot `sharedSlot(key)` (ModuleHost resolver; slot = Item with
+  `property Item docked`, module hides its own fallback while docked) tracking the
+  slot's LIVE rect per frame (FrameAnimation — the island springs under it), lerps the
+  contract `properties` (numbers/colours, `"slot"` = read from slot), lands with
+  anchors.fill, and flies home on close/replace (`onActiveModuleChanged`), then calls
+  `restoreShared()` to re-bind. Contract on the owner (`sharedTransition`: target, slot,
+  properties, curve "spring" | Easing + duration). Trigger: `openModule(name,
+  { shared: owner })`. Used by Music → player cover and ClockPlate → notification flow
+  card "time" slot (clock text morphs to the card's text/colour/font, so it shows the
+  ARRIVAL time; `sharedHome` = exact label box, `sharedHomeValues` = live clock values for
+  the return; paths like "font.pixelSize", strings switch at p 0.5, start values are
+  SNAPSHOTS — a colour read is a live value-type reference; a launch while the same
+  element flies home turns it around in place). Verified with a fake MPRIS player
+  (`dbus-run-session` + Gio script) and a timed 6s curve: out → landed (138px, r16) →
+  home. `RoundedImage` keeps the last frame while re-decoding (`retainWhileLoading`)
+  and decodes at power-of-two steps so the growing cover never blinks.
 - `appearFromEdge` (startup / capture strip): startup slides the Minimal strip in
   from the top edge with a spring (`started` flag in Island.qml), then morphs it
   into the bar on its spot (`startupMorph` timer + `timings.startupMorphDelayMs`);
@@ -255,3 +398,8 @@ Simplified / not implemented yet (see pillShell.md for the intended behaviour):
   no action — user: a layout change/lyrics view comes later). Source decided by the user:
   lrclib.net via `curl -4` (the Weather fetch pattern, no API key) — plain + synced lyrics;
   pShell's caelestia C++ lyrics plugin is not portable (pure QML shell).
+- Dictation layout-switch mode `dual` (hot ru+en sessions, zero-latency routing
+  on layout switch) is PLANNED, not implemented: `config.dictation.switchMode`
+  reserves the key, anything but `"restart"` warns and behaves as `"restart"`.
+  Rationale: nemo-speech rejects `session.update` once audio started, so the
+  language is per-session; dual needs a mic tee + per-stream routing.

@@ -22,6 +22,11 @@ Item {
 
     property string _target: ""
     property string _sent: ""
+    // Session epoch: reset() during a running wtype (layout restart) must
+    // retire the in-flight run — its late onExited would otherwise restore
+    // stale typedText over the fresh baseline.
+    property int _epoch: 0
+    property int _runEpoch: -1
 
     function applyText(full: string): void {
         root._target = full ?? "";
@@ -30,6 +35,7 @@ Item {
     }
 
     function reset(): void {
+        root._epoch += 1;
         root._target = "";
         root._sent = "";
         root.typedText = "";
@@ -67,6 +73,7 @@ Item {
         if (suffix.length > 0)
             args.push("--", suffix);
         root._sent = root._target;
+        root._runEpoch = root._epoch;
         typeProc.command = ["wtype"].concat(args);
         typeProc.running = true;
     }
@@ -77,6 +84,10 @@ Item {
             id: typeErr
         }
         onExited: code => {
+            // Stale run (reset raced it): drop silently, never fail the
+            // new session over the old one's wtype.
+            if (root._runEpoch !== root._epoch)
+                return;
             if (code !== 0) {
                 const msg = `wtype exit ${code}: ${typeErr.text.trim()}`;
                 root.lastError = msg;

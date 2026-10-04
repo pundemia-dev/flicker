@@ -17,6 +17,17 @@ QtObject {
         return head;
     }
 
+    // Back to the FRONT (a card displaced by user interaction during the
+    // collapse gap keeps its place ahead of the rest).
+    function requeue(item: var): void {
+        root.items = [item, ...root.items];
+    }
+
+    // Drops an item wherever it is (the sender closed it while queued).
+    function remove(item: var): void {
+        root.items = root.items.filter(i => i !== item);
+    }
+
     function clear(): void {
         root.items = [];
     }

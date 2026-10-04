@@ -6,6 +6,7 @@ QtObject {
     property int workspace: 1
     property int workspaceCount: 1
     property var perScreen: ({})
+    property string focusedOutput: ""
     function grabFocus(): void {}
     function releaseFocus(): void {}
     function spawn(cmd: string): void {}

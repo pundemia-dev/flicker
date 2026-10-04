@@ -1,4 +1,5 @@
 import QtQuick
+import "../components"
 
 // Side arcs: WiFi signal (left, yellow) and battery (right, coloured by
 // level). Each arc is a circle concentric with the bar end's rounding
@@ -42,18 +43,101 @@ Item {
     // Half-size: used by the Island to keep the layer surface tall enough.
     readonly property real extent: root.box / 2
 
-    opacity: visibleInState ? 1 : 0
-    Behavior on opacity {
-        NumberAnimation {
-            duration: 140
+    // Hide = slide under the bar (spec): 0 shown, 1 tucked. Both arcs move
+    // inwards behind the island ends (z below the body) and fade on the same
+    // timed animation, so they visibly sink under the bar instead of just
+    // vanishing; showing replays it in reverse (they slide out from under
+    // the bar). NOT a spring (user decision, overrides the springs-only
+    // rule): timed hideMs/showMs read better here. Duration/easing are set
+    // imperatively (onVisibleInStateChanged) BEFORE the value changes, so
+    // the Behavior always starts with the right curve.
+    property real hideProgress: 0
+    readonly property bool hiding: !visibleInState
+    // Disabled until Component.onCompleted seeds the initial value: the shell
+    // starts in Minimal, and animating 0 -> 1 there would flash the arcs.
+    Behavior on hideProgress {
+        id: hideBehavior
+        enabled: false
+        NumberAnimation { id: hideAnim }
+    }
+
+    // Bar geometry frozen at the moment of hiding: the island itself springs
+    // (with overshoot) into Minimal/module size, and arcs glued to the live
+    // edges copied that bounce (out, then back). While hiding they move
+    // relative to the island CENTRE (fixed: the island is anchor-centred)
+    // using the frozen bar size; showing tracks the live geometry as before.
+    property real frozenW: 0
+    property real frozenEnd: 0
+    readonly property real effW: hiding ? frozenW : root.width
+    readonly property real effEnd: hiding ? frozenEnd : root.endCenter
+
+    // Emitted once per hide when the tuck progress reaches cfg.collapseAt:
+    // the island holds the bar until then, then collapses into Minimal.
+    // 1 - collapseAt is the overlap between the tuck and the collapse.
+    signal tucked
+    property bool tuckedSent: false
+    onHideProgressChanged: {
+        if (root.hiding && !root.tuckedSent && root.hideProgress >= (root.cfg.collapseAt ?? 0.5)) {
+            root.tuckedSent = true;
+            root.tucked();
         }
     }
+
+    onVisibleInStateChanged: {
+        root.tuckedSent = false;
+        if (!visibleInState) {
+            root.frozenW = root.width;
+            root.frozenEnd = root.endCenter;
+            hideAnim.duration = root.cfg.hideMs ?? 260;
+            hideAnim.easing.type = Easing.InOutCubic;
+            root.hideProgress = 1;
+        } else {
+            hideAnim.duration = root.cfg.showMs ?? 420;
+            // Slight outward overshoot, like the spring it replaced.
+            hideAnim.easing.type = Easing.OutBack;
+            root.hideProgress = 0;
+        }
+    }
+    Component.onCompleted: {
+        root.frozenW = root.width;
+        root.frozenEnd = root.endCenter;
+        root.hideProgress = visibleInState ? 0 : 1;
+        hideBehavior.enabled = true;
+    }
+
+    // Inward travel: the outer crescent (incl. halo) sticking out past the
+    // bar end, so a fully tucked arc sits behind the end rounding.
+    readonly property real tuckTravel: Math.max(0, root.centerRadius + (root.cfg.thickness + root.glowWidth) / 2 - root.effEnd)
+    readonly property real p: Math.max(0, Math.min(1, root.hideProgress))
+
+    // Arc centre offset from the island centre (mirrored for left/right).
+    // Hiding: tuck inwards from the frozen bar end, but NEVER further out
+    // than the live island end rounding — once the island collapses (from
+    // arcs.collapseAt) the arcs are pulled in with it instead of being left
+    // outside or drifting away. Showing keeps the unclamped formula (its
+    // OutBack overshoot pushes them slightly outwards on purpose).
+    readonly property real liveDx: root.width / 2 - root.endCenter
+    readonly property real tuckDx: root.effW / 2 - root.effEnd - root.hideProgress * root.tuckTravel
+    readonly property real arcDx: hiding ? Math.min(root.tuckDx, root.liveDx) : root.tuckDx
+
+    // Hiding: fade out fast (gone by half the travel) and shrink hard (to
+    // ~5%). Showing: the original slower fade-in and 30% → 100% grow.
+    // Hiding (tuck or sink) stays visible most of the way and fades as it
+    // arrives (1 - p²), shrinking gradually: it must be SEEN going under.
+    // The old fast fade (gone by p 0.5) masked an overshoot that the frozen
+    // geometry has since fixed — it only made the tuck look instant.
+    readonly property real tuckScale: hiding ? 1 - 0.9 * p : 1 - 0.7 * p
+    opacity: hiding ? 1 - p * p : 1 - p
+    visible: opacity > 0.01
 
     Item {
         id: leftGroup
         width: root.box
         height: root.box
-        x: root.endCenter - width / 2
+        x: root.width / 2 - root.arcDx - width / 2
+        scale: root.tuckScale
+        // Vertically always on the LIVE island centre (frozen geometry is
+        // horizontal only — that is where the island's bounce showed).
         y: (root.height - height) / 2
 
         Canvas {
@@ -124,7 +208,10 @@ Item {
         id: rightGroup
         width: root.box
         height: root.box
-        x: root.width - root.endCenter - width / 2
+        x: root.width / 2 + root.arcDx - width / 2
+        scale: root.tuckScale
+        // Vertically always on the LIVE island centre (frozen geometry is
+        // horizontal only — that is where the island's bounce showed).
         y: (root.height - height) / 2
 
         Canvas {

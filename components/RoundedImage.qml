@@ -1,8 +1,10 @@
 import QtQuick
-import QtQuick.Effects
+import QtQuick.Shapes
 
-// Image clipped to a rounded rectangle (pShell CoverArt pattern: MultiEffect
-// with a layer-enabled rounded-rect maskSource — Item clip is square-only).
+// Image clipped to a rounded rectangle. Painted as an antialiased Shape
+// (CurveRenderer, PathRectangle) filled with the image texture via
+// ShapePath.fillItem — MultiEffect's mask is a hard alpha threshold here, so
+// a mask-based clip left stair-stepped corners. Item clip is square-only.
 // Internal rounded fallback (color + glyph) covers empty/failed/loading
 // states; the default transparent color + empty glyph render nothing, so
 // callers can draw their own fallback behind instead.
@@ -15,43 +17,67 @@ Item {
     property string fallbackGlyph: ""
     property color glyphColor: "#E8ECF4"
     property int glyphSize: 32
+    // Ready, or reloading with the previous frame retained (sourceSize step
+    // during a resize / shared-element flight): keeps the art on screen
+    // instead of blinking to the fallback for every re-decode.
     readonly property bool ready: image.status === Image.Ready
+        || (image.status === Image.Loading && root.hadFrame)
+    property bool hadFrame: false
+    onSourceChanged: root.hadFrame = false
 
-    Image {
-        id: image
-        anchors.fill: parent
-        source: root.source
-        fillMode: Image.PreserveAspectCrop
-        asynchronous: true
-        visible: false
-        // Decode-side downscale to ~2x display size (CPU, high quality):
-        // GPU-only minification of a large source shimmers with grain,
-        // especially through the MultiEffect sampler (no mipmaps there).
-        smooth: true
-        mipmap: true
-        sourceSize: Qt.size(Math.max(1, Math.ceil(root.width * 2)), Math.max(1, Math.ceil(root.height * 2)))
+    // Decode size: ~2x display, rounded UP to a power of two, so a growing
+    // item (shared-element flight 24 -> 138px) re-decodes a few times
+    // (64/128/256/512) instead of on every frame.
+    function decodeStep(px: real): int {
+        return Math.max(16, Math.pow(2, Math.ceil(Math.log(Math.max(1, px * 2)) / Math.LN2)));
     }
 
-    // Rounded-rect mask rendered to a texture for MultiEffect (invisible).
+    // Layered wrapper = the fill texture: the layer bakes the cropped
+    // (PreserveAspectCrop) frame at item size, which a bare Image texture
+    // would not (fillItem samples the whole source image).
     Item {
-        id: mask
+        id: art
         anchors.fill: parent
-        layer.enabled: true
         visible: false
+        layer.enabled: true
+        layer.smooth: true
 
-        Rectangle {
+        Image {
+            id: image
             anchors.fill: parent
-            radius: root.radius
-            color: "white"
+            source: root.source
+            fillMode: Image.PreserveAspectCrop
+            asynchronous: true
+            // Decode-side downscale to ~2x display size (CPU, high quality):
+            // GPU-only minification of a large source shimmers with grain.
+            smooth: true
+            mipmap: true
+            sourceSize: Qt.size(root.decodeStep(root.width), root.decodeStep(root.height))
+            // Keep showing the last frame while a new sourceSize decodes.
+            retainWhileLoading: true
+            onStatusChanged: if (status === Image.Ready) root.hadFrame = true
         }
     }
 
-    MultiEffect {
+    Shape {
         anchors.fill: parent
-        source: image
-        maskEnabled: true
-        maskSource: mask
         visible: root.ready
+        preferredRendererType: Shape.CurveRenderer
+
+        ShapePath {
+            strokeWidth: -1
+            strokeColor: "transparent"
+            fillColor: "white"
+            fillItem: art
+
+            PathRectangle {
+                x: 0
+                y: 0
+                width: root.width
+                height: root.height
+                radius: Math.min(root.radius, root.width / 2, root.height / 2)
+            }
+        }
     }
 
     Rectangle {
