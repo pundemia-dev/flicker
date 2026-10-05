@@ -320,6 +320,7 @@ Singleton {
                     squareHideDelayMs: 260,
                     birthSpring: 6,
                     birthDamping: 0.5,
+                    birthArc: 1.5,
                     iconSize: 20,
                     iconBlurMax: 10,
                     iconAt: 0.35,

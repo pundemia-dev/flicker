@@ -59,6 +59,13 @@ Item {
 
     onVisibleChanged: if (visible && !root.bornOnce) root.birth()
 
+    // Stiffness gain of one axis: grows with the share of the OTHER axis'
+    // distance, i.e. the shorter axis springs harder.
+    function arcGain(other: real, own: real): real {
+        const a = Math.abs(other), b = Math.abs(own);
+        return 1 + root.cfg.birthArc * a / Math.max(1, a + b);
+    }
+
     Connections {
         target: root.ed
         function onHasSelectionChanged(): void {
@@ -154,11 +161,17 @@ Item {
             required property var modelData
             required property int index
             theme: root.ed.theme
-            x: root.born ? (root.positions[index] ?? Qt.point(0, 0)).x : root.origin.x
-            y: root.born ? (root.positions[index] ?? Qt.point(0, 0)).y : root.origin.y
+            readonly property point slot: root.positions[index] ?? Qt.point(0, 0)
+            // Arc: the axis with the SHORTER way gets the stiffer spring, so it
+            // finishes first and the long axis trails — a curved path out of
+            // the bubble instead of a straight ray (birthArc 0 = straight).
+            readonly property real arcX: root.cfg.birthSpring * root.arcGain(slot.y - root.origin.y, slot.x - root.origin.x)
+            readonly property real arcY: root.cfg.birthSpring * root.arcGain(slot.x - root.origin.x, slot.y - root.origin.y)
+            x: root.born ? slot.x : root.origin.x
+            y: root.born ? slot.y : root.origin.y
             opacity: (root.born ? 1 : 0) * (disabled ? 0.4 : 1)
-            Behavior on x { enabled: root.springy; Spring { stiffness: root.cfg.birthSpring; damp: root.cfg.birthDamping } }
-            Behavior on y { enabled: root.springy; Spring { stiffness: root.cfg.birthSpring; damp: root.cfg.birthDamping } }
+            Behavior on x { enabled: root.springy; Spring { stiffness: arcX; damp: root.cfg.birthDamping } }
+            Behavior on y { enabled: root.springy; Spring { stiffness: arcY; damp: root.cfg.birthDamping } }
             Behavior on opacity { enabled: root.springy; NumberAnimation { duration: root.cfg.fadeInMs } }
             width: root.btn
             height: root.btn

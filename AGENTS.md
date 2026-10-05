@@ -449,7 +449,9 @@ Simplified / not implemented yet (see pillShell.md for the intended behaviour):
   radius via `CaptureMotion.rTip`); shot mode glyph = scissors (eb1b). Toolbar buttons and
   the audio-chip bar are BORN from under the bubble: first appearance per selection snaps
   them to the bubble centre (`capture.motion`, springs/opacity disabled), then springs
-  (`birthSpring`/`birthDamping`) to their slots while fading in; the bubble lingers
+  (`birthSpring`/`birthDamping`) to their slots while fading in, along an ARC: per-axis
+  stiffness, the axis with the shorter way springs harder (`× 1 + birthArc · other/(dx+dy)`),
+  so it lands first and the long axis trails (verified: mid-flight frame = an arch); the bubble lingers
   `squareHideDelayMs` before fading so they visibly leave it. Tools are below the bubble
   in z (overlay order), that is what hides them at birth.
   Recording: `services/Recorder` runs `scripts/capture/record.sh` (pShell port): audio

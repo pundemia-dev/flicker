@@ -63,8 +63,11 @@ Item {
         x: root.born ? root.px : root.origin.x
         y: root.born ? root.py : root.origin.y
         opacity: root.born ? 1 : 0
-        Behavior on x { enabled: root.springy; Spring { stiffness: root.cfg.birthSpring; damp: root.cfg.birthDamping } }
-        Behavior on y { enabled: root.springy; Spring { stiffness: root.cfg.birthSpring; damp: root.cfg.birthDamping } }
+        // Arc like the toolbar: the shorter axis springs harder.
+        readonly property real adx: Math.abs(root.px - root.origin.x)
+        readonly property real ady: Math.abs(root.py - root.origin.y)
+        Behavior on x { enabled: root.springy; Spring { stiffness: root.cfg.birthSpring * (1 + root.cfg.birthArc * bar.ady / Math.max(1, bar.adx + bar.ady)); damp: root.cfg.birthDamping } }
+        Behavior on y { enabled: root.springy; Spring { stiffness: root.cfg.birthSpring * (1 + root.cfg.birthArc * bar.adx / Math.max(1, bar.adx + bar.ady)); damp: root.cfg.birthDamping } }
         Behavior on opacity { enabled: root.springy; NumberAnimation { duration: root.cfg.fadeInMs } }
         width: row.implicitWidth + root.cfg.toolSpacing * 2
         height: root.cfg.toolButtonSize + root.cfg.toolSpacing * 2
