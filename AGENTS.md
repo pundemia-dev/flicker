@@ -81,6 +81,20 @@ Not a git repo. No tests, no linter, no formatter.
   with global fallback. Island uses `screen.name`. Niri backend polls `windows` + `workspaces`
   + `outputs`; this niri (26.04) has NO `is_fullscreen` in windows JSON, so fullscreen =
   `is_fullscreen === true` OR `window_size == logical output size` (±2px).
+- OSD (`modules/osd/OsdModule.qml`, iOS-style, Oct 2026) is CHANGE-driven, not key-driven:
+  `core/OsdWatcher.qml` (caelestia/DMS pattern) shows it on ANY volume/mute/brightness
+  change, so compositor binds run `wpctl`/`brightnessctl` directly and keep working with
+  the shell down (driftwm 0.19 binds the XF86 keys to exactly that by default). Own UI
+  changes are skipped via the service's `osdQuietUntil` (`audio.quiet()` /
+  `brightness.quiet()` before a QS slider set — spec: no OSD from Quick Settings); a
+  default sink/source switch and start-up (`osd.startupQuietMs`) are quiet too. External
+  brightness = inotify `FileView` on `/sys/class/<class>/<dev>/brightness` (VFS writes
+  raise IN_MODIFY on sysfs, verified; noctalia approach). The module binds LIVE service
+  values (PipeWire applies volume async); IPC keys only add `push` ±1 when a press hits
+  an end (no change signal) → track rubber-bands. Capsule island `modules.osd` 340×56
+  r28, tunables `Config.data.osd`. `services/Audio.qml` must keep sink/source in its
+  `PwObjectTracker` — untracked nodes never turn `ready`, setVolume was a silent no-op.
+  Reference shells cloned in `temp/` (caelestia, DMS, end-4 dots, noctalia (now C++)).
 - `Process.signal(2)` sends SIGINT (pShell pattern); `terminate("SIGINT")` does NOT work —
   use `signal()` for graceful stops (see Dictation).
 - ContentSwap commits content at the handover (after the blur-in stage): Island renders `shownModule`/

@@ -42,6 +42,16 @@ Scope {
             || node.description || node.name || "Microphone";
     }
 
+    // OsdWatcher skips changes until this timestamp: UI sliders call quiet()
+    // (spec: no OSD for Quick Settings changes); a default-device switch is
+    // quiet too (headphones plugged -> the new sink's volume is no "change").
+    property real osdQuietUntil: 0
+    function quiet(): void {
+        root.osdQuietUntil = Date.now() + Config.data.osd.quietMs;
+    }
+    onSinkChanged: root.quiet()
+    onSourceChanged: root.quiet()
+
     function setVolume(value: real): void {
         if (sink?.ready && sink?.audio) {
             sink.audio.muted = false;
@@ -132,7 +142,9 @@ Scope {
         function onValuesChanged(): void { root.refresh(); }
     }
 
+    // Default sink/source must be tracked too: an unbound node never turns
+    // `ready` and its `audio` props read 0 (volume keys were silent no-ops).
     PwObjectTracker {
-        objects: root.captureStreams
+        objects: [root.sink, root.source, ...root.captureStreams].filter(n => !!n)
     }
 }

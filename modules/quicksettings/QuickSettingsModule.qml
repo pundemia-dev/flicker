@@ -25,7 +25,7 @@ Item {
             QsToggleTile { label: "BT"; enabledState: root.bluetooth.powered; onClicked: root.bluetooth.toggle() }
             QsToggleTile { label: "Hotspot"; enabledState: root.network.hotspotEnabled; onClicked: root.network.setHotspotEnabled(!root.network.hotspotEnabled) }
             QsToggleTile { label: "DND"; enabledState: root.notifications.doNotDisturb; onClicked: root.notifications.doNotDisturb = !root.notifications.doNotDisturb }
-            QsToggleTile { label: "Mic"; enabledState: !root.audio.sourceMuted; onClicked: root.audio.toggleSourceMute() }
+            QsToggleTile { label: "Mic"; enabledState: !root.audio.sourceMuted; onClicked: { root.audio.quiet(); root.audio.toggleSourceMute(); } }
         }
 
         QsSliderRow {
@@ -33,14 +33,14 @@ Item {
             icon: root.audio.muted ? "🔇" : "🔊"
             value: root.audio.volume
             max: root.audio.maxVolume
-            onMoved: v => root.audio.setVolume(v)
+            onMoved: v => { root.audio.quiet(); root.audio.setVolume(v); }
         }
         QsSliderRow {
             width: parent.width
             icon: "☀"
             value: root.brightness.brightness
             max: 1
-            onMoved: v => root.brightness.setBrightness(v)
+            onMoved: v => { root.brightness.quiet(); root.brightness.setBrightness(v); }
         }
 
         // Media controls

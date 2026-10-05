@@ -486,12 +486,11 @@ PanelWindow {
         openModule("notifications", { mode: "center" });
     }
 
-    function showOsd(title: string, icon: string, value: real): void {
-        const payload = {
-            title: title,
-            icon: icon,
-            value: Math.max(0, Math.min(1, value))
-        };
+    // payload: { kind: volume|mic|brightness|custom, value, muted, icon }
+    // (see modules/osd/OsdModule.qml). A fresh object per key press — the
+    // module rubber-bands on presses that hit an end.
+    function showOsd(osd: var): void {
+        const payload = Object.assign({}, osd ?? {});
         // Already up: update in place. Re-opening bumps openCount and replays
         // the whole swap on every key repeat (the OSD flickers).
         if (root.moduleOpen && root.state.activeModule === "osd") {

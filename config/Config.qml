@@ -54,6 +54,32 @@ Singleton {
                     startupDelayMs: 60,
                     startupMorphDelayMs: 100
                 })
+            // iOS-style OSD (modules/osd): layout, capsule track, springs.
+            property var osd: ({
+                    // OsdWatcher: OSD on ANY volume/mute/brightness change
+                    // (keys via wpctl/brightnessctl too), except within
+                    // quietMs of a UI slider/device switch, startupQuietMs
+                    // after launch. Mic volume is off by default (apps with
+                    // AGC move it constantly); mic mute always shows.
+                    watch: true,
+                    watchMicVolume: false,
+                    quietMs: 600,
+                    startupQuietMs: 2000,
+                    margin: 18,
+                    spacing: 14,
+                    iconBox: 26,
+                    iconSize: 22,
+                    iconPopFrom: 0.7,
+                    trackHeight: 8,
+                    trackColor: "#3A3A3C",
+                    valueWidth: 30,
+                    valueSize: 15,
+                    fillStiffness: 6,
+                    fillDamping: 0.45,
+                    rubberBand: 0.04,
+                    stretchStiffness: 5,
+                    stretchDamping: 0.3
+                })
             property var gestures: ({
                     minimalActiveZoneHeight: 42,
                     minimalActiveZoneWidth: 160,
@@ -296,7 +322,7 @@ Singleton {
                     notifications: ({ width: 520, height: 180 }),
                     "notifications:flow": ({ width: 520, height: 150 }),
                     "notifications:center": ({ width: 520, height: 460 }),
-                    osd: ({ width: 400, height: 72 }),
+                    osd: ({ width: 340, height: 56, radius: 28 }),
                     dictation: ({ width: 480, height: 132 }),
                     localsend: ({ width: 440, height: 120 }),
                     "recording-actions": ({ width: 440, height: 96 }),

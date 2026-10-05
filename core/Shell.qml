@@ -53,6 +53,13 @@ Scope {
         recorder: recorderService
     }
 
+    OsdWatcher {
+        registry: islandRegistry
+        compositor: compositorService
+        audio: audioService
+        brightness: brightnessService
+    }
+
     Variants {
         model: Quickshell.screens
 

@@ -54,32 +54,36 @@ Scope {
         }
         function minimal(): void { root.island?.state.setMinimal(); }
         function island(): void { root.island?.state.setIsland(); }
-        function osd(title: string, icon: string, value: real): void { root.island?.showOsd(title, icon, value); }
+        function osd(title: string, icon: string, value: real): void { root.island?.showOsd({ kind: "custom", icon: icon, value: value }); }
 
         // Key-driven OSD (bind in niri: qs -c pillShell ipc call island <fn>)
+        // Value keys: just change the value — core/OsdWatcher shows the OSD
+        // for ANY change (also wpctl/brightnessctl bound in the compositor).
+        // A press that cannot move the value (at an end) produces no change
+        // signal, so it is shown here with `push` (-1 low / +1 high) and the
+        // track rubber-bands.
         function volumeUp(): void {
+            if (root.audio.volume >= root.audio.maxVolume - 0.001)
+                root.island?.showOsd({ kind: "volume", push: 1 });
             root.audio.incrementVolume();
-            root.island?.showOsd("Volume", root.audio.muted ? "🔇" : "🔊", root.audio.volume);
         }
         function volumeDown(): void {
+            if (root.audio.volume <= 0.001)
+                root.island?.showOsd({ kind: "volume", push: -1 });
             root.audio.decrementVolume();
-            root.island?.showOsd("Volume", root.audio.muted ? "🔇" : "🔊", root.audio.volume);
         }
-        function volumeMute(): void {
-            root.audio.toggleMute();
-            root.island?.showOsd("Volume", root.audio.muted ? "🔇" : "🔊", root.audio.volume);
-        }
-        function micMute(): void {
-            root.audio.toggleSourceMute();
-            root.island?.showOsd("Microphone", "🎙", root.audio.sourceMuted ? 0 : root.audio.sourceVolume);
-        }
+        function volumeMute(): void { root.audio.toggleMute(); }
+        function micMute(): void { root.audio.toggleSourceMute(); }
         function brightnessUp(): void {
+            if (root.brightness.brightness >= 0.999)
+                root.island?.showOsd({ kind: "brightness", push: 1 });
             root.brightness.increase();
-            root.island?.showOsd("Brightness", "☀", root.brightness.brightness);
         }
         function brightnessDown(): void {
+            // brightnessctl floor is 1%.
+            if (root.brightness.brightness <= 0.011)
+                root.island?.showOsd({ kind: "brightness", push: -1 });
             root.brightness.decrease();
-            root.island?.showOsd("Brightness", "☀", root.brightness.brightness);
         }
         function playPause(): void { root.players.playPause(); }
         function nextTrack(): void { root.players.next(); }

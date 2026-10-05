@@ -129,6 +129,9 @@ Item {
         id: osdComp
         OsdModule {
             payload: root.payload
+            theme: root.services.theme
+            audio: root.services.audio
+            brightness: root.services.brightness
             onCloseRequested: root.closeRequested()
         }
     }
