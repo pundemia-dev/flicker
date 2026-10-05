@@ -5,7 +5,7 @@ import "../modules/capture"
 import "../modules/quicksettings"
 import "../modules/dashboard"
 import "../modules/dictation"
-import "../modules/localsend"
+import "../modules/stash"
 import "../modules/osd"
 import "../modules/player"
 
@@ -15,6 +15,9 @@ Item {
     required property var payload
     required property var services
     signal closeRequested
+    // A module switching to another module/view (stash tray → picker, drop
+    // chooser → tray): Island.openModule, so the swap + resize replay.
+    signal openRequested(string name, var payload)
 
     // Shared-element slot of the CURRENTLY rendered module (TransitionLayer):
     // null until that module exists or when it declares no such slot.
@@ -27,6 +30,9 @@ Item {
     // Content-fitted height the current module asks for (-1 = none; Island
     // then uses the config.modules size). Only the notification center sets it.
     readonly property real preferredHeight: host.item?.preferredHeight ?? -1
+    // A file drag over the module's own drop targets (stash drop chooser):
+    // the island's drop area loses containsDrag under them.
+    readonly property bool dragActive: host.item?.dragActive ?? false
 
     Loader {
         id: host
@@ -46,8 +52,10 @@ Item {
                 return playerComp;
             if (root.moduleName === "dictation")
                 return dictationComp;
-            if (root.moduleName === "localsend")
-                return localSendComp;
+            if (root.moduleName === "stash")
+                return stashComp;
+            if (root.moduleName === "stash-drop")
+                return stashDropComp;
             if (root.moduleName === "osd")
                 return osdComp;
             if (root.moduleName === "recording-actions")
@@ -81,13 +89,9 @@ Item {
     Component {
         id: quickSettingsComp
         QuickSettingsModule {
-            audio: root.services.audio
-            players: root.services.players
-            network: root.services.network
-            bluetooth: root.services.bluetooth
-            brightness: root.services.brightness
-            notifications: root.services.notifications
+            services: root.services
             onCloseRequested: root.closeRequested()
+            onOpenRequested: (name, payload) => root.openRequested(name, payload)
         }
     }
     Component {
@@ -122,8 +126,30 @@ Item {
         }
     }
     Component {
-        id: localSendComp
-        LocalSendModule { onCloseRequested: root.closeRequested() }
+        id: stashComp
+        StashModule {
+            payload: root.payload
+            stash: root.services.stash
+            localSend: root.services.localSend
+            cfg: root.services.config.stash
+            theme: root.services.theme
+            surfaceRadius: root.services.config.island.radius
+            onCloseRequested: root.closeRequested()
+            onOpenRequested: (name, payload) => root.openRequested(name, payload)
+        }
+    }
+    Component {
+        id: stashDropComp
+        StashDropModule {
+            payload: root.payload
+            stash: root.services.stash
+            localSend: root.services.localSend
+            cfg: root.services.config.stash
+            theme: root.services.theme
+            surfaceRadius: root.services.config.island.radius
+            onCloseRequested: root.closeRequested()
+            onOpenRequested: (name, payload) => root.openRequested(name, payload)
+        }
     }
     Component {
         id: osdComp

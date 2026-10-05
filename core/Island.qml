@@ -3,6 +3,8 @@ import Quickshell
 import Quickshell.Wayland
 import "../components"
 import "../modules/dashboard/DashMetrics.js" as DashMetrics
+import "../modules/stash/StashMetrics.js" as StashMetrics
+import "../modules/quicksettings/QsMetrics.js" as QsMetrics
 
 PanelWindow {
     id: root
@@ -28,6 +30,11 @@ PanelWindow {
     required property var lock
     // Capture orchestrator (modules/capture/CaptureScope, shell-level).
     required property var capture
+    // File tray + LocalSend (services/Stash, services/LocalSend).
+    required property var stash
+    required property var localSend
+    // Quick Settings layout state (services/ControlCenter).
+    required property var controlCenter
     // Shared per-screen island registry (IPC routes to the focused output).
     required property var registry
 
@@ -75,6 +82,14 @@ PanelWindow {
             y: 0
             width: root.moduleOpen ? 0 : Math.round(root.gestureCfg.quickSettingsZoneWidth)
             height: Math.round(root.gestureCfg.quickSettingsZoneHeight)
+        }
+        // Drop chooser opened from the Minimal zone: keep the band above the
+        // island in the mask, or the drag leaves the surface there.
+        Region {
+            x: Math.round(root.islandX)
+            y: 0
+            width: root.stashDropOpen ? Math.round(root.islandWidth) : 0
+            height: Math.round(root.islandY)
         }
         // Minimal active zone (spec): from the top screen edge down past the
         // strip, so presses above the strip land here instead of falling
@@ -206,6 +221,10 @@ PanelWindow {
     // splits the notifications module by payload mode); island.moduleWidth/Height
     // is the fallback for unlisted names. Every module island is sized apart.
     readonly property string moduleKey: {
+        if (root.state.activeModule === "stash")
+            return `stash:${root.state.activePayload?.view ?? "tray"}`;
+        if (root.state.activeModule === "stash-drop")
+            return "stash:drop";
         if (root.state.activeModule === "notifications") {
             const mode = root.state.activePayload?.mode ?? "";
             if (mode !== "")
@@ -220,6 +239,20 @@ PanelWindow {
         // incl. the concentric corner radius (card radius + margins).
         if (root.moduleKey === "dashboard")
             return DashMetrics.islandSize(root.config.dashboard);
+        // Quick Settings: grid rows of the (preview) layout; edit mode adds
+        // a drop row + the footer.
+        if (root.moduleKey === "quicksettings")
+            return QsMetrics.islandSize(root.config.quicksettings, root.controlCenter.rows,
+                root.controlCenter.editing, root.controlCenter.hiddenIds.length);
+        // Stash views fit their content (file / device / incoming counts).
+        if (root.moduleKey.startsWith("stash:"))
+            return StashMetrics.islandSize(root.config.stash, root.moduleKey.slice(6), {
+                files: root.stash.count,
+                devices: root.localSend.devices.count,
+                sending: root.localSend.phase === "sending",
+                incomingText: root.localSend.request?.isText ?? false,
+                incomingFiles: root.localSend.request?.files?.length ?? 1
+            });
         const all = root.config.modules ?? {};
         const size = all[root.moduleKey] ?? all[root.state.activeModule]
             ?? ({ width: root.islandCfg.moduleWidth, height: root.islandCfg.moduleHeight });
@@ -401,6 +434,26 @@ PanelWindow {
         openModule("quicksettings", {});
     }
 
+    // Quick Settings actions that grab the screen (screenshot, start
+    // recording): close first, act once the collapse has settled so the
+    // frozen grab shows the clean bar, not the open grid.
+    function runQuickAction(name: string): void {
+        closeModule();
+        quickActionTimer.action = name;
+        quickActionTimer.restart();
+    }
+    Timer {
+        id: quickActionTimer
+        property string action: ""
+        interval: root.config.quicksettings.actionDelayMs
+        onTriggered: {
+            if (action === "screenshot")
+                root.openCapture("shot");
+            else if (action === "record" && !root.recorder.recording)
+                root.openCapture("record");
+        }
+    }
+
     // Capture (spec): the screens are grabbed first (CaptureScope.begin),
     // then startCaptureSteal() blur->fades the content out at the current
     // size and hands the background over (stealForCapture). A second call
@@ -484,6 +537,65 @@ PanelWindow {
 
     function openNotificationCenter(): void {
         openModule("notifications", { mode: "center" });
+    }
+
+    // Stash tray (IPC only). Lands on whatever flow is live: a pending
+    // incoming LocalSend card, a running pick/upload, else the tray.
+    function openStash(view: string): void {
+        // Never over a capture session (the island is stolen / overlays own
+        // the screen); a pending incoming card stays reachable via IPC.
+        if (root.lock.locked || root.stolen || root.capture.active || root.capture.grabbing)
+            return;
+        const v = view !== "" ? view
+            : root.localSend.hasIncoming ? "incoming"
+            : root.localSend.busy ? "send" : "tray";
+        openModule("stash", { view: v, returnView: v === "tray" ? "" : "tray" });
+    }
+
+    function toggleStash(): void {
+        if (root.moduleOpen && root.state.activeModule === "stash")
+            root.closeModule();
+        else
+            root.openStash("");
+    }
+
+    // ── Stash drop chooser ──
+    // A file drag over the island (or the Minimal zone) opens the chooser;
+    // leaving it for dropLeaveMs closes it again (back to the tray when it
+    // replaced the tray). Own tile drags (Stash.outgoingDrag) never count.
+    readonly property bool stashDropOpen: root.moduleOpen && root.state.activeModule === "stash-drop"
+    readonly property bool stashDragOver: islandDrop.containsDrag || moduleHost.dragActive
+
+    function openStashDrop(): void {
+        stashDropLeave.stop();
+        if (root.stashDropOpen || root.lock.locked || root.stolen || root.stash.outgoingDrag
+            || root.capture.active || root.capture.grabbing)
+            return;
+        const fromTray = root.moduleOpen && root.state.activeModule === "stash"
+            && (root.state.activePayload?.view ?? "") === "tray";
+        openModule("stash-drop", { returnView: fromTray ? "tray" : "" });
+    }
+
+    function leaveStashDrop(): void {
+        if (!root.stashDropOpen)
+            return;
+        if ((root.state.activePayload?.returnView ?? "") === "tray")
+            openModule("stash", { view: "tray" });
+        else
+            root.closeModule();
+    }
+
+    onStashDragOverChanged: {
+        if (root.stashDragOver)
+            stashDropLeave.stop();
+        else if (root.stashDropOpen)
+            stashDropLeave.restart();
+    }
+
+    Timer {
+        id: stashDropLeave
+        interval: root.config.stash.dropLeaveMs
+        onTriggered: if (!root.stashDragOver) root.leaveStashDrop()
     }
 
     // payload: { kind: volume|mic|brightness|custom, value, muted, icon }
@@ -624,7 +736,10 @@ PanelWindow {
                 return;
             // Still in use: the cursor is over the island, or the launcher
             // owns the keyboard (it closes itself on Esc/launch).
-            if (islandHover.hovered || root.state.activeModule === "launcher") {
+            // HoverHandler does not see drags: a file held over the chooser
+            // and a running device scan / upload count as use too.
+            if (islandHover.hovered || root.state.activeModule === "launcher" || root.stash.outgoingDrag
+                || root.stashDragOver || (root.state.activeModule === "stash" && root.localSend.busy)) {
                 moduleIdle.restart();
                 return;
             }
@@ -897,6 +1012,36 @@ PanelWindow {
         }
     }
 
+    // Stash drop target: the island plus the band above it (and the whole
+    // Minimal active zone while that is live). BELOW the island content, so
+    // the chooser's own tiles get the drag first (ModuleHost.dragActive).
+    DropArea {
+        id: islandDrop
+        readonly property real zoneW: root.minimalZoneActive ? root.gestureCfg.minimalActiveZoneWidth : 0
+        width: Math.max(islandRect.width, islandDrop.zoneW)
+        x: (root.width - islandDrop.width) / 2
+        y: 0
+        height: Math.max(islandRect.y + islandRect.height, root.minimalZoneActive ? root.gestureCfg.minimalActiveZoneHeight : 0)
+        keys: ["text/uri-list"]
+        onEntered: root.openStashDrop()
+        onDropped: drop => {
+            // Refused drag (locked / capture / own tile dragged back): leave
+            // the drop alone instead of silently copying into the tray.
+            if (!root.stashDropOpen)
+                return;
+            const paths = root.stash.pathsFromUrls(drop.urls);
+            drop.accept();
+            // Dropped before the chooser rendered (quick drop on the bar):
+            // the tray is the default. On the chooser's gaps: cancel.
+            if (root.shownModule !== "stash-drop" && paths.length > 0) {
+                root.stash.drop(paths);
+                root.leaveStashDrop();
+            } else {
+                root.leaveStashDrop();
+            }
+        }
+    }
+
     Rectangle {
         id: islandRect
         // Horizontally centered via anchor (NOT x:islandX + spring): at
@@ -1005,9 +1150,19 @@ PanelWindow {
                         battery: root.battery,
                         compositor: root.compositor,
                         config: root.config,
-                        theme: root.theme
+                        theme: root.theme,
+                        stash: root.stash,
+                        localSend: root.localSend,
+                        controlCenter: root.controlCenter,
+                        quickAction: root.runQuickAction
                     })
                 onCloseRequested: root.closeModule()
+                // Only the module that is still the active one may switch
+                // (a fading-out module must not reopen anything).
+                onOpenRequested: (name, payload) => {
+                    if (root.moduleOpen && root.state.activeModule === root.shownModule)
+                        root.openModule(name, payload);
+                }
             }
 
             // Notification ticker in the Minimal-revealed bar: overlays the
@@ -1066,6 +1221,16 @@ PanelWindow {
                 contentKey: root.contentKey,
                 locked: root.lock.locked,
                 stolen: root.stolen,
+                stash: {
+                    files: root.stash.count,
+                    dir: root.stash.stashDir,
+                    dragOver: root.stashDragOver,
+                    outgoing: root.stash.outgoingDrag,
+                    send: root.localSend.phase,
+                    devices: root.localSend.devices.count,
+                    receiving: root.localSend.receiving,
+                    incoming: root.localSend.hasIncoming
+                },
                 capture: root.capture.debugInfo(),
                 queue: root.notificationQueue.size,
                 notifCount: (root.notifications.history ?? []).length,

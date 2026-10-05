@@ -31,7 +31,7 @@ Not a git repo. No tests, no linter, no formatter.
   address yours via `quickshell ipc --id <by-id dir> call ...`). `island` is ONE handler
   (`core/IslandIpc.qml`) routed via `core/IslandRegistry.qml` to the island on
   `compositor.focusedOutput` — never put an IpcHandler in per-screen Island. Targets: `island` (launcher, quicksettings,
-  notifications, capture (again while open = next mode), captureMode(shot|record|color|
+  notifications, stash (tray toggle), capture (again while open = next mode), captureMode(shot|record|color|
   window|ai), captureScreen (= Enter in the active tool), captureCancel, screenshot
   (instant, no overlay), record (toggle), recordPause, recordControls, dashboard, player, lock, close, minimal, island, osd, debugState,
   volumeUp/Down/Mute, micMute, brightnessUp/Down, playPause, nextTrack, prevTrack),
@@ -91,8 +91,10 @@ Not a git repo. No tests, no linter, no formatter.
   brightness = inotify `FileView` on `/sys/class/<class>/<dev>/brightness` (VFS writes
   raise IN_MODIFY on sysfs, verified; noctalia approach). The module binds LIVE service
   values (PipeWire applies volume async); IPC keys only add `push` ±1 when a press hits
-  an end (no change signal) → track rubber-bands. Capsule island `modules.osd` 340×56
-  r28, tunables `Config.data.osd`. `services/Audio.qml` must keep sink/source in its
+  an end (no change signal) → bar rubber-bands. Layout = pShell BatteryTank turned
+  horizontal: island 340×60 r20 (user), one big `RoundedClip` capsule (inset `osd.inset`,
+  concentric radius), flat-edged fill, glyph left + number right INSIDE, drawn twice
+  (light ink over the track, dark ink clipped to the fill). Tunables `Config.data.osd`. `services/Audio.qml` must keep sink/source in its
   `PwObjectTracker` — untracked nodes never turn `ready`, setVolume was a silent no-op.
   Reference shells cloned in `temp/` (caelestia, DMS, end-4 dots, noctalia (now C++)).
 - `Process.signal(2)` sends SIGINT (pShell pattern); `terminate("SIGINT")` does NOT work —
@@ -146,6 +148,25 @@ Not a git repo. No tests, no linter, no formatter.
   while the center is open (click the game for Space/arrows). Last game + best scores live
   on the Notifications service (session only). Do NOT name game props `top`/`floor`-like
   Item members (`top` → "Cannot override FINAL property").
+- Quick Settings (`modules/quicksettings/`, Oct 2026) = iOS Control Center: 4-col grid of
+  square cells (`Config.data.quicksettings`), island size/radius DERIVED in `QsMetrics.js`
+  (radius = margins + unit/2; card radius = unit/2 → 1x1 circle, 1xN pill). Layout is
+  STATE, not config: `services/ControlCenter.qml` (shared by all islands, injected Shell →
+  Island → services map) persists `Quickshell.statePath("quicksettings.json")` on edit end;
+  `QsGrid.js` = pure pin+push engine (moved card pinned, displaced cards try the vacated
+  origin first → equal cards swap, else first free slot forward; empty rows squeezed on
+  commit; drag previews always recompute from the committed layout). `QsCatalog.js` =
+  ids + allowed footprints + default layout. Each card content lays out by its SHAPE
+  (`QsCard.form`: small/wide/tall/large/panorama — user: "свой layout под каждую
+  ориентацию", iOS 27). Delegates come from a stable Repeater over `QsCatalog.IDS`
+  (hidden = scale/opacity out, never recreated). Edit mode: long press (or IPC) → drag
+  body = move, bottom-right arc = resize (nearest allowed size), "−" = hide, footer chips
+  add back, «Готово»/module close saves. Cards grab presses → forward swipe-up close
+  themselves. Screenshot/record cards go through `Island.runQuickAction` (close, wait
+  `actionDelayMs`, then capture — the grab must not show the open grid). The state file
+  is read once at load (no watch): to test a hand-written layout, change it and force a
+  reload with a real content change of a QML file (`touch` is ignored).
+  NOT live-tested (no mouse tool): drag-move, resize, remove/add, taps, slider drags.
 - MPRIS multi-player: `services/Players.qml` picks `active` dms-style (prefer a playing
   player, remember the last playing one, a paused player beats registered-idle ones at
   cold start). Plain `players[0]` picks early-registrants like Telegram (registers
@@ -524,7 +545,29 @@ Simplified / not implemented yet (see pillShell.md for the intended behaviour):
   from the top edge with a spring (`started` flag in Island.qml), then morphs it
   into the bar on its spot (`startupMorph` timer + `timings.startupMorphDelayMs`);
   Capture reuses it for its second instance.
-- LocalSend is a placeholder drop zone (never opened); Timer indicator exists but no timer service feeds it.
+- Timer indicator exists but no timer service feeds it.
+- (DONE Oct 2026) Stash = pShell file tray + LocalSend port. Services `services/Stash.qml`
+  (tray dir model, diff-updated; drop copy|symlink; shell ops queued) and
+  `services/LocalSend.qml` (outbound discover→pick→send, phase idle|scanning|ready|sending;
+  inbound receive server, session toggle `receiving`, default `stash.receive`) — scripts
+  in `scripts/localsend/` (stdlib python3, run directly). Modules: `stash` (payload.view
+  tray|send|incoming; every view change = `openModule` via ModuleHost `openRequested`, so
+  the swap replays; `returnView: "tray"` = go back to the tray when done) — opened ONLY by
+  IPC `island stash` (toggle) or an incoming LocalSend request; `stash-drop` = the pShell
+  drop chooser (tray tile: dashed outline on hover; LocalSend tile: tinted) — opened by a
+  file drag over the island: `Island.islandDrop` (DropArea BELOW the content, covers the
+  island + the band above it + the Minimal zone; mask gets that band while the chooser is
+  open) + `ModuleHost.dragActive` (the chooser's tile DropAreas steal containsDrag) →
+  `stashDropLeave` closes after `stash.dropLeaveMs`. Own tile drag-outs set
+  `Stash.outgoingDrag` (ignored as a drop, keeps the tray/moduleIdle alive; Drag.active is
+  set imperatively — binding it segfaulted pShell). Island sizes: `StashMetrics.js`.
+  Verified via IPC + screenshots: tray (image/PDF thumbs), chooser, picker scanning → none
+  found, cancel-on-close. NOT live-tested: real drags in/out, device rows, sending,
+  incoming card. pShell's receive server uses the same port 53317 — never both on.
+  Process gotcha (hit here): `running = false; running = true` in one tick does NOT
+  restart a live Process and the killed run still delivers its partial stdout — queue
+  the restart in `onExited` and skip that one output (`LocalSend.rescanQueued/scanKilled`,
+  `Stash.rescanQueued`). The receive server dying (port busy) flips `receiving` off.
 - Player backdrop: blurred album art fills the module (MediaCard pattern,
   `RoundedImage.blur` rounded to `island.radius` via `surfaceRadius` — island clip is
   rectangular) + horizontal dark scrim; controls use translucent white on top.

@@ -24,6 +24,18 @@ Scope {
     SystemUsage { id: systemUsageService }
     Sensors { id: sensorsService }
     Weather { id: weatherService }
+    Stash { id: stashService; cfg: Config.data.stash }
+    ControlCenter { id: controlCenterService; cfg: Config.data.quicksettings }
+    LocalSend {
+        id: localSendService
+        cfg: Config.data.stash
+        stashDir: stashService.stashDir
+        // Received files are mirrored into the tray: show them right away.
+        onFileReceived: stashService.refresh()
+        // An incoming transfer needs a decision: the accept card opens on
+        // the focused output (only while receiving is switched on).
+        onRequestArrived: islandRegistry.forOutput(compositorService.focusedOutput ?? "")?.openStash("incoming")
+    }
 
     // Recording is WM-agnostic: the facade delegates to the Recorder service.
     Compositor {
@@ -87,6 +99,9 @@ Scope {
                 weather: weatherService
                 lock: lockScope
                 capture: captureService
+                stash: stashService
+                localSend: localSendService
+                controlCenter: controlCenterService
             }
 
             Corners {

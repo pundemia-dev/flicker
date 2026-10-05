@@ -23,6 +23,11 @@ Scope {
         target: "island"
         function launcher(): void { root.island?.openLauncher(); }
         function quicksettings(): void { root.island?.openQuickSettings(); }
+        // Quick Settings straight into edit mode (= long press on a card).
+        function quicksettingsEdit(): void {
+            root.island?.openQuickSettings();
+            root.island?.controlCenter.beginEdit();
+        }
         function notifications(): void { root.island?.openNotificationCenter(); }
         function capture(): void { root.island?.openCapture(""); }
         // shot | record | color | window | ai (while open: switch to it).
@@ -46,6 +51,9 @@ Scope {
                 root.island?.openModule("recording-actions", {});
         }
         function dashboard(): void { root.island?.openDashboard(); }
+        // File tray (toggle). The drop chooser opens on its own when a file
+        // is dragged over the island.
+        function stash(): void { root.island?.toggleStash(); }
         function player(): void { root.island?.openModule("player", {}); }
         function lock(): void { root.lock.activate(); }
         function close(): void {

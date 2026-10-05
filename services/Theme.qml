@@ -29,6 +29,15 @@ QtObject {
     readonly property color batteryGood: "#59D67A"
     readonly property color batteryWarn: "#E7C45A"
     readonly property color batteryLow: "#E35D5D"
+    // Quick Settings (iOS Control Center): accents of active controls,
+    // the icon disc of inactive wide/large toggles, slider fill.
+    readonly property color qsBlue: "#0A84FF"
+    readonly property color qsIndigo: "#5E5CE6"
+    readonly property color qsGreen: "#30D158"
+    readonly property color qsOrange: "#FF9F0A"
+    readonly property color qsDisc: "#3A3A3C"
+    readonly property color qsFill: "#F2F2F7"
+    readonly property color qsOnFill: "#1C1C1E"
     readonly property int fontSizeClock: 14
     readonly property int fontSizeBody: 12
     readonly property int fontSizeIndicator: 11

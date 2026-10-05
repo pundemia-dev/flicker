@@ -65,15 +65,14 @@ Singleton {
                     watchMicVolume: false,
                     quietMs: 600,
                     startupQuietMs: 2000,
-                    margin: 18,
-                    spacing: 14,
-                    iconBox: 26,
+                    // Bar inset from the island edge (bar radius = island
+                    // radius - inset, concentric); padding = glyph/number
+                    // distance from the bar ends.
+                    inset: 6,
+                    padding: 16,
                     iconSize: 22,
                     iconPopFrom: 0.7,
-                    trackHeight: 8,
-                    trackColor: "#3A3A3C",
-                    valueWidth: 30,
-                    valueSize: 15,
+                    valueSize: 17,
                     fillStiffness: 6,
                     fillDamping: 0.45,
                     rubberBand: 0.04,
@@ -313,18 +312,45 @@ Singleton {
                     headerDateSize: 19,
                     iconSize: 30
                 })
+            // Quick Settings (iOS Control Center): cols x N grid of square
+            // cells (unit px). Island size/radius are DERIVED
+            // (modules/quicksettings/QsMetrics.js); card corner radius is
+            // unit/2 everywhere (1x1 = circle, 1xN = pill), island radius =
+            // margins + unit/2 (concentric). Layout itself is state, not
+            // config: Quickshell.statePath("quicksettings.json").
+            property var quicksettings: ({
+                    cols: 4,
+                    unit: 72,
+                    spacing: 12,
+                    margins: 14,
+                    padding: 12,
+                    iconSize: 22,
+                    titleSize: 13,
+                    subtitleSize: 11,
+                    // Long press on a card enters edit mode (ms).
+                    holdMs: 450,
+                    // Card press dragged up this far closes the module.
+                    closeDistance: 30,
+                    // Edit footer: hidden-card chips + "Готово".
+                    chipSize: 34,
+                    chipSpacing: 8,
+                    doneWidth: 84,
+                    // Screenshot/record from QS: close first, act after the
+                    // collapse so the grab shows the clean bar.
+                    actionDelayMs: 450,
+                    // Wheel step on slider cards (fraction of the range).
+                    wheelStep: 0.05
+                })
             // Per-module island sizes (island.moduleWidth/Height = fallback).
             // "notifications" splits by payload mode: notifications:flow/center.
             property var modules: ({
                     launcher: ({ width: 560, height: 210 }),
-                    quicksettings: ({ width: 560, height: 210 }),
                     player: ({ width: 448, height: 230 }),
                     notifications: ({ width: 520, height: 180 }),
                     "notifications:flow": ({ width: 520, height: 150 }),
                     "notifications:center": ({ width: 520, height: 460 }),
-                    osd: ({ width: 340, height: 56, radius: 28 }),
+                    osd: ({ width: 340, height: 60, radius: 20 }),
                     dictation: ({ width: 480, height: 132 }),
-                    localsend: ({ width: 440, height: 120 }),
                     "recording-actions": ({ width: 440, height: 96 }),
                     "hotspot-actions": ({ width: 360, height: 84 })
                 })
@@ -395,6 +421,40 @@ Singleton {
                     textBaseSize: 16,
                     counterBaseSize: 18,
                     hitPad: 4
+                })
+            // File tray + LocalSend (modules/stash, pShell stash port). The
+            // tray opens over IPC only (`island stash`); dragging a file over
+            // the island opens the drop chooser (tray | LocalSend). Island
+            // sizes are derived (modules/stash/StashMetrics.js); tile radius
+            // is concentric (island.radius - padding).
+            property var stash: ({
+                    stashDir: "/tmp/pillshell_stash",
+                    dropMode: "copy",
+                    watchMs: 1500,
+                    columns: 5,
+                    rowsMax: 2,
+                    cellSize: 88,
+                    gap: 8,
+                    padding: 14,
+                    actionsHeight: 34,
+                    tileButtonSize: 24,
+                    dropZoneWidth: 180,
+                    dropZoneHeight: 104,
+                    dropLeaveMs: 250,
+                    dashedBorderWidth: 2,
+                    dashedBorderDashLength: 10,
+                    dashedBorderGapLength: 6,
+                    localsend: true,
+                    receive: false,
+                    alias: "pillShell Stash",
+                    downloadDir: "$HOME/Downloads",
+                    pickerWidth: 380,
+                    visibleDevicesMax: 4,
+                    deviceRowHeight: 52,
+                    pickerHeaderHeight: 32,
+                    incomingWidth: 400,
+                    incomingFileRowHeight: 26,
+                    incomingTextHeight: 96
                 })
         }
     }

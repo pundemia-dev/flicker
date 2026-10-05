@@ -2,12 +2,15 @@ import QtQuick
 import "../../components"
 import "../../config"
 
-// iOS-style OSD (volume / mic / brightness): level glyph on the left, a fat
-// capsule track whose white fill springs to the value, rolling percent on
-// the right. Payload: { kind: "volume"|"mic"|"brightness"|"custom",
-// push (-1/0/+1: the press hit an end), value + icon (custom only) }.
-// Known kinds bind the LIVE service value — PipeWire applies a volume set
-// asynchronously, a value snapshotted at key time is one step behind.
+// iOS-style OSD (volume / mic / brightness): the whole island is one big
+// capsule slider (pShell BatteryTank pattern, horizontal): a flat-edged
+// fill springs to the value, the level glyph sits inside on the left, the
+// number inside on the right. Both are drawn twice — light over the empty
+// track, dark ink inside the fill (clipped to it) — so they stay legible
+// wherever the fill edge crosses them. Payload: { kind: "volume"|"mic"|
+// "brightness"|"custom", push (-1/0/+1: the press hit an end), value + icon
+// (custom only) }. Known kinds bind the LIVE service value — PipeWire
+// applies a volume set asynchronously, a snapshot at key time lags a step.
 Item {
     id: root
     required property var payload
@@ -28,7 +31,12 @@ Item {
     // overdrive part tints the fill instead of overflowing the track.
     readonly property real fill: muted ? 0 : Math.min(1, value)
     readonly property bool boosted: !muted && value > 1.001
-    readonly property int percent: Math.round(value * 100)
+    readonly property string valueText: muted ? "0" : `${Math.round(value * 100)}`
+
+    readonly property color lightInk: root.theme?.islandFg ?? "#E9ECF1"
+    readonly property color dimInk: root.theme?.subtleFg ?? "#B9C0CB"
+    readonly property color darkInk: root.theme?.islandBg ?? "#000000"
+    readonly property color fillColor: root.boosted ? (root.theme?.accentOrange ?? "#E58B4D") : root.lightInk
 
     readonly property string glyph: {
         if (kind === "volume") {
@@ -44,8 +52,8 @@ Item {
     }
 
     // Rubber band (iOS): a press that cannot move the value stretches the
-    // track toward that end and springs back. Every press is a fresh
-    // payload object, so repeats re-trigger.
+    // bar toward that end and springs back. Every press is a fresh payload
+    // object, so repeats re-trigger.
     property real stretch: 0
     property bool settled: false
     Component.onCompleted: root.settled = true
@@ -67,85 +75,98 @@ Item {
         eps: 0.0005
     }
 
-    Item {
-        id: iconBox
-        anchors.left: parent.left
-        anchors.leftMargin: root.cfg.margin
-        anchors.verticalCenter: parent.verticalCenter
-        width: root.cfg.iconBox
-        height: root.cfg.iconBox
+    // Glyph change pops in from a smaller scale (spring); both ink copies
+    // share it.
+    property real iconScale: 1
+    onGlyphChanged: if (root.settled) iconPop.restart()
+    Spring {
+        id: iconPop
+        target: root
+        property: "iconScale"
+        from: root.cfg.iconPopFrom
+        to: 1
+        stiffness: root.cfg.fillStiffness
+        damp: root.cfg.fillDamping
+        eps: 0.002
+    }
 
-        Text {
-            id: icon
-            anchors.centerIn: parent
-            text: root.glyph
-            color: root.muted ? (root.theme?.subtleFg ?? "#B9C0CB") : (root.theme?.islandFg ?? "#E9ECF1")
-            font.family: root.kind === "custom" ? (root.theme?.fontFamily ?? "SF Pro Display") : (root.theme?.iconFamily ?? "tabler-icons")
-            font.pixelSize: root.cfg.iconSize
-            // Glyph change pops in from a smaller scale (spring).
-            onTextChanged: if (root.settled) iconPop.restart()
-        }
+    property real fillAnim: root.fill
+    Behavior on fillAnim {
         Spring {
-            id: iconPop
-            target: icon
-            property: "scale"
-            from: root.cfg.iconPopFrom
-            to: 1
             stiffness: root.cfg.fillStiffness
             damp: root.cfg.fillDamping
-            eps: 0.002
+            eps: 0.001
         }
     }
 
-    RollingText {
-        id: valueText
-        anchors.right: parent.right
-        anchors.rightMargin: root.cfg.margin
-        anchors.verticalCenter: parent.verticalCenter
-        width: root.cfg.valueWidth
-        text: root.muted ? "0" : `${root.percent}`
-        color: root.muted ? (root.theme?.subtleFg ?? "#B9C0CB") : (root.theme?.islandFg ?? "#E9ECF1")
-        pixelSize: root.cfg.valueSize
-        weight: Font.DemiBold
-        family: root.theme?.fontFamily ?? "SF Pro Display"
-    }
-
     Item {
-        id: trackBox
-        anchors.left: iconBox.right
-        anchors.leftMargin: root.cfg.spacing
-        anchors.right: valueText.left
-        anchors.rightMargin: root.cfg.spacing
-        anchors.verticalCenter: parent.verticalCenter
-        height: root.cfg.trackHeight
+        id: barBox
+        anchors.fill: parent
+        anchors.margins: root.cfg.inset
 
-        Rectangle {
-            id: track
-            // Stretch grows the track toward the pushed end (origin on the
-            // opposite end) and thins it a touch, like an elastic band.
-            width: parent.width * (1 + Math.abs(root.stretch))
-            x: root.stretch < 0 ? -(width - parent.width) : 0
-            height: parent.height * (1 - Math.abs(root.stretch) * 1.5)
+        RoundedClip {
+            id: bar
+            // Stretch grows the bar toward the pushed end and thins it a
+            // touch, like an elastic band.
+            width: barBox.width * (1 + Math.abs(root.stretch))
+            height: barBox.height * (1 - Math.abs(root.stretch) * 1.5)
+            x: root.stretch < 0 ? -(width - barBox.width) : 0
             anchors.verticalCenter: parent.verticalCenter
-            radius: height / 2
-            color: root.cfg.trackColor
-            clip: true
+            // Concentric with the island: island radius minus the inset.
+            radius: Math.max(0, (Config.data.modules?.osd?.radius ?? Config.data.island.radius) - root.cfg.inset)
 
             Rectangle {
-                id: fillRect
-                height: parent.height
-                radius: height / 2
-                width: Math.max(0, parent.width * fillAnim)
-                color: root.boosted ? (root.theme?.accentOrange ?? "#E58B4D") : (root.theme?.islandFg ?? "#E9ECF1")
-                property real fillAnim: root.fill
-                Behavior on fillAnim {
-                    Spring {
-                        stiffness: root.cfg.fillStiffness
-                        damp: root.cfg.fillDamping
-                        eps: 0.001
-                    }
+                anchors.fill: parent
+                color: root.theme?.cardTrack ?? "#2C2C2E"
+            }
+            Ink {
+                inkColor: root.muted ? root.dimInk : root.lightInk
+            }
+            // Fill: flat edge, rounded only by the bar's own clip.
+            Item {
+                width: Math.max(0, bar.width * root.fillAnim)
+                height: bar.height
+                clip: true
+
+                Rectangle {
+                    anchors.fill: parent
+                    color: root.fillColor
+                }
+                Ink {
+                    inkColor: root.darkInk
                 }
             }
+        }
+    }
+
+    // Glyph left + number right, laid out in bar coordinates.
+    component Ink: Item {
+        id: ink
+        property color inkColor
+        width: bar.width
+        height: bar.height
+
+        Text {
+            anchors.left: parent.left
+            anchors.leftMargin: root.cfg.padding
+            anchors.verticalCenter: parent.verticalCenter
+            width: root.cfg.iconSize
+            horizontalAlignment: Text.AlignHCenter
+            text: root.glyph
+            color: ink.inkColor
+            scale: root.iconScale
+            font.family: root.kind === "custom" ? (root.theme?.fontFamily ?? "SF Pro Display") : (root.theme?.iconFamily ?? "tabler-icons")
+            font.pixelSize: root.cfg.iconSize
+        }
+        RollingText {
+            anchors.right: parent.right
+            anchors.rightMargin: root.cfg.padding
+            anchors.verticalCenter: parent.verticalCenter
+            text: root.valueText
+            color: ink.inkColor
+            pixelSize: root.cfg.valueSize
+            weight: Font.DemiBold
+            family: root.theme?.fontFamily ?? "SF Pro Display"
         }
     }
 }
