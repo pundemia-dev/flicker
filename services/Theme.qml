@@ -38,6 +38,9 @@ QtObject {
     readonly property color qsDisc: "#3A3A3C"
     readonly property color qsFill: "#F2F2F7"
     readonly property color qsOnFill: "#1C1C1E"
+    // Slider card glyphs (both over the track and inside the fill).
+    readonly property color qsVolumeIcon: "#00BFE9"
+    readonly property color qsBrightnessIcon: "#FFCB01"
     readonly property int fontSizeClock: 14
     readonly property int fontSizeBody: 12
     readonly property int fontSizeIndicator: 11

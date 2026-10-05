@@ -109,11 +109,14 @@ Item {
     Component {
         id: volumeComp
         SliderCard {
-            readonly property bool muted: root.audio?.muted ?? false
             readonly property real max: root.audio?.maxVolume ?? 1
+            muted: root.audio?.muted ?? false
             title: "Громкость"
+            haptics: root.services.haptics
             value: muted ? 0 : (root.audio?.volume ?? 0) / max
-            glyph: muted || value <= 0 ? "" : value < 0.5 ? "" : ""
+            volume: true
+            iconColor: root.theme?.qsVolumeIcon ?? "#00BFE9"
+            levelScale: max
             activate: () => { root.audio?.quiet(); root.audio?.toggleMute(); }
             // quiet(): no OSD for Quick Settings changes (core/OsdWatcher).
             onMoved: v => { root.audio?.quiet(); root.audio?.setVolume(v * max); }
@@ -123,8 +126,10 @@ Item {
         id: brightnessComp
         SliderCard {
             title: "Яркость"
+            haptics: root.services.haptics
+            iconColor: root.theme?.qsBrightnessIcon ?? "#FFCB01"
             value: root.services.brightness?.brightness ?? 0
-            glyph: value < 0.5 ? "" : ""
+            glyph: value < 0.5 ? "\uD800\uDD07" : "\uD800\uDD08"
             onMoved: v => { root.services.brightness?.quiet(); root.services.brightness?.setBrightness(v); }
         }
     }
@@ -132,8 +137,10 @@ Item {
         id: mediaComp
         MediaCard {
             players: root.services.players
+            audio: root.audio
+            haptics: root.services.haptics
             activate: () => {
-                if (hasPlayer)
+                if (hasPlayer && !hasProgress)
                     root.openRequested("player", {});
             }
         }

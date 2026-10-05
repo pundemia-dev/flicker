@@ -52,6 +52,17 @@ Scope {
     onSinkChanged: root.quiet()
     onSourceChanged: root.quiet()
 
+    // Hard cap (audio.maxVolume): changes from outside the shell (wpctl in
+    // compositor binds, pavucontrol, apps) are pulled back to the limit too.
+    // Deferred: writing the volume inside its own change handler is a
+    // binding loop on `volume`.
+    onVolumeChanged: Qt.callLater(root.enforceCap)
+    onMaxVolumeChanged: Qt.callLater(root.enforceCap)
+    function enforceCap(): void {
+        if (sink?.ready && sink?.audio && sink.audio.volume > maxVolume + 0.001)
+            sink.audio.volume = maxVolume;
+    }
+
     function setVolume(value: real): void {
         if (sink?.ready && sink?.audio) {
             sink.audio.muted = false;
@@ -89,7 +100,9 @@ Scope {
             || nm.indexOf("pw-record") !== -1 || nm.indexOf("wf-recorder") !== -1
             // record.sh: its parecord stream (client pillshell_rec_audio)
             // and the "both" mode mic/system loopbacks into the mix sink.
-            || app.indexOf("pillshell_rec") !== -1 || nm.indexOf("pillshell_rec") !== -1;
+            || app.indexOf("pillshell_rec") !== -1 || nm.indexOf("pillshell_rec") !== -1
+            // components/AudioBars: cava on the output monitor.
+            || app === "cava" || bin === "cava" || nm === "cava";
     }
 
     // User exclusion list (config.audio.micExclude): case-insensitive

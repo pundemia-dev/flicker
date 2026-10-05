@@ -24,8 +24,9 @@ Scope {
     SystemUsage { id: systemUsageService }
     Sensors { id: sensorsService }
     Weather { id: weatherService }
+    Haptics { id: hapticsService }
     Stash { id: stashService; cfg: Config.data.stash }
-    ControlCenter { id: controlCenterService; cfg: Config.data.quicksettings }
+    ControlCenter { id: controlCenterService; cfg: Config.data.quicksettings; haptics: hapticsService }
     LocalSend {
         id: localSendService
         cfg: Config.data.stash
@@ -67,6 +68,7 @@ Scope {
 
     OsdWatcher {
         registry: islandRegistry
+        haptics: hapticsService
         compositor: compositorService
         audio: audioService
         brightness: brightnessService
@@ -102,6 +104,7 @@ Scope {
                 stash: stashService
                 localSend: localSendService
                 controlCenter: controlCenterService
+                haptics: hapticsService
             }
 
             Corners {

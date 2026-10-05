@@ -1,0 +1,184 @@
+#!/usr/bin/env python3
+"""apple-t2: Force Touch actuator of T2 MacBooks (Intel, 2018-2020) over hidraw.
+
+Actuator = interface 3 of "Apple Internal Keyboard / Trackpad" (USB through the
+T2 bridge, apple-bce). Output report 0x53 plays a waveform; the interface has no
+interrupt-OUT endpoint, so a plain write() goes out as an EP0 SET_REPORT and must
+be the exact packet length:
+
+    53 01 <strength> <softness> <5-byte waveform segments>...
+
+Waveform tables: hid-apple-mtp-haptic (Chromatischer/linux PR #1, Apple Silicon),
+verified on a T2 MacBook (05ac:0340) in Oct 2026 — click and deep work in the
+firmware's own (device-controlled) mode, no mode switch needed; so does the
+segment-less release packet (any tested strength/softness, any gap). NEVER
+send other bytes: a
+rejected packet stalls EP0 of the whole keyboard/trackpad and the T2 resets it
+(~5 s, hidraw renumbers).
+
+Options (JSON): device (default /dev/pillshell-haptic, else sysfs scan),
+<effect>: {strength, softness} = the values at intensity 1.0.
+"""
+import argparse, errno, fcntl, glob, json, os, sys, time
+
+CLICK = bytes.fromhex("03 02 22 48 49 01 04 60 17 2d 03 02 18 32 1e")
+WAVEFORMS = {
+    "click": CLICK,
+    "deep": bytes.fromhex("01 07 18 18 4f 02 02 60 0c 25"),
+    # The driver's segment-less release packet (53 01 s f). rate_probe
+    # release-native (2026-10-05): 14/90, 28/ff, 14/ff after idle and
+    # click -> release down to 0 ms all pass. Its one rejection (20:21) came
+    # right after a failed resume from suspend — the T2 itself was unwell.
+    "release": b"",
+    # tick (light detent: OSD value marks) = click waveform, tuned softer.
+    "tick": CLICK,
+}
+# strength (at intensity 1.0), softness — driver defaults, felt on the T2.
+DEFAULTS = {"click": (0x28, 0x90), "deep": (0xFF, 0xD0), "release": (0x28, 0x90), "tick": (0x28, 0x90)}
+RETRY_S = 6.0  # re-enumeration after an EP0 reset takes ~5 s
+RULE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "udev.rules")
+
+
+def log(*a):
+    print("[apple-t2]", *a, file=sys.stderr, flush=True)
+
+
+def has_actuator_report(desc):
+    # Output report 0x53 (Report ID 85 53 ... Output 91 xx) in the descriptor.
+    i = desc.find(b"\x85\x53")
+    return i >= 0 and b"\x91" in desc[i:i + 16]
+
+
+def scan():
+    """hidraw nodes of Apple keyboard/trackpad interface 3 carrying report 0x53."""
+    found = []
+    for d in sorted(glob.glob("/sys/class/hidraw/hidraw*/device")):
+        try:
+            ue = open(f"{d}/uevent").read()
+            desc = open(f"{d}/report_descriptor", "rb").read()
+        except OSError:
+            continue
+        if ("HID_ID=0003:000005AC:" in ue and "bce-vhci" in ue and "/input3\n" in ue
+                and has_actuator_report(desc)):
+            found.append("/dev/" + d.split("/")[4])
+    return found
+
+
+def device_path(opt):
+    dev = opt.get("device") or "/dev/pillshell-haptic"
+    if os.path.exists(dev):
+        return dev
+    nodes = scan()
+    return nodes[0] if nodes else None
+
+
+def probe():
+    nodes = scan()
+    if not nodes:
+        return 1
+    dev = device_path({})
+    if dev and os.access(dev, os.W_OK):
+        print(dev)
+        return 0
+    print(f"actuator at {nodes[0]} is not writable — install {RULE} "
+          "(sudo install -m644 ... /etc/udev/rules.d/70-pillshell-haptic.rules; "
+          "sudo udevadm control --reload; sudo udevadm trigger -s hidraw)")
+    return 2
+
+
+def hid_ident(dev):
+    """Identity of the HID device behind a hidraw path: its sysfs HID node
+    (0003:05AC:0340.<n>, <n> grows on every re-enumeration). None = gone."""
+    try:
+        name = os.path.basename(os.path.realpath(dev))
+        return os.path.realpath(f"/sys/class/hidraw/{name}/device")
+    except OSError:
+        return None
+
+
+def run(opt):
+    # After a rejected packet EP0 is stalled: every further request only
+    # times out (5 s each, holding up the keyboard's own control requests)
+    # until the T2 resets the device — or never (then only a reboot helps).
+    # So go quiet until the device re-enumerates (new HID node), then resume.
+    fd, blocked_until, warned = None, 0.0, False
+    dead, last_ok, busy_warned = None, 0.0, False
+    for line in sys.stdin:
+        parts = line.split()
+        if len(parts) != 2 or parts[0] not in WAVEFORMS or time.monotonic() < blocked_until:
+            continue
+        try:
+            k = max(0.0, min(1.0, float(parts[1])))
+        except ValueError:
+            continue
+        if k <= 0:
+            continue
+        if dead is not None:
+            dev = device_path(opt)
+            if dev is None or hid_ident(dev) == dead:
+                continue
+            log("device re-enumerated, resuming")
+            dead = None
+        s, f = DEFAULTS[parts[0]]
+        o = opt.get(parts[0]) or {}
+        s, f = int(o.get("strength", s)), int(o.get("softness", f))
+        s = max(1, min(255, round(s * k)))
+        f = max(1, min(255, f))
+        packet = bytes([0x53, 0x01, s, f]) + WAVEFORMS[parts[0]]
+        dev = None
+        try:
+            if fd is None:
+                dev = device_path(opt)
+                if dev is None:
+                    raise FileNotFoundError("actuator hidraw not found")
+                fd = os.open(dev, os.O_WRONLY)
+                # ONE writer only: two concurrent SET_REPORTs on the shared
+                # EP0 race in apple-bce and stall it (rate probe "parallel",
+                # 2026-10-05; also what killed release at 17:38 — two shell
+                # instances). flock on the device inode; held while fd is open.
+                try:
+                    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                except BlockingIOError:
+                    os.close(fd)
+                    fd = None
+                    if not busy_warned:
+                        log("another process holds the actuator (second shell instance / a probe?) — not writing")
+                        busy_warned = True
+                    blocked_until = time.monotonic() + 2.0
+                    continue
+                busy_warned = False
+            os.write(fd, packet)
+            last_ok = time.monotonic()
+            warned = False
+        except OSError as e:
+            if fd is not None:
+                os.close(fd)
+                fd = None
+            if e.errno in (errno.EPIPE, errno.ETIMEDOUT):
+                gap = (time.monotonic() - last_ok) * 1000 if last_ok else -1
+                log(f"{parts[0]} rejected ({e.strerror}; {packet.hex(' ')}; "
+                    f"{gap:.0f} ms after the last ok write) — paused until the device re-enumerates")
+                dead = hid_ident(device_path(opt) or "")
+                continue
+            if not warned:
+                log(f"{parts[0]}: {e}")
+                warned = True
+            blocked_until = time.monotonic() + RETRY_S
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("cmd", choices=["probe", "run"])
+    ap.add_argument("--options", default="{}")
+    a = ap.parse_args()
+    if a.cmd == "probe":
+        sys.exit(probe())
+    try:
+        opt = json.loads(a.options) or {}
+    except ValueError:
+        opt = {}
+    run(opt)
+
+
+if __name__ == "__main__":
+    main()

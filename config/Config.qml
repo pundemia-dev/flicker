@@ -82,6 +82,33 @@ Singleton {
                     stretchStiffness: 5,
                     stretchDamping: 0.3
                 })
+            // Trackpad haptics (services/Haptics.qml, docs/haptics.md).
+            // backend: "auto" (first usable in `order`), a backend name
+            // (scripts/haptics/backends/<name>) or a path to an own
+            // executable. intensity 0..1 per effect (0 = off; 1 = the
+            // backend's full-strength default). backendOptions.<name> is
+            // passed to that backend as JSON.
+            // Places: osdSteps = tick on every bound volume/brightness step (not QS
+            // sliders), quickSettings = edit-mode entry (deep) + layout
+            // snaps + tab switch (click), limits = a QS slider / seek bar
+            // reaching an end while dragged (release).
+            property var haptics: ({
+                    enabled: true,
+                    backend: "auto",
+                    order: ["evdev-haptic", "apple-t2"],
+                    minIntervalMs: 40,
+                    respawnMs: 5000,
+                    // No usable backend: probe again after this (0 = never).
+                    rescanMs: 30000,
+                    osdSteps: true,
+                    // OSD haptic only when the value reaches/passes a multiple
+                    // of this many percent (10 → at 10, 20, ...; 1 = every step).
+                    osdStepEvery: 10,
+                    quickSettings: true,
+                    limits: true,
+                    intensity: { click: 1, deep: 1, release: 1, tick: 1 },
+                    backendOptions: {}
+                })
             property var gestures: ({
                     minimalActiveZoneHeight: 42,
                     minimalActiveZoneWidth: 160,
@@ -161,7 +188,7 @@ Singleton {
                     lowPercent: 20
                 })
             property var audio: ({
-                    maxVolume: 1.5,
+                    maxVolume: 1.05,
                     volumeStep: 0.05,
                     // Capture streams to hide from the mic indicator:
                     // case-insensitive substrings matched against
@@ -323,7 +350,7 @@ Singleton {
             // config: Quickshell.statePath("quicksettings.json").
             property var quicksettings: ({
                     cols: 4,
-                    unit: 72,
+                    unit: 80,
                     spacing: 12,
                     margins: 14,
                     padding: 12,
@@ -332,7 +359,7 @@ Singleton {
                     subtitleSize: 11,
                     // Long press on a card enters edit mode (ms).
                     holdMs: 450,
-                    // Card press dragged up this far closes the module.
+                    // Swipe up from the bottom closeZone this far closes.
                     closeDistance: 30,
                     // Edit footer: hidden-card chips + "Готово".
                     chipSize: 34,
@@ -342,7 +369,56 @@ Singleton {
                     // collapse so the grab shows the clean bar.
                     actionDelayMs: 450,
                     // Wheel step on slider cards (fraction of the range).
-                    wheelStep: 0.05
+                    wheelStep: 0.05,
+                    // Slider card glyph size = iconSize x this.
+                    sliderIconScale: 1.25,
+                    // Tab rail (right of the grid, one icon per page,
+                    // vertically centred): column width, icon disc, gap.
+                    railWidth: 32,
+                    railIcon: 30,
+                    railSpacing: 6,
+                    // Vertical drag on the grid flips pages past this (px);
+                    // a swipe up STARTING in the bottom closeZone (px)
+                    // closes the module instead.
+                    pageSwipeDistance: 40,
+                    closeZone: 32,
+                    // Media card: the player module's px sizes times this
+                    // (cards/MediaLayout.js) — 4x2 = the player at card scale
+                    // (unit 80: 4x2 card 356x172 ≈ player module 360x170).
+                    playerScale: 1
+                })
+            // Seek bar (modules/player/SeekBar: player module + QS media
+            // card). Dragging past an end stretches the bar toward it (iOS
+            // rubber band, OSD look): stretch = max * o / (o + softness),
+            // o = overshoot / bar width; springs back on release.
+            // Spectrum bars (components/AudioBars.qml, cava on the default
+            // output's monitor; QS media card 4x4/4x6): bar count, cava fps,
+            // bar width px, tallest bar as a fraction of the box height.
+            property var visualizer: ({
+                    bars: 6,
+                    framerate: 30,
+                    barWidth: 3,
+                    heightRatio: 0.6
+                })
+            // Shape-built volume glyph (components/VolumeIcon.qml): timed arc
+            // fade + pulse()/wave() bump (up OutCubic, down InOutCubic); only
+            // the mute slash is a spring.
+            property var volumeIcon: ({
+                    arcFadeMs: 350,
+                    shiftMs: 600,
+                    slashStiffness: 2.5,
+                    slashDamping: 0.65,
+                    pulseScale: 1.2,
+                    waveScale: 1.15,
+                    waveStaggerMs: 60,
+                    bumpUpMs: 180,
+                    bumpDownMs: 320
+                })
+            property var seekBar: ({
+                    stretchMax: 0.06,
+                    stretchSoftness: 0.25,
+                    stretchStiffness: 5,
+                    stretchDamping: 0.3
                 })
             // Per-module island sizes (island.moduleWidth/Height = fallback).
             // "notifications" splits by payload mode: notifications:flow/center.

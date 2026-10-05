@@ -35,6 +35,7 @@ PanelWindow {
     required property var localSend
     // Quick Settings layout state (services/ControlCenter).
     required property var controlCenter
+    required property var haptics
     // Shared per-screen island registry (IPC routes to the focused output).
     required property var registry
 
@@ -239,11 +240,11 @@ PanelWindow {
         // incl. the concentric corner radius (card radius + margins).
         if (root.moduleKey === "dashboard")
             return DashMetrics.islandSize(root.config.dashboard);
-        // Quick Settings: grid rows of the (preview) layout; edit mode adds
-        // a drop row + the footer.
+        // Quick Settings: rows of the tallest (preview) page; edit mode adds
+        // a drop row + the footer, several tabs add the rail.
         if (root.moduleKey === "quicksettings")
             return QsMetrics.islandSize(root.config.quicksettings, root.controlCenter.rows,
-                root.controlCenter.editing, root.controlCenter.hiddenIds.length);
+                root.controlCenter.editing, root.controlCenter.hiddenIds.length, root.controlCenter.railIcons);
         // Stash views fit their content (file / device / incoming counts).
         if (root.moduleKey.startsWith("stash:"))
             return StashMetrics.islandSize(root.config.stash, root.moduleKey.slice(6), {
@@ -1154,6 +1155,7 @@ PanelWindow {
                         stash: root.stash,
                         localSend: root.localSend,
                         controlCenter: root.controlCenter,
+                        haptics: root.haptics,
                         quickAction: root.runQuickAction
                     })
                 onCloseRequested: root.closeModule()

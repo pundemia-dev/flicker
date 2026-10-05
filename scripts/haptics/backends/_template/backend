@@ -1,0 +1,72 @@
+#!/usr/bin/env python3
+"""Template for a pillShell haptics backend — copy this directory, rename it,
+fill in the three TODOs. Full contract: docs/haptics.md.
+
+  backend probe              exit 0 = usable (print the device), 1 = no such
+                             hardware, 2 = present but not accessible (print
+                             a hint: which udev rule / group is missing)
+  backend run --options JSON read "<effect> <intensity>" lines from stdin until
+                             it closes; effect = click|deep|release|tick,
+                             intensity = 0..1. Ignore anything you don't know.
+
+Rules of thumb:
+  - Never crash on bad input or a vanished device: log to stderr, back off,
+    reopen later. The shell rate-limits; you just play.
+  - Only send what you KNOW the device accepts. Guessing bytes can wedge or
+    reset hardware (see the apple-t2 backend's notes).
+  - Keep `run` long-lived: the shell starts it once, not per effect.
+"""
+import argparse, json, sys
+
+EFFECTS = ("click", "deep", "release", "tick")
+
+
+def log(*a):
+    print("[my-backend]", *a, file=sys.stderr, flush=True)
+
+
+def probe():
+    # TODO 1: detect your hardware (sysfs, /dev, a vendor tool...).
+    return 1
+
+
+def open_device(opt):
+    # TODO 2: open the device (opt = this backend's config.json options).
+    return None
+
+
+def play(dev, effect, intensity):
+    # TODO 3: make it buzz. intensity 0..1 — map it to your device's scale.
+    pass
+
+
+def run(opt):
+    dev = open_device(opt)
+    for line in sys.stdin:
+        parts = line.split()
+        if len(parts) != 2 or parts[0] not in EFFECTS:
+            continue
+        try:
+            k = max(0.0, min(1.0, float(parts[1])))
+            if k > 0:  # 0 = off
+                play(dev, parts[0], k)
+        except (ValueError, OSError) as e:
+            log(f"{parts[0]}: {e}")
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("cmd", choices=["probe", "run"])
+    ap.add_argument("--options", default="{}")
+    a = ap.parse_args()
+    if a.cmd == "probe":
+        sys.exit(probe())
+    try:
+        opt = json.loads(a.options) or {}
+    except ValueError:
+        opt = {}
+    run(opt)
+
+
+if __name__ == "__main__":
+    main()

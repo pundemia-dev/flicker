@@ -28,6 +28,15 @@ Scope {
             root.island?.openQuickSettings();
             root.island?.controlCenter.beginEdit();
         }
+        // QS tab by index (rail tap) / card footprint (= the resize arc;
+        // used to test the morphs without a pointer).
+        function quicksettingsPage(index: int): void { root.island?.controlCenter.setPage(index); }
+        function quicksettingsResize(id: string, w: int, h: int): void {
+            const cc = root.island?.controlCenter;
+            cc?.previewResize(id, w, h);
+            cc?.commit();
+            cc?.save();
+        }
         function notifications(): void { root.island?.openNotificationCenter(); }
         function capture(): void { root.island?.openCapture(""); }
         // shot | record | color | window | ai (while open: switch to it).
@@ -96,6 +105,12 @@ Scope {
         function playPause(): void { root.players.playPause(); }
         function nextTrack(): void { root.players.next(); }
         function prevTrack(): void { root.players.previous(); }
+        // Absolute seek (s) on the active player — same write as the seek bars.
+        function playerSeek(seconds: real): void {
+            const p = root.players.active;
+            if (p?.canSeek && p?.positionSupported)
+                p.position = Math.max(0, seconds);
+        }
 
         // Runtime introspection of the routed island (headless debugging).
         function debugState(): string { return root.island?.debugState() ?? "{}"; }

@@ -15,6 +15,7 @@ Scope {
     required property var compositor
     required property var audio
     required property var brightness
+    property var haptics: null
 
     readonly property var cfg: Config.data.osd
     readonly property var island: root.registry.forOutput(root.compositor?.focusedOutput ?? "")
@@ -34,6 +35,19 @@ Scope {
         return root.cfg.watch && now - root.startedAt >= root.cfg.startupQuietMs
             && now >= (service?.osdQuietUntil ?? 0);
     }
+    // Bound steps tick the trackpad (Config.haptics.osdSteps) when the
+    // value reaches or passes a multiple of osdStepEvery percent (either
+    // direction: up ticks on arrival at 10/20/..., down too); QS slider
+    // moves never get here (quiet window), so they stay silent.
+    function tick(from: real, to: real): void {
+        const every = Config.data.haptics?.osdStepEvery ?? 10;
+        if (!Config.data.haptics?.osdSteps || from < 0 || every <= 0)
+            return;
+        const a = Math.round(from * 100);
+        const b = Math.round(to * 100);
+        if (b > a ? Math.floor(b / every) * every > a : b < a && Math.ceil(b / every) * every < a)
+            root.haptics?.tick();
+    }
     function moved(a: real, b: real): bool {
         return a < 0 || Math.abs(a - b) > 0.004;
     }
@@ -42,8 +56,10 @@ Scope {
         target: root.audio
         function onVolumeChanged(): void {
             const v = root.audio.volume;
-            if (root.moved(root.lastVolume, v) && root.allowed(root.audio))
+            if (root.moved(root.lastVolume, v) && root.allowed(root.audio)) {
                 root.island?.showOsd({ kind: "volume" });
+                root.tick(root.lastVolume, v);
+            }
             root.lastVolume = v;
         }
         function onMutedChanged(): void {
@@ -69,8 +85,10 @@ Scope {
         function onBrightnessChanged(): void {
             const v = root.brightness.brightness;
             if (root.moved(root.lastBrightness, v)
-                    && root.brightness.initialized && root.allowed(root.brightness))
+                    && root.brightness.initialized && root.allowed(root.brightness)) {
                 root.island?.showOsd({ kind: "brightness" });
+                root.tick(root.lastBrightness, v);
+            }
             root.lastBrightness = v;
         }
     }

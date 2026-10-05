@@ -7,8 +7,10 @@ import "../../components"
 // Geometry comes from the module; this file only reports gestures.
 //
 // Normal mode: tap → `tapped`, long press → `holdRequested` (edit mode),
-// drag up → `closeRequested` (the card grabs presses, so it forwards the
-// module's swipe-up close itself — GestureZones below never sees them).
+// vertical drag → swipe* (the module pages tabs, or closes when the swipe
+// started in its bottom close zone — the card grabs presses, so it forwards
+// them; GestureZones below never sees QS presses). Swipe coords are in
+// `pointerSpace` (the static module), never the sliding page strip.
 // Content controls (sliders, media buttons) sit above and take their own
 // presses. Edit mode: content is disabled, the body drags the card
 // (move*), the bottom-right arc resizes it (resize*), the "−" badge
@@ -26,19 +28,25 @@ Item {
     required property int spanH
     property bool editing: false
     property Component content: null
+    // Static module item: swipe deltas and the moving pointer are mapped
+    // here (the card's parent strip slides while paging).
+    property Item pointerSpace: null
 
     signal tapped
     signal holdRequested
-    signal closeRequested
+    signal swipeStarted(real y)
+    signal swipeUpdated(real dy)
+    signal swipeEnded
     signal removeRequested
     signal moveStarted
-    signal moveUpdated(real dx, real dy)
+    // dx/dy in strip coords; px/py = pointer in pointerSpace (tab hover).
+    signal moveUpdated(real dx, real dy, real px, real py)
     signal moveEnded
     signal resizeStarted
     signal resizeUpdated(real dx, real dy)
     signal resizeEnded
 
-    readonly property real radius: (root.cfg?.unit ?? 72) / 2
+    readonly property real radius: (root.cfg?.unit ?? 80) / 2
     readonly property string form: {
         if (root.spanW === 1 && root.spanH === 1)
             return "small";
@@ -52,10 +60,12 @@ Item {
     }
     readonly property bool lifted: body.moving || handle.pressed
 
+    // Slider cards paint their own surface (fill | gap | track, OSD look).
     Rectangle {
         anchors.fill: parent
         radius: root.radius
         color: root.theme?.cardBg ?? "#1C1C1E"
+        opacity: loader.item?.ownSurface === true ? 0 : 1
     }
 
     // Tap: the content's own action (activate()), then the signal.
@@ -75,18 +85,20 @@ Item {
         anchors.fill: parent
         pressAndHoldInterval: root.cfg?.holdMs ?? 450
         property point start
+        property point sStart
         property bool moving: false
-        property bool swiped: false
+        property bool swiping: false
         property bool held: false
 
         onPressed: mouse => {
             start = root.gridPos(body, mouse.x, mouse.y);
+            sStart = body.mapToItem(root.pointerSpace, mouse.x, mouse.y);
             moving = false;
-            swiped = false;
+            swiping = false;
             held = false;
         }
         onPressAndHold: {
-            if (root.editing || swiped)
+            if (root.editing || swiping)
                 return;
             held = true;
             root.holdRequested();
@@ -100,18 +112,29 @@ Item {
                     moving = true;
                     root.moveStarted();
                 }
-                if (moving)
-                    root.moveUpdated(dx, dy);
-            } else if (!swiped && !held && dy < -(root.cfg?.closeDistance ?? 30)) {
-                swiped = true;
-                root.closeRequested();
+                if (moving) {
+                    const q = body.mapToItem(root.pointerSpace, mouse.x, mouse.y);
+                    root.moveUpdated(dx, dy, q.x, q.y);
+                }
+            } else if (!held) {
+                const q = body.mapToItem(root.pointerSpace, mouse.x, mouse.y);
+                const sy = q.y - sStart.y;
+                if (!swiping && Math.abs(sy) > 8 && Math.abs(sy) > Math.abs(q.x - sStart.x)) {
+                    swiping = true;
+                    root.swipeStarted(sStart.y);
+                }
+                if (swiping)
+                    root.swipeUpdated(sy);
             }
         }
         onReleased: {
             if (moving) {
                 moving = false;
                 root.moveEnded();
-            } else if (!root.editing && !swiped && !held) {
+            } else if (swiping) {
+                swiping = false;
+                root.swipeEnded();
+            } else if (!root.editing && !held) {
                 root.activate();
             }
         }
@@ -119,6 +142,9 @@ Item {
             if (moving) {
                 moving = false;
                 root.moveEnded();
+            } else if (swiping) {
+                swiping = false;
+                root.swipeEnded();
             }
         }
     }

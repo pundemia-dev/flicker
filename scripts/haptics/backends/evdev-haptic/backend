@@ -1,0 +1,180 @@
+#!/usr/bin/env python3
+"""evdev-haptic: any haptic touchpad the KERNEL drives (force feedback, FF_HAPTIC).
+
+Linux 6.18+ exposes HID haptic touchpads (HID usage page 0x0E: Elan and other
+Windows-Precision haptic pads, Apple trackpads once their driver lands) as evdev
+force feedback with effect type FF_HAPTIC. This backend uploads one effect per
+pillShell effect (EVIOCSFF) and plays it by writing an EV_FF event — no device
+specific bytes, the kernel driver does the talking.
+
+Only FF_HAPTIC devices are used, never FF_RUMBLE (that is gamepads: auto mode
+would buzz a connected controller). Touchpads are preferred.
+
+Waveforms (HID haptics page, the low 16 bits of the usage) are tried in order
+until the driver accepts one; a device advertises its own waveform list.
+
+Options (JSON): device (/dev/input/eventN, else auto), <effect>: [usage, ...]
+to override the waveform candidates. Untested on hardware (written against
+include/uapi/linux/input.h, Oct 2026) — the probe/upload path reports errors.
+"""
+import argparse, ctypes, fcntl, glob, json, os, sys
+
+EV_FF = 0x15
+FF_HAPTIC = 0x4F
+CLICK, PRESS, RELEASE = 0x1003, 0x1006, 0x1007
+CANDIDATES = {"click": [CLICK, PRESS], "deep": [PRESS, CLICK], "release": [RELEASE, CLICK],
+              "tick": [CLICK, RELEASE]}
+RULE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "udev.rules")
+
+
+class FfTrigger(ctypes.Structure):
+    _fields_ = [("button", ctypes.c_uint16), ("interval", ctypes.c_uint16)]
+
+
+class FfReplay(ctypes.Structure):
+    _fields_ = [("length", ctypes.c_uint16), ("delay", ctypes.c_uint16)]
+
+
+class FfHaptic(ctypes.Structure):
+    _fields_ = [("hid_usage", ctypes.c_uint16), ("vendor_id", ctypes.c_uint16),
+                ("vendor_waveform_page", ctypes.c_uint8), ("intensity", ctypes.c_uint16),
+                ("repeat_count", ctypes.c_uint16), ("retrigger_period", ctypes.c_uint16)]
+
+
+class FfPeriodic(ctypes.Structure):  # only sizes the union like the kernel's
+    _fields_ = [("waveform", ctypes.c_uint16), ("period", ctypes.c_uint16),
+                ("magnitude", ctypes.c_int16), ("offset", ctypes.c_int16),
+                ("phase", ctypes.c_uint16), ("envelope", ctypes.c_uint16 * 4),
+                ("custom_len", ctypes.c_uint32), ("custom_data", ctypes.c_void_p)]
+
+
+class FfUnion(ctypes.Union):
+    _fields_ = [("periodic", FfPeriodic), ("haptic", FfHaptic)]
+
+
+class FfEffect(ctypes.Structure):
+    _fields_ = [("type", ctypes.c_uint16), ("id", ctypes.c_int16),
+                ("direction", ctypes.c_uint16), ("trigger", FfTrigger),
+                ("replay", FfReplay), ("u", FfUnion)]
+
+
+class InputEvent(ctypes.Structure):
+    _fields_ = [("sec", ctypes.c_long), ("usec", ctypes.c_long),
+                ("type", ctypes.c_uint16), ("code", ctypes.c_uint16), ("value", ctypes.c_int32)]
+
+
+EVIOCSFF = (1 << 30) | (ctypes.sizeof(FfEffect) << 16) | (ord("E") << 8) | 0x80
+
+
+def log(*a):
+    print("[evdev-haptic]", *a, file=sys.stderr, flush=True)
+
+
+def has_ff_haptic(ev):
+    try:
+        words = open(f"/sys/class/input/{ev}/device/capabilities/ff").read().split()
+    except OSError:
+        return False
+    bits = 0
+    for w in words:  # highest long first
+        bits = (bits << (8 * ctypes.sizeof(ctypes.c_long))) | int(w, 16)
+    return bool(bits >> FF_HAPTIC & 1)
+
+
+def is_touchpad(ev):
+    try:
+        dev = open(f"/sys/class/input/{ev}/dev").read().strip()
+        return "E:ID_INPUT_TOUCHPAD=1" in open(f"/run/udev/data/c{dev}").read()
+    except OSError:
+        return False
+
+
+def candidates():
+    evs = [os.path.basename(p) for p in glob.glob("/sys/class/input/event*")]
+    evs = [e for e in evs if has_ff_haptic(e)]
+    evs.sort(key=lambda e: (not is_touchpad(e), int(e[5:])))
+    return ["/dev/input/" + e for e in evs]
+
+
+def probe():
+    devs = candidates()
+    if not devs:
+        return 1
+    for d in devs:
+        if os.access(d, os.W_OK):
+            print(d)
+            return 0
+    print(f"{devs[0]} has FF_HAPTIC but is not writable — install {RULE} "
+          "(or add yourself to the 'input' group)")
+    return 2
+
+
+class Player:
+    def __init__(self, path, overrides):
+        self.fd = os.open(path, os.O_RDWR)
+        self.cands = {k: overrides.get(k) or v for k, v in CANDIDATES.items()}
+        self.ids, self.usage, self.level = {}, {}, {}
+
+    def upload(self, effect, intensity):
+        usages = [self.usage[effect]] if effect in self.usage else self.cands[effect]
+        err = None
+        for usage in usages:
+            e = FfEffect(type=FF_HAPTIC, id=self.ids.get(effect, -1))
+            e.u.haptic.hid_usage = usage
+            e.u.haptic.intensity = intensity
+            buf = bytearray(bytes(e))
+            try:
+                fcntl.ioctl(self.fd, EVIOCSFF, buf, True)
+            except OSError as x:
+                err = x
+                continue
+            self.ids[effect] = FfEffect.from_buffer(buf).id
+            self.usage[effect], self.level[effect] = usage, intensity
+            return True
+        log(f"{effect}: no waveform accepted ({err})")
+        self.usage[effect] = None  # don't retry every tick
+        return False
+
+    def play(self, effect, intensity):
+        if self.usage.get(effect, 0) is None:
+            return
+        if self.level.get(effect) != intensity and not self.upload(effect, intensity):
+            return
+        ev = InputEvent(type=EV_FF, code=self.ids[effect], value=1)
+        os.write(self.fd, bytes(ev))
+
+
+def run(opt):
+    path = opt.get("device") or (candidates() or [None])[0]
+    if not path:
+        log("no FF_HAPTIC device")
+        return
+    player = Player(path, {k: v for k, v in opt.items() if k in CANDIDATES})
+    for line in sys.stdin:
+        parts = line.split()
+        if len(parts) != 2 or parts[0] not in CANDIDATES:
+            continue
+        try:
+            k = max(0.0, min(1.0, float(parts[1])))
+            if k > 0:
+                player.play(parts[0], max(1, round(k * 100)))
+        except (ValueError, OSError) as e:
+            log(f"{parts[0]}: {e}")
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("cmd", choices=["probe", "run"])
+    ap.add_argument("--options", default="{}")
+    a = ap.parse_args()
+    if a.cmd == "probe":
+        sys.exit(probe())
+    try:
+        opt = json.loads(a.options) or {}
+    except ValueError:
+        opt = {}
+    run(opt)
+
+
+if __name__ == "__main__":
+    main()

@@ -39,16 +39,21 @@ Item {
     readonly property color darkInk: root.theme?.islandBg ?? "#000000"
     readonly property color fillColor: root.boosted ? (root.theme?.accentOrange ?? "#E58B4D") : root.lightInk
 
+    // Volume uses the shape-built VolumeIcon (arcs follow the level, slash
+    // on mute); the glyph covers the other kinds.
+    // Bound to the SINK itself, not to the current kind: the (hidden)
+    // speaker must not follow mic mute/level while the OSD shows the mic,
+    // or switching back replays a slash/arc change.
+    readonly property bool sinkMuted: !!audio?.muted
+    readonly property real sinkFill: sinkMuted ? 0 : Math.min(1, Math.max(0, audio?.volume ?? 0))
+    readonly property int volumeArcs: sinkFill <= 0.001 ? 0 : sinkFill < 1 / 3 ? 1 : sinkFill < 2 / 3 ? 2 : 3
     readonly property string glyph: {
-        if (kind === "volume") {
-            if (muted || value <= 0.001)
-                return "";                         // volume-off
-            return value < 0.5 ? "" : "";    // volume-2 / volume
-        }
+        if (kind === "volume")
+            return "";
         if (kind === "mic")
             return muted ? "" : "";          // microphone(-off)
         if (kind === "brightness")
-            return value < 0.5 ? "" : "";    // sun-low / sun-high
+            return value < 0.5 ? "\uD800\uDD07" : "\uD800\uDD08";    // sun-low-filled / sun-high-filled (U+10107/8)
         return payload?.icon ?? "";
     }
 
@@ -58,10 +63,46 @@ Item {
     property real stretch: 0
     property bool settled: false
     Component.onCompleted: root.settled = true
+    // VolumeIcon accents (both ink copies listen): reaching 0 (or pushing
+    // below it) bumps the icon, reaching 100% (or pushing past it) runs the
+    // speaker -> arcs wave.
+    signal volumePulse
+    signal volumeWave
+    // Tracks the sink, not `fill` (which jumps on a mic <-> volume switch).
+    property real lastFill: -1
+    onSinkFillChanged: {
+        if (root.kind === "volume" && root.settled && root.lastFill >= 0) {
+            if (root.sinkFill <= 0.001 && root.lastFill > 0.001)
+                root.volumePulse();
+            else if (root.sinkFill >= 0.999 && root.lastFill < 0.999)
+                root.volumeWave();
+        }
+        root.lastFill = root.sinkFill;
+    }
+    // Brightness reaching 100% (or pushing past it) bumps the sun glyph.
+    property real lastBrightness: -1
+    readonly property real brightnessLevel: brightness?.brightness ?? 0
+    onBrightnessLevelChanged: {
+        if (root.kind === "brightness" && root.settled && root.lastBrightness >= 0
+                && root.brightnessLevel >= 0.999 && root.lastBrightness < 0.999)
+            glyphBump.bump();
+        root.lastBrightness = root.brightnessLevel;
+    }
+    GlyphBump {
+        id: glyphBump
+    }
     onPayloadChanged: {
         const push = root.payload?.push ?? 0;
         if (push === 0)
             return;
+        if (root.kind === "volume") {
+            if (push < 0)
+                root.volumePulse();
+            else
+                root.volumeWave();
+        } else if (root.kind === "brightness" && push > 0) {
+            glyphBump.bump();
+        }
         stretchAnim.stop();
         root.stretch = push * root.cfg.rubberBand;
         stretchAnim.start();
@@ -157,15 +198,50 @@ Item {
         width: bar.width
         height: bar.height
 
-        Text {
+        Item {
             anchors.left: parent.left
             anchors.leftMargin: root.cfg.padding
             anchors.verticalCenter: parent.verticalCenter
             width: root.cfg.iconSize
+            height: root.cfg.iconSize
+            // opacity, NOT visible: toggling `visible` over CurveRenderer
+            // Shapes broke rendering (the speaker and even the sibling
+            // mic glyph vanished after a volume -> mic kind switch).
+            opacity: root.kind === "volume" ? 1 : 0
+
+            // Drawn speaker is ~0.8 of the box height and the 3-arc box is
+            // wider than tall: scale up to match the other kinds' glyphs and
+            // pin the box to the left padding (fewer arcs = the speaker
+            // re-centres inside it).
+            VolumeIcon {
+                id: volIcon
+                anchors.left: parent.left
+                anchors.verticalCenter: parent.verticalCenter
+                size: root.cfg.iconSize * 1.15
+                color: ink.inkColor
+                arcs: root.volumeArcs
+                muted: root.sinkMuted
+            }
+            Connections {
+                target: root
+                function onVolumePulse(): void {
+                    volIcon.pulse();
+                }
+                function onVolumeWave(): void {
+                    volIcon.wave();
+                }
+            }
+        }
+        Text {
+            anchors.left: parent.left
+            anchors.leftMargin: root.cfg.padding
+            anchors.verticalCenter: parent.verticalCenter
+            opacity: root.kind !== "volume" ? 1 : 0
+            width: root.cfg.iconSize
             horizontalAlignment: Text.AlignHCenter
             text: root.glyph
             color: ink.inkColor
-            scale: root.iconScale
+            scale: root.iconScale * glyphBump.value
             font.family: root.kind === "custom" ? (root.theme?.fontFamily ?? "SF Pro Display") : (root.theme?.iconFamily ?? "tabler-icons")
             font.pixelSize: root.cfg.iconSize
         }

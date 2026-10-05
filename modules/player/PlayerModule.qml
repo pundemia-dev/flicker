@@ -17,6 +17,7 @@ Item {
     id: root
     required property var players
     property var theme: null
+    property var haptics: null
     property var cfg: null
     // Island corner radius: the backdrop fills the whole module and the
     // island's clip is rectangular, so the art rounds itself.
@@ -196,6 +197,7 @@ Item {
                         glyphSize: 34
                         glyphScaleY: 1.1
                         swapAnimate: true
+                        iconFamily: root.iconFamily
                         dimmed: !root.players.canTogglePlaying
                         onClicked: root.players.playPause()
                     }
@@ -211,12 +213,16 @@ Item {
                     width: parent.width
                     spacing: 8
 
-                    ProgressBar {
+                    // Seekable: press/drag scrubs, release seeks (SeekBar).
+                    SeekBar {
+                        id: seek
                         width: parent.width
                         height: 8
-                        value: root.lengthKnown ? Math.min(1, root.position / root.length) : 0
-                        trackColor: "#33FFFFFF"
-                        fillColor: "#F0F4FB"
+                        player: root.player
+                        haptics: root.haptics
+                        position: root.position
+                        length: root.length
+                        lengthKnown: root.lengthKnown
                     }
 
                     Item {
@@ -226,299 +232,19 @@ Item {
                         Text {
                             id: elapsedText
                             anchors.left: parent.left
-                            text: root.fmtTime(root.position)
-                            color: "#B3EBEBF5"
+                            text: root.fmtTime(seek.shownPosition)
+                            color: seek.labelColor
                             font.pixelSize: 12
                         }
                         Text {
                             anchors.right: parent.right
-                            text: root.lengthKnown ? `-${root.fmtTime(Math.max(0, root.length - root.position))}` : "—"
-                            color: "#B3EBEBF5"
+                            text: root.lengthKnown ? `-${root.fmtTime(Math.max(0, root.length - seek.shownPosition))}` : "—"
+                            color: seek.labelColor
                             font.pixelSize: 12
                         }
                     }
                 }
             }
-        }
-    }
-
-    // Soft pressed подложка shared by TransportBtn/SkipBtn: radial-gradient
-    // disc (solid core, feathered edge) instead of a hard-edged Rectangle.
-    // Visible ONLY while pressed — no idle/hover background.
-    component PressDisc: Canvas {
-        property bool pressed: false
-        anchors.fill: parent
-        visible: pressed
-        onPressedChanged: requestPaint()
-        onWidthChanged: requestPaint()
-        onHeightChanged: requestPaint()
-        onPaint: {
-            const ctx = getContext("2d");
-            const cx = width / 2, cy = height / 2, r = width / 2;
-            ctx.clearRect(0, 0, width, height);
-            const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
-            g.addColorStop(0, "#33FFFFFF");
-            g.addColorStop(0.85, "#33FFFFFF");
-            g.addColorStop(1, "transparent");
-            ctx.fillStyle = g;
-            ctx.beginPath();
-            ctx.arc(cx, cy, r, 0, Math.PI * 2);
-            ctx.fill();
-        }
-    }
-
-    // Play/pause transport button: glyph only; the подложка (bg disc) appears
-    // ONLY while pressed — no idle/hover background.
-    component TransportBtn: Item {
-        id: btn
-        property string glyph: ""
-        property real boxSize: 50
-        property real glyphSize: 26
-        property real glyphScaleY: 1.0
-        // Text-swap pop (tempShell StyledText pattern): when `glyph`
-        // changes, scale dips to swapFrom on the accel curve, the new glyph
-        // swaps in, scale returns on the decel curve. Deliberate exception
-        // to the Spring-only rule (user request).
-        property bool swapAnimate: false
-        property real swapFrom: 0
-        property real swapTo: 1
-        property int swapDuration: 400
-        property bool dimmed: false
-        signal clicked
-
-        width: boxSize
-        height: boxSize
-        opacity: dimmed ? 0.4 : 1
-
-        PressDisc {
-            pressed: btnMa.pressed
-        }
-        Text {
-            id: glyphText
-            anchors.centerIn: parent
-            text: btn.glyph
-            color: "#DFE6F2"
-            font.family: root.iconFamily
-            font.pixelSize: btn.glyphSize
-            transform: Scale {
-                yScale: btn.glyphScaleY
-                origin.x: glyphText.width / 2
-                origin.y: glyphText.height / 2
-            }
-            Behavior on text {
-                enabled: btn.swapAnimate
-                SequentialAnimation {
-                    NumberAnimation {
-                        target: glyphText
-                        property: "scale"
-                        to: btn.swapFrom
-                        duration: btn.swapDuration / 3
-                        easing.type: Easing.BezierSpline
-                        easing.bezierCurve: [0.3, 0, 1, 1, 1, 1]
-                    }
-                    PropertyAction {}
-                    NumberAnimation {
-                        target: glyphText
-                        property: "scale"
-                        to: btn.swapTo
-                        duration: btn.swapDuration / 3
-                        easing.type: Easing.BezierSpline
-                        easing.bezierCurve: [0, 0, 0, 1, 1, 1]
-                    }
-                }
-            }
-        }
-        MouseArea {
-            id: btnMa
-            anchors.fill: parent
-            onClicked: if (!btn.dimmed)
-                btn.clicked()
-        }
-    }
-
-    // Skip prev/next button built from shapes instead of an icon-font glyph:
-    // two rounded triangles pointing the motion way (zero gap) inside a
-    // two-triangle-wide track, plus a third triangle staged hidden (scale 0)
-    // at the rear slot. Press choreography runs on ONE spring driver
-    // (track.p 0 -> 1): the extreme front triangle fades and drives away,
-    // the staged one scales up from the rear edge, and the remaining
-    // triangle is pushed out by it — its x is bound to the staged
-    // triangle's scale, so the scale spring shapes its travel as well. When
-    // the spring lands, the roles rotate (front -> staged, staged -> rear,
-    // rear -> front) and p resets to 0 within the same frame, so nothing
-    // visibly snaps. Rapid re-presses mid-flight are ignored.
-    component SkipBtn: Item {
-        id: skip
-        property int direction: 1 // 1 = next (point right), -1 = prev (point left)
-        property real boxSize: 50
-        property real triSize: 22 // triangle height, ex-glyph size
-        property bool dimmed: false
-        signal clicked
-
-        readonly property real triW: skip.triSize * 0.95
-        readonly property real triCorner: skip.triSize * 0.12
-
-        width: skip.boxSize
-        height: skip.boxSize
-        opacity: skip.dimmed ? 0.4 : 1
-
-        function go(): void {
-            if (skip.dimmed || fly.running)
-                return;
-            skip.clicked();
-            fly.restart();
-        }
-
-        PressDisc {
-            pressed: skipMa.pressed
-        }
-
-        Item {
-            id: track
-            property real p: 0
-            property int iIn: 2
-            property int iRear: 0
-            property int iFront: 1
-
-            readonly property real rearSlot: skip.direction > 0 ? 0 : skip.triW
-            readonly property real frontSlot: skip.direction > 0 ? skip.triW : 0
-
-            function posFor(idx: int): real {
-                const push = frontSlot - rearSlot;
-                if (idx === iRear)
-                    return rearSlot + push * p;
-                if (idx === iFront)
-                    return frontSlot + push * 0.55 * p;
-                return rearSlot;
-            }
-            function finishSwap(): void {
-                const f = iFront;
-                iFront = iRear;
-                iRear = iIn;
-                iIn = f;
-                p = 0;
-            }
-
-            width: skip.triW * 2
-            height: skip.triSize
-            anchors.centerIn: parent
-
-            Spring {
-                id: fly
-                target: track
-                property: "p"
-                to: 1
-                stiffness: 5
-                damp: 0.5
-                eps: 0.001
-                onFinished: track.finishSwap()
-            }
-
-            Shape {
-                property int idx: 0
-                width: skip.triW
-                height: skip.triSize
-                transformOrigin: skip.direction > 0 ? Item.Left : Item.Right
-                scale: idx === track.iIn ? track.p : 1
-                x: track.posFor(idx)
-                opacity: idx === track.iFront ? 1 - track.p : 1
-                preferredRendererType: Shape.CurveRenderer
-                ShapePath {
-                    fillColor: "#DFE6F2"
-                    strokeColor: "#DFE6F2"
-                    strokeWidth: skip.triCorner * 2
-                    joinStyle: ShapePath.RoundJoin
-                    capStyle: ShapePath.RoundCap
-                    PathMove {
-                        x: skip.direction > 0 ? skip.triCorner : skip.triW - skip.triCorner
-                        y: skip.triCorner
-                    }
-                    PathLine {
-                        x: skip.direction > 0 ? skip.triCorner : skip.triW - skip.triCorner
-                        y: skip.triSize - skip.triCorner
-                    }
-                    PathLine {
-                        x: skip.direction > 0 ? skip.triW - skip.triCorner : skip.triCorner
-                        y: skip.triSize / 2
-                    }
-                    PathLine {
-                        x: skip.direction > 0 ? skip.triCorner : skip.triW - skip.triCorner
-                        y: skip.triCorner
-                    }
-                }
-            }
-            Shape {
-                property int idx: 1
-                width: skip.triW
-                height: skip.triSize
-                transformOrigin: skip.direction > 0 ? Item.Left : Item.Right
-                scale: idx === track.iIn ? track.p : 1
-                x: track.posFor(idx)
-                opacity: idx === track.iFront ? 1 - track.p : 1
-                preferredRendererType: Shape.CurveRenderer
-                ShapePath {
-                    fillColor: "#DFE6F2"
-                    strokeColor: "#DFE6F2"
-                    strokeWidth: skip.triCorner * 2
-                    joinStyle: ShapePath.RoundJoin
-                    capStyle: ShapePath.RoundCap
-                    PathMove {
-                        x: skip.direction > 0 ? skip.triCorner : skip.triW - skip.triCorner
-                        y: skip.triCorner
-                    }
-                    PathLine {
-                        x: skip.direction > 0 ? skip.triCorner : skip.triW - skip.triCorner
-                        y: skip.triSize - skip.triCorner
-                    }
-                    PathLine {
-                        x: skip.direction > 0 ? skip.triW - skip.triCorner : skip.triCorner
-                        y: skip.triSize / 2
-                    }
-                    PathLine {
-                        x: skip.direction > 0 ? skip.triCorner : skip.triW - skip.triCorner
-                        y: skip.triCorner
-                    }
-                }
-            }
-            Shape {
-                property int idx: 2
-                width: skip.triW
-                height: skip.triSize
-                transformOrigin: skip.direction > 0 ? Item.Left : Item.Right
-                scale: idx === track.iIn ? track.p : 1
-                x: track.posFor(idx)
-                opacity: idx === track.iFront ? 1 - track.p : 1
-                preferredRendererType: Shape.CurveRenderer
-                ShapePath {
-                    fillColor: "#DFE6F2"
-                    strokeColor: "#DFE6F2"
-                    strokeWidth: skip.triCorner * 2
-                    joinStyle: ShapePath.RoundJoin
-                    capStyle: ShapePath.RoundCap
-                    PathMove {
-                        x: skip.direction > 0 ? skip.triCorner : skip.triW - skip.triCorner
-                        y: skip.triCorner
-                    }
-                    PathLine {
-                        x: skip.direction > 0 ? skip.triCorner : skip.triW - skip.triCorner
-                        y: skip.triSize - skip.triCorner
-                    }
-                    PathLine {
-                        x: skip.direction > 0 ? skip.triW - skip.triCorner : skip.triCorner
-                        y: skip.triSize / 2
-                    }
-                    PathLine {
-                        x: skip.direction > 0 ? skip.triCorner : skip.triW - skip.triCorner
-                        y: skip.triCorner
-                    }
-                }
-            }
-        }
-
-        MouseArea {
-            id: skipMa
-            anchors.fill: parent
-            onClicked: skip.go()
         }
     }
 }

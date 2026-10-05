@@ -113,6 +113,7 @@ Item {
         PlayerModule {
             players: root.services.players
             theme: root.services.theme
+            haptics: root.services.haptics
             cfg: root.services.config.dashboard
             surfaceRadius: root.services.config.island.radius
             onCloseRequested: root.closeRequested()

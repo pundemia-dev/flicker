@@ -2,8 +2,9 @@
 
 // Every card Quick Settings knows: allowed footprints ([cols, rows], first
 // = default when added), the edit-footer glyph and the stock layout. The
-// card's CONTENT layout follows its shape (QsCard.form: small 1x1, wide Nx1, tall 1xN, large
-// NxN, panorama wider than tall and >= 2 rows) — see each card file.
+// card's CONTENT layout follows its shape (QsCard.form: small 1x1, wide
+// Nx1, tall 1xN, large NxN, panorama wider than tall and >= 2 rows; media
+// keys its own layout by footprint) — see each card file.
 
 const CARDS = {
     wifi: { glyph: "\ueb52", title: "Wi‑Fi", sizes: [[2, 1], [1, 1], [1, 2], [2, 2]] },
@@ -12,8 +13,8 @@ const CARDS = {
     dnd: { glyph: "\uf684", title: "Не беспокоить", sizes: [[1, 1], [2, 1], [1, 2], [2, 2]] },
     mic: { glyph: "\ueaf0", title: "Микрофон", sizes: [[1, 1], [2, 1], [1, 2], [2, 2]] },
     volume: { glyph: "\ueb51", title: "Громкость", sizes: [[1, 2], [1, 1], [2, 1], [4, 1], [1, 3], [2, 2]] },
-    brightness: { glyph: "\uf236", title: "Яркость", sizes: [[1, 2], [1, 1], [2, 1], [4, 1], [1, 3], [2, 2]] },
-    media: { glyph: "\ueafc", title: "Музыка", sizes: [[2, 2], [1, 1], [2, 1], [4, 1], [4, 2]] },
+    brightness: { glyph: "\uD800\uDD08", title: "Яркость", sizes: [[1, 2], [1, 1], [2, 1], [4, 1], [1, 3], [2, 2]] },
+    media: { glyph: "\ueafc", title: "Музыка", sizes: [[2, 2], [1, 1], [2, 1], [4, 1], [4, 2], [4, 4], [4, 6]] },
     record: { glyph: "\ued47", title: "Запись экрана", sizes: [[1, 1], [2, 1], [1, 2], [2, 2]] },
     screenshot: { glyph: "\uf201", title: "Снимок экрана", sizes: [[1, 1], [2, 1], [1, 2], [2, 2]] }
 };

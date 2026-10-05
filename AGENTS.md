@@ -30,11 +30,11 @@ Not a git repo. No tests, no linter, no formatter.
 - IPC: `quickshell -p $PWD ipc call <target> <fn>` (with the user's instance running,
   address yours via `quickshell ipc --id <by-id dir> call ...`). `island` is ONE handler
   (`core/IslandIpc.qml`) routed via `core/IslandRegistry.qml` to the island on
-  `compositor.focusedOutput` — never put an IpcHandler in per-screen Island. Targets: `island` (launcher, quicksettings,
+  `compositor.focusedOutput` — never put an IpcHandler in per-screen Island. Targets: `island` (launcher, quicksettings, quicksettingsEdit/Page/Resize,
   notifications, stash (tray toggle), capture (again while open = next mode), captureMode(shot|record|color|
   window|ai), captureScreen (= Enter in the active tool), captureCancel, screenshot
   (instant, no overlay), record (toggle), recordPause, recordControls, dashboard, player, lock, close, minimal, island, osd, debugState,
-  volumeUp/Down/Mute, micMute, brightnessUp/Down, playPause, nextTrack, prevTrack),
+  volumeUp/Down/Mute, micMute, brightnessUp/Down, playPause, nextTrack, prevTrack, playerSeek <s>),
   `lock` (activate/isLocked — deliberately NO unlock/toggle over IPC; unlocking needs PAM),
   `dictation` (start/stop/toggle/cancel/status).
 
@@ -97,6 +97,38 @@ Not a git repo. No tests, no linter, no formatter.
   (light ink over the track, dark ink clipped to the fill). Tunables `Config.data.osd`. `services/Audio.qml` must keep sink/source in its
   `PwObjectTracker` — untracked nodes never turn `ready`, setVolume was a silent no-op.
   Reference shells cloned in `temp/` (caelestia, DMS, end-4 dots, noctalia (now C++)).
+- Trackpad haptics (Oct 2026), hardware-agnostic — full contract in `docs/haptics.md`:
+  `services/Haptics.qml` (Shell → Island → services map, ControlCenter, OsdWatcher) runs
+  `scripts/haptics/run.py` (dispatcher: `backend: "auto"` probes `order`, or a name, or a
+  path; exec()s the winner) and writes `<effect> <intensity 0..1>` lines to its stdin.
+  Effects: click/deep/release/tick only (tick = OSD value marks). Backends = `scripts/haptics/backends/<name>/backend`
+  (`probe` exit 0 usable / 1 none / 2 no access + hint; `run --options JSON`) + `udev.rules`:
+  `evdev-haptic` (kernel FF_HAPTIC, never FF_RUMBLE = gamepads; ctypes structs verified
+  48 B / EVIOCSFF 0x40304580, NOT tested on hardware), `apple-t2` (hidraw report 0x53,
+  verified on 05ac:0340; release = the driver's segment-less packet `53 01 s f`
+  (`rate_probe.py release-native`: 14/90, 28/ff, 14/ff, click→release at 0 ms all pass), tick =
+  click waveform; a lone rejection at 20:21 came right after a FAILED RESUME FROM SUSPEND (the
+  user's suspend is broken) — the T2 may reject anything in that state), `_template`. A change of backend/order/backendOptions restarts the backend (`setupKey`).
+  Exit 3 = no backend → re-probe every `rescanMs`
+  with `--quiet` (hint logged once). apple-t2: NEVER send untested bytes — a rejected
+  packet stalls EP0 of the whole keyboard/trackpad and the T2 resets it (~5 s, hidraw
+  renumbers; GET_FEATURE 0xBB on input0 also stalls) — NOT always: a stall can stay wedged
+  (timeouts, no reset) → only a REBOOT recovers it. Cause found with
+  `temp/haptic/rate_probe.py` (log `temp/haptic/logs/rate-probe.jsonl`): NOT bytes, NOT rate (a
+  write blocks ~5 ms; 0 ms gaps, 1000-write floods, Caps Lock LED / backlight toggles all pass;
+  the segment-less release packet is fine too) — TWO CONCURRENT WRITERS race on the shared EP0
+  and stall it (probe "parallel": 1 of ~45 overlapping pairs). 17:38 = my smoke instance + the
+  user's shell. So the backend holds an exclusive flock on the device (second writer stays
+  silent, logs once) — NEVER run a second pillShell with haptics on. After EPIPE/ETIMEDOUT it
+  goes quiet until the HID node re-enumerates (logs effect/packet/gap); minIntervalMs 40 (rate is irrelevant) (`authorized` 0/1 on
+  /sys/bus/usb/devices/7-5 was tried: keyboard+trackpad never came back, Oct 2026); plain write() of the exact packet
+  length = EP0 SET_REPORT (no OUT endpoint). Test packets against a plain file
+  (`--options '{"device":"/tmp/f"}'`, xxd). Places (user decision, `Config.haptics`
+  toggles): BOUND volume/brightness reaching/passing a multiple of `osdStepEvery` % (10) = tick (OsdWatcher; QS sliders are quiet →
+  silent); QS edit entry = deep, layout snap during drag-move =
+  click, tab switch / resize snap = release (ControlCenter.setPage/beginEdit/setPreview); QS slider reaching 0/100 and SeekBar
+  crossing an end = release. Explicitly NOT wanted: GestureZones swipes, dashboard drawer
+  threshold, notification swipe, QS tab rubber band. Probe/CLI tools in `temp/haptic/`.
 - `Process.signal(2)` sends SIGINT (pShell pattern); `terminate("SIGINT")` does NOT work —
   use `signal()` for graceful stops (see Dictation).
 - ContentSwap commits content at the handover (after the blur-in stage): Island renders `shownModule`/
@@ -129,6 +161,12 @@ Not a git repo. No tests, no linter, no formatter.
   (1s Timer, `onTriggered: player.positionChanged()`, running bound to Playing) is in
   `modules/player/PlayerModule.qml`. `length` mirrors `position` when `lengthSupported`
   is false — guard progress/remaining on that.
+  Seeking: `MprisPlayer.position` is WRITABLE (needs `canSeek && positionSupported`) —
+  `modules/player/SeekBar.qml` (player module + QS media card) scrubs a local position,
+  seeks once on release, holds the target until the player reports it (no snap-back).
+  Past an end the bar rubber-bands toward the pull (OSD look: longer + thinner,
+  `Config.seekBar` stretch = max·o/(o+softness), springs back on release).
+  Verified the write via IPC `playerSeek` on G4Music; mouse scrubbing NOT live-tested.
 - Notification Center (`modules/notifications/center/`, Oct 2026, user decision over the
   spec's stripes): iOS-style list grouped by appName (newest group first; collapsed stack =
   front tile (red group counter on the avatar top-right, `NotificationCard.groupCount`) + `centerStackDepth` bottom-anchored plates, tap fans out under a header with
@@ -148,25 +186,59 @@ Not a git repo. No tests, no linter, no formatter.
   while the center is open (click the game for Space/arrows). Last game + best scores live
   on the Notifications service (session only). Do NOT name game props `top`/`floor`-like
   Item members (`top` → "Cannot override FINAL property").
-- Quick Settings (`modules/quicksettings/`, Oct 2026) = iOS Control Center: 4-col grid of
-  square cells (`Config.data.quicksettings`), island size/radius DERIVED in `QsMetrics.js`
-  (radius = margins + unit/2; card radius = unit/2 → 1x1 circle, 1xN pill). Layout is
-  STATE, not config: `services/ControlCenter.qml` (shared by all islands, injected Shell →
-  Island → services map) persists `Quickshell.statePath("quicksettings.json")` on edit end;
-  `QsGrid.js` = pure pin+push engine (moved card pinned, displaced cards try the vacated
-  origin first → equal cards swap, else first free slot forward; empty rows squeezed on
-  commit; drag previews always recompute from the committed layout). `QsCatalog.js` =
-  ids + allowed footprints + default layout. Each card content lays out by its SHAPE
-  (`QsCard.form`: small/wide/tall/large/panorama — user: "свой layout под каждую
-  ориентацию", iOS 27). Delegates come from a stable Repeater over `QsCatalog.IDS`
-  (hidden = scale/opacity out, never recreated). Edit mode: long press (or IPC) → drag
-  body = move, bottom-right arc = resize (nearest allowed size), "−" = hide, footer chips
-  add back, «Готово»/module close saves. Cards grab presses → forward swipe-up close
-  themselves. Screenshot/record cards go through `Island.runQuickAction` (close, wait
+- Quick Settings (`modules/quicksettings/`, Oct 2026) = iOS Control Center: TABS (pages)
+  of a 4-col grid of square cells (`Config.data.quicksettings`), island size/radius DERIVED
+  in `QsMetrics.js` (radius = margins + unit/2; card radius = unit/2 → 1x1 circle, 1xN
+  pill; viewport = TALLEST page, pages slide vertically inside one strip offset by the live
+  `pagePos` — a swipe never resizes the island; + rail width when the rail shows). Layout
+  is STATE, not config: `services/ControlCenter.qml` (`pages`, session `page`; shared by all
+  islands, injected Shell → Island → services map) persists
+  `Quickshell.statePath("quicksettings.json")` `{version 2, pages}` on edit end (v1
+  `{items}` loads as one page; empty pages dropped on save). `QsGrid.js` = pure pin+push
+  engine (moved card pinned, displaced cards try the vacated origin first → equal cards
+  swap, else first free slot forward; empty rows squeezed on commit; drag previews always
+  recompute from the committed layout). `QsCatalog.js` = ids + allowed footprints + glyph +
+  default layout. Card content lays out by its SHAPE (`QsCard.form`: small/wide/tall/
+  large/panorama — user: "свой layout под каждую ориентацию", iOS 27). Delegates: ONE
+  stable Repeater over `QsCatalog.IDS` (y = page*stride + cell; other pages visible only
+  while sliding — the edit footer sits where the next page waits; viewport clips only
+  while moving). Tab rail (`QsTabRail`, right, vertically centred): icon = glyph of the
+  page's biggest card, disc follows `pagePos`; switch by vertical swipe/drag (cards forward
+  theirs as swipe* in the static module's coords — the strip moves under the pointer), the
+  wheel, a rail tap. CLOSE (user): tap on empty space, or swipe up STARTING in the bottom
+  `closeZone`. The module owns ALL its presses (background MouseArea below the cards) —
+  deliberate exception to "module content stays press-transparent"; GestureZones never
+  sees QS presses. Edit mode: long press (or IPC) → drag body = move (over a rail icon =
+  flip to that tab, over "+" = new tab), bottom-right arc = resize (nearest allowed size),
+  "−" = hide, footer chips add back, «Готово»/tap on empty/module close saves.
+  Slider cards (`cards/SliderCard.qml`, volume/brightness) = the OSD look: the card IS the
+  capsule (`ownSurface` → QsCard drops its bg so the gap shows the island), fill | gap |
+  track with `Config.osd.gap/innerRadius/fill*` springs, glyph + title drawn twice (light
+  over the track, dark clipped to the fill), no percent; volume = VolumeIcon (arcs by real
+  level, slash on mute, pulse at 0 / wave at 100%, orange fill past 100%).
+  Media card (`cards/MediaCard.qml` + `MediaLayout.js`): one element set MORPHING across
+  1x1/2x1/4x1/2x2/4x2/4x4/4x6 — every rect springs to its per-footprint target (computed
+  from the TARGET footprint, not the animated card size), missing elements leave/arrive
+  via `components/FadeBlur.qml` (blur rises as opacity falls); 4x2 = the player module
+  layout (player px × `playerScale`); buttons are the player's own
+  (`modules/player/{TransportBtn,SkipBtn,PressDisc}.qml`, extracted from PlayerModule); the
+  lyrics spot is an audio-output button (placeholder, no action yet); 4x4/4x6 add a
+  system-volume row (speaker · bar · speaker) under the transport (`audio.quiet()` → no OSD).
+  4x4/4x6 (edge inset = 2× the 4x2 margin): transport row = like (placeholder) · prev · play ·
+  next · output (bare grey glyph, disc springs away); the output's old spot holds
+  `components/AudioBars.qml` (cava, pulse auto = output monitor, mono, `Config.visualizer`;
+  runs only while shown + playing + visible). Mic filter: match cava by `node.name` —
+  `application.name` arrives AFTER the node appears (app-only match lit the mic indicator).
+  Screenshot/record cards go through `Island.runQuickAction` (close, wait
   `actionDelayMs`, then capture — the grab must not show the open grid). The state file
   is read once at load (no watch): to test a hand-written layout, change it and force a
-  reload with a real content change of a QML file (`touch` is ignored).
-  NOT live-tested (no mouse tool): drag-move, resize, remove/add, taps, slider drags.
+  reload with a real content change of a QML file (`touch` is ignored). Debug IPC:
+  `quicksettingsPage <i>`, `quicksettingsResize <id> <w> <h>` (saves! restoring the file
+  afterwards is NOT enough — the service keeps the resized layout in memory and saves it
+  again on the next edit; force a reload after restoring) — verified with
+  them: 4x2↔2x2 morph frames, 4x4/4x6 layouts, page slide + rail.
+  NOT live-tested (no mouse tool): drag-move (incl. across tabs), resize arc, remove/add,
+  taps, slider drags, swipe paging/close zone, wheel.
 - MPRIS multi-player: `services/Players.qml` picks `active` dms-style (prefer a playing
   player, remember the last playing one, a paused player beats registered-idle ones at
   cold start). Plain `players[0]` picks early-registrants like Telegram (registers
@@ -254,12 +326,41 @@ Not a git repo. No tests, no linter, no formatter.
   outside the rounding. ContentSwap therefore masks its layers (live, ghost, edge fade)
   to the rounded island shape (`surfaceRadius`, binary MultiEffect mask) while a
   transition runs.
+- `components/VolumeIcon.qml` (+ `VolumeGeometry.js`, Oct 2026) = shape-built speaker
+  (rect rounded left + cone trapezoid, acute corners rounded) + up to 3 arcs: `arcs` fade
+  on springs and the content re-centres (speaker slides), `muted` draws a TL→BR slash
+  that cuts a sharp gap (Greiner–Hormann polygon − slash quad on flattened polygons),
+  `pulse()` = whole icon bump, `wave()` = speaker then arcs 1..3 staggered (arcs scale
+  about their centre → push outward). Tunables `Config.data.volumeIcon`. Arc fade + pulse/wave are TIMED NumberAnimations (user decision, exception to the
+  Spring-only rule); only the mute slash is a spring. Used by the OSD
+  (arcs by level, pulse at 0 / push down, wave at 100% / push up) and the QS media
+  volume row (left: `maxArcs: 0` + slash on mute + pulse at 0; right: 3 arcs + wave at
+  100%); brightness (OSD + QS slider card) bumps its filled sun glyph at 100% via
+  `components/GlyphBump.qml` (= VolumeIcon pulse curve for plain glyphs). Volume hard cap = `audio.maxVolume` (1.05): `services/Audio.qml` pulls ANY
+  external overshoot (wpctl binds, apps) back to it (verified: wpctl 1.4 → 1.05). Traps hit: CurveRenderer does NOT union overlapping subpaths of one path (the
+  overlap vanished); `layer.enabled` items inside `RoundedClip` (hidden layer source)
+  never render; a CurveRenderer Shape toggled via `visible` never repaints after being
+  shown again (arcs vanished for good once the OSD hit 0 — use transparent ink /
+  opacity) — and the same for ANY ancestor's `visible` (OSD volume->mic switch blanked
+  the speaker AND the sibling mic glyph; fixed with opacity in OsdModule, and
+  `components/FadeBlur.qml` now hides via opacity + `enabled`, no `visible`); OSD speaker
+  binds the SINK (`sinkMuted`/`sinkFill`), not the current kind's value; overlapping/abutting pieces show lines on translucent ink — hence the
+  exact boolean difference. The player module has no volume row yet. Dev preview window:
+  `quickshell -p dev/volume-icon/shell.qml` (all variants + looping animations; watches the
+  icon files itself — `components` there is a symlink quickshell's watcher ignores).
 - `components/RollingText.qml` = Apple numericText-style per-character drum
   roll (only changed chars roll, slots matched from the RIGHT via Row
   RightToLeft, auto direction: value up → roll UP, down → roll DOWN (user-corrected), Spring
   per slot, tabular digits via `font.features {"tnum": 1}`). Used by the
   system card metrics. Verified Oct 2026 with a slowed spring in a scratch
   FloatingWindow (`quickshell -p <dir>/shell.qml`, components symlinked).
+- A `Behavior` (Spring) whose TARGET binding reads another ANIMATED value (e.g.
+  `x: cx - width / 2` while width springs) is retargeted every frame and the spring
+  restarts each time → the element crawls far behind its siblings. Bind targets to
+  target values only (`cx - targetBox / 2`). Hit in the QS media morph (Oct 2026).
+- QML property names cannot start with an upper-case letter (`property var L` →
+  "Property names cannot begin with an upper case letter", the whole Shell fails to load
+  — and the user's live instance hot-reloads into that).
 - Canvas `shadow*` (`shadowColor`/`shadowBlur`/offsets) do NOTHING in Qt:
   the Context2D properties exist (assignments don't throw) but render no
   shadow (verified Sep 2026). Build glows from layered translucent strokes

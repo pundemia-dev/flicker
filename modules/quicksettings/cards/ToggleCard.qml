@@ -22,7 +22,7 @@ Item {
     readonly property var cfg: root.card?.cfg ?? null
     readonly property string form: root.card?.form ?? "small"
     readonly property real pad: (root.cfg?.padding) ?? 12
-    readonly property real unit: (root.cfg?.unit) ?? 72
+    readonly property real unit: (root.cfg?.unit) ?? 80
     // Icon disc: 1-unit-tall cards fit it to the height, others to a
     // unit minus padding (so it lines up with neighbouring 1x1 circles).
     readonly property real disc: root.form === "small" ? root.width : root.unit - 2 * root.pad
