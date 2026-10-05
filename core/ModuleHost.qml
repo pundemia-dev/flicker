@@ -30,6 +30,8 @@ Item {
     // Content-fitted height the current module asks for (-1 = none; Island
     // then uses the config.modules size). Only the notification center sets it.
     readonly property real preferredHeight: host.item?.preferredHeight ?? -1
+    // Frost knockouts (components/Knockout.js) in module = island coords.
+    readonly property var knockouts: host.item?.knockouts ?? []
     // A file drag over the module's own drop targets (stash drop chooser):
     // the island's drop area loses containsDrag under them.
     readonly property bool dragActive: host.item?.dragActive ?? false

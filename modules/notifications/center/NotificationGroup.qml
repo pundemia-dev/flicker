@@ -1,5 +1,6 @@
 import QtQuick
 import "../../../components"
+import "../../../components/Knockout.js" as Knockout
 
 // One app's notifications in the center, iOS-style. Collapsed: the newest
 // tile in front, up to centerStackDepth blank plates peeking out below it
@@ -20,6 +21,19 @@ Item {
     signal activated(var entry)
     signal dismissGroup
     signal closeRequested
+
+    // Frost knockouts in group coords (cards' live, scaled geometry).
+    readonly property var knockouts: {
+        const out = [];
+        for (let i = 0; i < cardRepeater.count; i++) {
+            const c = cardRepeater.itemAt(i);
+            if (!c || !c.knockout)
+                continue;
+            void c.y, c.scale;
+            out.push(Knockout.mapped(c, root, c.knockout));
+        }
+        return out;
+    }
 
     readonly property int count: root.entries.length
     readonly property bool stacked: root.count > 1 && !root.expanded

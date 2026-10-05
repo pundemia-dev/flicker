@@ -3,6 +3,7 @@ import "../../components"
 import "QsCatalog.js" as QsCatalog
 import "QsGrid.js" as QsGrid
 import "QsMetrics.js" as QsMetrics
+import "../../components/Knockout.js" as Knockout
 
 // Quick Settings = iOS Control Center: tabs (pages) of a cols x N grid of
 // square cells (Config.quicksettings), cards of several footprints
@@ -59,6 +60,28 @@ Item {
             if (!root.paging)
                 root.pagePos = root.cc.page;
         }
+    }
+
+    // Frost knockouts in module coords: every shown card (its pieces), live
+    // through slides/morphs (the reads below are the binding's triggers),
+    // cut to the viewport while pages slide. The lifted card is left out:
+    // overlapping holes would cancel in the even-odd tint.
+    readonly property var knockouts: {
+        const out = [];
+        const vp = root.moving ? { x0: viewport.x, y0: viewport.y, x1: viewport.x + viewport.width, y1: viewport.y + viewport.height } : null;
+        void strip.y;
+        for (let i = 0; i < cardRepeater.count; i++) {
+            const c = cardRepeater.itemAt(i);
+            if (!c || !c.visible || c.opacity < 0.5 || c.follow)
+                continue;
+            void c.x, c.y, c.width, c.height, c.scale;
+            for (const k of c.knockouts) {
+                const h = vp ? Knockout.clipped(Knockout.mapped(c, root, k), vp) : Knockout.mapped(c, root, k);
+                if (h)
+                    out.push(h);
+            }
+        }
+        return out;
     }
 
     // Card being moved/resized (only one at a time).
@@ -208,6 +231,7 @@ Item {
             y: -root.pagePos * root.stride
 
             Repeater {
+                id: cardRepeater
                 model: QsCatalog.IDS
                 delegate: QsCard {
                     id: card

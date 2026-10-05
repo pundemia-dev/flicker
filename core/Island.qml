@@ -1,10 +1,12 @@
 import QtQuick
+import QtQuick.Shapes
 import Quickshell
 import Quickshell.Wayland
 import "../components"
 import "../modules/dashboard/DashMetrics.js" as DashMetrics
 import "../modules/stash/StashMetrics.js" as StashMetrics
 import "../modules/quicksettings/QsMetrics.js" as QsMetrics
+import "../components/Knockout.js" as Knockout
 
 PanelWindow {
     id: root
@@ -368,9 +370,51 @@ PanelWindow {
     function mixColor(a: color, b: color, t: real): color {
         return Qt.rgba(a.r + (b.r - a.r) * t, a.g + (b.g - a.g) * t, a.b + (b.b - a.b) * t, a.a + (b.a - a.a) * t);
     }
-    readonly property color bodyColor: root.mixColor(
-        Qt.rgba(root.theme.islandBg.r, root.theme.islandBg.g, root.theme.islandBg.b, root.config.effects.islandOpacity ?? 1),
-        root.theme.frostBody, root.frostProgress)
+    readonly property color restBodyColor: Qt.rgba(root.theme.islandBg.r, root.theme.islandBg.g, root.theme.islandBg.b, root.config.effects.islandOpacity ?? 1)
+    // Frosted, the body itself goes fully clear: the backdrop tint is the
+    // knockout shape below (painted only BETWEEN the module's buttons, which
+    // sit straight on the blur — iOS 18 CC, fitted from the user's samples).
+    readonly property color bodyColor: root.mixColor(root.restBodyColor, Qt.rgba(0, 0, 0, 0), root.frostProgress)
+    // Edge fade / anything that should match the backdrop's look.
+    readonly property color backdropColor: root.mixColor(root.restBodyColor, root.theme.frostBody, root.frostProgress)
+
+    // Knockouts of the SHOWN module (switch at the ContentSwap handover).
+    // On the way out the last set is held, shifted with the top-centred
+    // ghost, until the ghost has faded; a fill shape tints the holes while
+    // the content is not (yet / any more) there, so holes never pop.
+    readonly property string shownKey: root.shownModule === "notifications"
+        ? `notifications:${root.hostPayload?.mode ?? ""}` : root.shownModule
+    readonly property var liveKnockouts: (root.config.effects.frost ?? false)
+        && (root.config.effects.frostModules ?? []).includes(root.shownKey) ? moduleHost.knockouts : []
+    property var heldKnockouts: []
+    property real heldWidth: 0
+    onLiveKnockoutsChanged: {
+        if (root.liveKnockouts.length > 0) {
+            root.heldKnockouts = root.liveKnockouts;
+            root.heldWidth = islandRect.width;
+        }
+    }
+    readonly property real ghostOpacity: contentSwap.ghostOpacity
+    onGhostOpacityChanged: {
+        if (root.ghostOpacity < 0.001 && root.liveKnockouts.length === 0)
+            root.heldKnockouts = [];
+    }
+    readonly property bool knockoutsLive: root.liveKnockouts.length > 0
+    readonly property var knockoutHoles: {
+        const w = islandRect.width, h = islandRect.height, R = islandRect.radius;
+        const dx = root.knockoutsLive ? 0 : (w - root.heldWidth) / 2;
+        const src = root.knockoutsLive ? root.liveKnockouts : root.heldKnockouts;
+        const out = [];
+        for (const k of src) {
+            const c = Knockout.insideOutline(dx === 0 ? k : Knockout.hole(k.x + dx, k.y, k.w, k.h, k.r), w, h, R);
+            if (c)
+                out.push(c);
+        }
+        return out;
+    }
+    // Hole fill: content fading in after the handover / ghost fading out.
+    readonly property real knockoutFill: root.knockoutsLive
+        ? 1 - contentSwap.contentOpacity : 1 - root.ghostOpacity
     readonly property bool compositorBlurOn: !root.config.effects.disableBlur
         && (!root.config.effects.disableCompositorBlur || root.frostTarget
             || root.frostSpringP > 0.005)
@@ -382,8 +426,14 @@ PanelWindow {
         id: frostState
         readonly property real progress: root.frostProgress
         readonly property real layerAlpha: 1 - (1 - (root.config.effects.frostLayerOpacity ?? 0.5)) * root.frostProgress
+        // Secondary layers (idle discs, pills, chips): alpha fade.
         function layerColor(c: color): color {
             return Qt.rgba(c.r, c.g, c.b, c.a * frostState.layerAlpha);
+        }
+        // Button surfaces (knocked out of the tint, on the bare blur):
+        // morph to Theme.frostButton.
+        function surface(c: color): color {
+            return root.mixColor(c, root.theme.frostButton, root.frostProgress);
         }
     }
 
@@ -1135,6 +1185,40 @@ PanelWindow {
             }
         }
 
+        // Frost backdrop tint with the module's buttons knocked out (even-odd:
+        // outline + holes), and the hole fill used across content swaps.
+        // Opacity only, never `visible`: a CurveRenderer Shape toggled via
+        // visible never repaints again (AGENTS gotcha).
+        Shape {
+            anchors.fill: parent
+            preferredRendererType: Shape.CurveRenderer
+            opacity: root.frostProgress
+            ShapePath {
+                fillColor: root.theme.frostBody
+                strokeWidth: -1
+                fillRule: ShapePath.OddEvenFill
+                PathSvg {
+                    path: root.frostProgress > 0.001
+                        ? Knockout.rectPath(Knockout.hole(0, 0, islandRect.width, islandRect.height, islandRect.radius))
+                            + " " + Knockout.holesPath(root.knockoutHoles)
+                        : ""
+                }
+            }
+        }
+        Shape {
+            anchors.fill: parent
+            preferredRendererType: Shape.CurveRenderer
+            opacity: root.frostProgress * Math.max(0, Math.min(1, root.knockoutFill))
+            ShapePath {
+                fillColor: root.theme.frostBody
+                strokeWidth: -1
+                PathSvg {
+                    path: root.frostProgress > 0.001 && root.knockoutFill > 0.001
+                        ? Knockout.holesPath(root.knockoutHoles) : ""
+                }
+            }
+        }
+
         ContentSwap {
             id: contentSwap
             anchors.fill: parent
@@ -1148,7 +1232,7 @@ PanelWindow {
             edgeFade: root.config.effects.contentEdgeFade ?? 24
             // Edge fade matches the (possibly frosted) body, else it paints
             // opaque bands over the translucent island.
-            fadeColor: root.bodyColor
+            fadeColor: root.backdropColor
             blurInMs: root.timingCfg.blurInMs
             fadeInMs: root.timingCfg.fadeInMs
             blurOutMs: root.timingCfg.blurOutMs

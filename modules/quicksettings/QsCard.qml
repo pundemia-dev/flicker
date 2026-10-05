@@ -49,6 +49,10 @@ Item {
     signal resizeEnded
 
     readonly property real radius: (root.cfg?.unit ?? 80) / 2
+    // Frost knockouts in card coords (see components/Knockout.js): the
+    // content's own pieces (slider capsule halves) or the whole card.
+    readonly property var knockouts: loader.item?.knockouts
+        ?? [{ x: 0, y: 0, w: root.width, h: root.height, r: [root.radius, root.radius, root.radius, root.radius] }]
     readonly property string form: {
         if (root.spanW === 1 && root.spanH === 1)
             return "small";
@@ -66,7 +70,7 @@ Item {
     Rectangle {
         anchors.fill: parent
         radius: root.radius
-        color: root.frost?.layerColor(root.theme?.qsCardBg ?? "#000000") ?? (root.theme?.qsCardBg ?? "#000000")
+        color: root.frost?.surface(root.theme?.qsCardBg ?? "#000000") ?? (root.theme?.qsCardBg ?? "#000000")
         opacity: loader.item?.ownSurface === true ? 0 : 1
     }
 

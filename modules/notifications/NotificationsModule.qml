@@ -15,6 +15,7 @@ Item {
     signal closeRequested
 
     readonly property bool centerMode: (root.payload?.mode ?? "") === "center"
+    readonly property var knockouts: root.centerMode ? (center.item?.knockouts ?? []) : []
     readonly property var item: root.payload?.notification ?? null
     // Content-fitted island height (center only; -1 = use the config size).
     readonly property real preferredHeight: root.centerMode ? (center.item?.preferredHeight ?? -1) : -1

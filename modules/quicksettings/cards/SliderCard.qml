@@ -1,6 +1,8 @@
 import QtQuick
+import QtQuick.Shapes
 import "../../../components"
 import "../../../config"
+import "../../../components/Knockout.js" as Knockout
 
 // Fill slider (volume, brightness) in the OSD look (modules/osd): the card
 // itself is the capsule — a light fill grows from the bottom (small/tall/
@@ -121,6 +123,35 @@ Item {
             * Math.max(0, Math.min(1, fillLen / root.osd.gap, (bar.span - fillLen) / root.osd.gap))
         readonly property real innerR: root.osd.innerRadius
 
+        // Frost: the card is knocked out of the island tint as a whole, so
+        // the gap between fill and track repaints the tint itself — the
+        // exact complement (bar − track − fill, even-odd, capsule-clipped).
+        Shape {
+            anchors.fill: parent
+            preferredRendererType: Shape.CurveRenderer
+            opacity: root.card?.frost?.progress ?? 0
+            ShapePath {
+                fillColor: root.theme?.frostBody ?? "transparent"
+                strokeWidth: -1
+                fillRule: ShapePath.OddEvenFill
+                PathSvg {
+                    path: {
+                        if ((root.card?.frost?.progress ?? 0) < 0.001)
+                            return "";
+                        const W = bar.width, H = bar.height;
+                        const f = bar.fillLen, t = Math.max(0, bar.span - bar.fillLen - bar.gapLen);
+                        const fi = Math.min(bar.innerR, f / 2), ti = Math.min(bar.innerR, t / 2);
+                        const parts = [Knockout.hole(0, 0, W, H, 0)];
+                        if (t >= 0.5)
+                            parts.push(root.horizontal ? Knockout.hole(W - t, 0, t, H, ti) : Knockout.hole(0, 0, W, t, ti));
+                        if (f >= 0.5)
+                            parts.push(root.horizontal ? Knockout.hole(0, 0, f, H, fi) : Knockout.hole(0, H - f, W, f, fi));
+                        return Knockout.holesPath(parts);
+                    }
+                }
+            }
+        }
+
         Rectangle {
             // Track: the rest of the span past fill + gap.
             readonly property real len: Math.max(0, bar.span - bar.fillLen - bar.gapLen)
@@ -128,7 +159,7 @@ Item {
             height: root.horizontal ? bar.height : len
             x: root.horizontal ? bar.width - len : 0
             radius: Math.min(bar.innerR, len / 2)
-            color: root.card?.frost?.layerColor(root.theme?.qsCardBg ?? "#000000") ?? (root.theme?.qsCardBg ?? "#000000")
+            color: root.card?.frost?.surface(root.theme?.qsCardBg ?? "#000000") ?? (root.theme?.qsCardBg ?? "#000000")
         }
         Ink {
             inkColor: root.lightInk

@@ -41,6 +41,7 @@ Item {
     property real surfaceRadius: 0
     default property alias content: liveItem.data
     readonly property real contentOpacity: contentRoot.opacity
+    readonly property real ghostOpacity: ghostRoot.opacity
     readonly property real blurAmount: contentRoot.amount
 
     function commit(): void {

@@ -1,4 +1,5 @@
 import QtQuick
+import "../../../components/Knockout.js" as Knockout
 import "../../../components"
 import "../games"
 
@@ -28,6 +29,29 @@ Item {
     // for the hover ✕ that sticks out of a tile's top-left corner).
     readonly property real viewportTop: 4
     readonly property real listInset: 6
+
+    // Frost knockouts in center coords: every group's tiles, scrolled and
+    // cut to the clipped list viewport. None for the game deck.
+    readonly property var knockouts: {
+        if (root.empty || listBox.opacity < 0.5)
+            return [];
+        void list.y, viewport.y, viewport.height, viewport.width;
+        const p0 = viewport.mapToItem(root, 0, 0);
+        const vp = { x0: p0.x, y0: p0.y, x1: p0.x + viewport.width, y1: p0.y + viewport.height };
+        const out = [];
+        for (let i = 0; i < groupRepeater.count; i++) {
+            const g = groupRepeater.itemAt(i);
+            if (!g)
+                continue;
+            void g.y;
+            for (const k of g.knockouts) {
+                const h = Knockout.clipped(Knockout.mapped(g, root, k), vp);
+                if (h)
+                    out.push(h);
+            }
+        }
+        return out;
+    }
 
     // Expanded groups by app name (survives the Repeater rebuild that every
     // history change causes).
@@ -79,6 +103,7 @@ Item {
 
     // ── List ──
     Item {
+        id: listBox
         anchors.fill: parent
         anchors.margins: root.margin
         opacity: root.empty ? 0 : 1

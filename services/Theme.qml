@@ -41,6 +41,9 @@ QtObject {
     // Frosted body (QS / notification center over the compositor blur):
     // grey #A2A2A2 at 0.235 — fitted to iOS 18 Control Center samples.
     readonly property color frostBody: "#3CA2A2A2"
+    // Frosted button surface, straight on the blur (the tint is knocked
+    // out under it): #1C1C1C at 0.435 = fit of the samples (wall·0.565+12).
+    readonly property color frostButton: "#6F1C1C1C"
     readonly property color qsFill: "#F8F8F6"
     readonly property color qsOnFill: "#1C1C1E"
     // Slider card glyphs (both over the track and inside the fill).

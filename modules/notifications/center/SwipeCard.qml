@@ -20,6 +20,14 @@ Item {
     property var frost: null
     // Local px from the top hidden behind the card above (stack plates).
     property real coverTop: 0
+    // Frost knockout (card coords): the visible surface; null while the
+    // tile is mostly faded (thrown out / hidden plate).
+    readonly property var knockout: {
+        if (root.opacity * tile.opacity < 0.5 || root.height - root.coverTop < 0.5)
+            return null;
+        const r = 20, top = Math.max(0, r - root.coverTop);
+        return { x: root.dragX, y: root.coverTop, w: root.width, h: root.height - root.coverTop, r: [top, top, r, r] };
+    }
     // false = blank plate (lower layers of a collapsed stack).
     property bool showContent: true
     property bool interactive: true
@@ -80,7 +88,7 @@ Item {
                 width: tile.width
                 height: tile.height
                 radius: 20
-                color: root.frost?.layerColor(base) ?? base
+                color: root.frost?.surface(base) ?? base
             }
         }
 
