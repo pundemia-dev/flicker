@@ -93,7 +93,7 @@ Not a git repo. No tests, no linter, no formatter.
   values (PipeWire applies volume async); IPC keys only add `push` ±1 when a press hits
   an end (no change signal) → bar rubber-bands. Layout = pShell BatteryTank turned
   horizontal: island 340×60 r20 (user), one big `RoundedClip` capsule (inset `osd.inset`,
-  concentric radius), flat-edged fill, glyph left + number right INSIDE, drawn twice
+  concentric radius), fill + track split by `osd.gap` with `osd.innerRadius` inner edges, glyph left + number right INSIDE, drawn twice
   (light ink over the track, dark ink clipped to the fill). Tunables `Config.data.osd`. `services/Audio.qml` must keep sink/source in its
   `PwObjectTracker` — untracked nodes never turn `ready`, setVolume was a silent no-op.
   Reference shells cloned in `temp/` (caelestia, DMS, end-4 dots, noctalia (now C++)).

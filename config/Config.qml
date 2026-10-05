@@ -69,6 +69,9 @@ Singleton {
                     // radius - inset, concentric); padding = glyph/number
                     // distance from the bar ends.
                     inset: 6,
+                    // Gap between fill and track, their inner-edge radius.
+                    gap: 4,
+                    innerRadius: 5,
                     padding: 16,
                     iconSize: 22,
                     iconPopFrom: 0.7,

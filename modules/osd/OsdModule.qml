@@ -3,10 +3,11 @@ import "../../components"
 import "../../config"
 
 // iOS-style OSD (volume / mic / brightness): the whole island is one big
-// capsule slider (pShell BatteryTank pattern, horizontal): a flat-edged
-// fill springs to the value, the level glyph sits inside on the left, the
-// number inside on the right. Both are drawn twice — light over the empty
-// track, dark ink inside the fill (clipped to it) — so they stay legible
+// capsule slider (pShell BatteryTank pattern, horizontal): the fill springs
+// to the value, split from the track by a gap with rounded inner edges; the
+// level glyph sits inside on the left, the number inside on the right.
+// Both are drawn twice — light over the empty track, dark ink inside the
+// fill (clipped to it) — so they stay legible
 // wherever the fill edge crosses them. Payload: { kind: "volume"|"mic"|
 // "brightness"|"custom", push (-1/0/+1: the press hit an end), value + icon
 // (custom only) }. Known kinds bind the LIVE service value — PipeWire
@@ -115,21 +116,31 @@ Item {
             // Concentric with the island: island radius minus the inset.
             radius: Math.max(0, (Config.data.modules?.osd?.radius ?? Config.data.island.radius) - root.cfg.inset)
 
+            // Fill and track are two pieces split by a gap, both rounded
+            // on the inner edge (outer ends = the bar's own clip). The gap
+            // fades in/out near the ends so 0% / 100% stay one solid piece.
+            readonly property real fillW: bar.width * root.fillAnim
+            readonly property real gapW: root.cfg.gap
+                * Math.max(0, Math.min(1, fillW / root.cfg.gap, (bar.width - fillW) / root.cfg.gap))
+
             Rectangle {
-                anchors.fill: parent
+                x: bar.fillW + bar.gapW
+                width: Math.max(0, bar.width - x)
+                height: parent.height
+                radius: Math.min(root.cfg.innerRadius, width / 2)
                 color: root.theme?.cardTrack ?? "#2C2C2E"
             }
             Ink {
                 inkColor: root.muted ? root.dimInk : root.lightInk
             }
-            // Fill: flat edge, rounded only by the bar's own clip.
             Item {
-                width: Math.max(0, bar.width * root.fillAnim)
+                width: Math.max(0, bar.fillW)
                 height: bar.height
                 clip: true
 
                 Rectangle {
                     anchors.fill: parent
+                    radius: Math.min(root.cfg.innerRadius, width / 2)
                     color: root.fillColor
                 }
                 Ink {
