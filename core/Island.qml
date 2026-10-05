@@ -2,6 +2,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Wayland
 import "../components"
+import "../modules/dashboard/DashMetrics.js" as DashMetrics
 
 PanelWindow {
     id: root
@@ -215,6 +216,10 @@ PanelWindow {
     readonly property var moduleSize: {
         if (root.moduleKey === "capture")
             return root.captureFrom;
+        // Dashboard: derived from its grid metrics (scale, unit, margins...),
+        // incl. the concentric corner radius (card radius + margins).
+        if (root.moduleKey === "dashboard")
+            return DashMetrics.islandSize(DashMetrics.scaled(root.config.dashboard));
         const all = root.config.modules ?? {};
         const size = all[root.moduleKey] ?? all[root.state.activeModule]
             ?? ({ width: root.islandCfg.moduleWidth, height: root.islandCfg.moduleHeight });
@@ -250,7 +255,8 @@ PanelWindow {
     readonly property real islandHeight: root.moduleOpen
         ? (root.dashboardDragging ? Math.min(root.moduleSize.height, root.islandCfg.height + root.dashboardPreviewDy) : root.moduleSize.height)
         : (root.shouldDrawIslandShape ? root.islandCfg.height : root.islandCfg.minimalHeight)
-    readonly property real islandRadius: shouldDrawIslandShape ? islandCfg.radius : islandCfg.minimalRadius
+    readonly property real islandRadius: !shouldDrawIslandShape ? islandCfg.minimalRadius
+        : (moduleOpen ? (moduleSize?.radius ?? islandCfg.radius) : islandCfg.radius)
     readonly property real islandX: (width - islandWidth) / 2
     readonly property real islandY: started ? islandCfg.topMargin : -(islandCfg.height + islandCfg.topMargin)
 

@@ -12,7 +12,7 @@ DashboardCard {
     readonly property int spanRows: 2
 
     readonly property real _pad: (dash?.cardPadding) ?? 10
-    readonly property real _fs: Math.max(9, Math.round((root.width - 2 * _pad) / 7 * 0.5))
+    readonly property real _fs: Math.max(9 * root.k, Math.round((root.width - 2 * _pad) / 7 * 0.5))
 
     readonly property date now: (clock?.date) ?? new Date()
     readonly property int year: root.now.getFullYear()
@@ -40,13 +40,13 @@ DashboardCard {
             font.pixelSize: (root.dash?.titleSize ?? 13) - 2
             font.weight: Font.Bold
             font.letterSpacing: 0.5
-            x: 3
+            x: 3 * root.k
         }
 
         Row {
             id: weekdays
             anchors.top: title.bottom
-            anchors.topMargin: 4
+            anchors.topMargin: 4 * root.k
             Repeater {
                 model: root._wd
                 delegate: Text {
@@ -66,9 +66,9 @@ DashboardCard {
         Grid {
             id: dates
             anchors.top: weekdays.bottom
-            anchors.topMargin: 2
+            anchors.topMargin: 2 * root.k
             columns: 7
-            readonly property real cellH: (body.height - title.height - weekdays.height - 6) / root.rows
+            readonly property real cellH: (body.height - title.height - weekdays.height - 6 * root.k) / root.rows
 
             Repeater {
                 model: root.rows * 7

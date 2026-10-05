@@ -13,6 +13,9 @@ Rectangle {
     // NOTE: grid spans (spanCols/spanRows) are declared in each card file,
     // not here — QML forbids redeclaring an inherited property.
 
+    // Dashboard scale (DashMetrics): multiply literal px in cards by k.
+    readonly property real k: (dash?.k) ?? 1
+
     radius: (dash?.cardRadius) ?? 20
     color: theme?.cardBg ?? "#1C1C1E"
     clip: true

@@ -52,24 +52,24 @@ DashboardCard {
                 Rectangle {
                     Layout.preferredWidth: 1
                     Layout.fillHeight: true
-                    Layout.topMargin: 6
-                    Layout.bottomMargin: 6
+                    Layout.topMargin: 6 * root.k
+                    Layout.bottomMargin: 6 * root.k
                     color: root.theme?.cardTrack ?? "#2C2C2E"
                     visible: slot.index > 0
                 }
                 ColumnLayout {
                     Layout.fillWidth: true
                     Layout.alignment: Qt.AlignVCenter
-                    Layout.leftMargin: slot.index > 0 ? 10 : 0
-                    Layout.rightMargin: slot.index < root._slots - 1 ? 10 : 0
-                    spacing: 1
+                    Layout.leftMargin: slot.index > 0 ? 10 * root.k : 0
+                    Layout.rightMargin: slot.index < root._slots - 1 ? 10 * root.k : 0
+                    spacing: root.k
                     opacity: slot.proc ? 1 : 0
 
                     // Changed digits roll (up on increase, down on decrease).
                     RollingText {
                         text: `${Math.round(slot.proc?.cpu ?? 0)}%`
                         color: root.loadColor(slot.proc?.cpu ?? 0)
-                        pixelSize: 20
+                        pixelSize: Math.round(20 * root.k)
                         weight: Font.DemiBold
                     }
                     Text {
@@ -82,9 +82,9 @@ DashboardCard {
                     MiniBar {
                         theme: root.theme
                         Layout.fillWidth: true
-                        Layout.topMargin: 4
-                        height: 4
-                        radius: 2
+                        Layout.topMargin: 4 * root.k
+                        height: 4 * root.k
+                        radius: height / 2
                         value: (slot.proc?.cpu ?? 0) / 100
                         fill: root.loadColor(slot.proc?.cpu ?? 0)
                     }

@@ -36,8 +36,8 @@ DashboardCard {
         anchors.bottom: parent.bottom
         anchors.leftMargin: root._pad
         anchors.rightMargin: root._pad
-        anchors.bottomMargin: root._pad - 2
-        height: 16
+        anchors.bottomMargin: root._pad - 2 * root.k
+        height: 16 * root.k
         visible: root.hist.length > 1
         opacity: 0.55
         preferredRendererType: Shape.CurveRenderer
@@ -47,7 +47,7 @@ DashboardCard {
 
         ShapePath {
             strokeColor: root.heat
-            strokeWidth: 1.5
+            strokeWidth: 1.5 * root.k
             fillColor: "transparent"
             capStyle: ShapePath.RoundCap
             joinStyle: ShapePath.RoundJoin
@@ -62,18 +62,18 @@ DashboardCard {
     Item {
         anchors.fill: parent
         anchors.margins: root._pad
-        anchors.bottomMargin: root._pad + spark.height - 2
+        anchors.bottomMargin: root._pad + spark.height - 2 * root.k
 
         Column {
             anchors.left: parent.left
             anchors.verticalCenter: parent.verticalCenter
-            spacing: -2
+            spacing: -2 * root.k
 
             // Changed digits roll (up on increase, down on decrease).
             RollingText {
                 text: root.hasTemp ? `${Math.round(root.temp)}°` : "—"
                 color: root.heat
-                pixelSize: 22
+                pixelSize: Math.round(22 * root.k)
                 weight: Font.DemiBold
             }
             Text {
@@ -85,14 +85,14 @@ DashboardCard {
         Column {
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
-            spacing: -2
+            spacing: -2 * root.k
             visible: (root.sensors?.hasFans) ?? false
 
             RollingText {
                 anchors.right: parent.right
                 text: String(Math.round(((root.sensors?.fanRpm) ?? 0) / 10) * 10)
                 color: "white"
-                pixelSize: 22
+                pixelSize: Math.round(22 * root.k)
                 weight: Font.DemiBold
             }
             Text {

@@ -267,10 +267,13 @@ Singleton {
                     margins: 9,
                     cardPadding: 10,
                     // Grid-first layout: unit side (px) + column count; a thin
-                    // header strip (time | date) sits above. Island size must
-                    // match (modules.dashboard): W = 2*margins + 8*unit +
-                    // 7*spacing, H = 2*margins + headerHeight + spacing +
-                    // 3*unit + 2*spacing.
+                    // header strip (time | date) sits above. The island size
+                    // and radius are DERIVED (modules/dashboard/DashMetrics.js):
+                    // W = 2*margins + 8*unit + 7*spacing, H = 2*margins +
+                    // headerHeight + spacing + 3*unit + 2*spacing, radius =
+                    // cardRadius + margins (concentric). `scale` multiplies all
+                    // dashboard px (sizes here are the scale-1 base).
+                    scale: 1.25,
                     unit: 80,
                     cols: 8,
                     headerHeight: 40,
@@ -291,7 +294,6 @@ Singleton {
             property var modules: ({
                     launcher: ({ width: 560, height: 210 }),
                     quicksettings: ({ width: 560, height: 210 }),
-                    dashboard: ({ width: 714, height: 322 }),
                     player: ({ width: 448, height: 230 }),
                     notifications: ({ width: 520, height: 180 }),
                     "notifications:flow": ({ width: 520, height: 150 }),

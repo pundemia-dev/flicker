@@ -39,9 +39,9 @@ DashboardCard {
     readonly property bool ok: (weather?.available) ?? false
     readonly property real _pad: (dash?.cardPadding) ?? 10
     readonly property real _innerH: root.height - 2 * _pad
-    readonly property real _tempFs: Math.max(24, Math.min(46, _innerH - 20))
+    readonly property real _tempFs: Math.max(24 * k, Math.min(46 * k, _innerH - 20 * k))
     readonly property real _descFs: (dash?.titleSize) ?? 13
-    readonly property real _mmFs: Math.max(10, ((dash?.titleSize) ?? 13) - 1)
+    readonly property real _mmFs: Math.max(10 * k, ((dash?.titleSize) ?? 13) - 1)
 
     function fmt(c: real): string {
         if (c === null || c === undefined || isNaN(c))
@@ -258,7 +258,7 @@ DashboardCard {
         Row {
             anchors.left: parent.left
             anchors.top: parent.top
-            width: parent.width - rightZone.width - 8
+            width: parent.width - rightZone.width - 8 * root.k
             Text {
                 id: city
                 text: root.cityStr
@@ -266,7 +266,7 @@ DashboardCard {
                 font.pixelSize: root._descFs
                 font.weight: Font.DemiBold
                 elide: Text.ElideRight
-                width: Math.min(implicitWidth, parent.width - 16)
+                width: Math.min(implicitWidth, parent.width - 16 * root.k)
             }
             Text {
                 // Map-navigation cursor: base arrow rotated NE.
@@ -296,7 +296,7 @@ DashboardCard {
             anchors.right: parent.right
             anchors.top: parent.top
             anchors.bottom: parent.bottom
-            width: 150
+            width: 150 * root.k
 
             Item {
                 anchors.right: parent.right
