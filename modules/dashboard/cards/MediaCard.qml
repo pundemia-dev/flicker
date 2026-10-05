@@ -52,7 +52,7 @@ DashboardCard {
             anchors.top: parent.top
             width: root._coverSide
             height: root._coverSide
-            radius: 10 * root.k
+            radius: 12
             source: root.art
             fallbackColor: root.theme?.cardTrack ?? "#2C2C2E"
             fallbackGlyph: "♫"
@@ -73,7 +73,7 @@ DashboardCard {
                 id: playGlyph
                 anchors.centerIn: parent
                 // Optical centring: the play triangle's mass sits left.
-                anchors.horizontalCenterOffset: text === "" ? root.k : 0
+                anchors.horizontalCenterOffset: text === "" ? 1 : 0
                 text: root.playing ? "" : ""
                 color: "white"
                 font.family: root.theme?.iconFamily ?? "tabler-icons"
@@ -115,7 +115,7 @@ DashboardCard {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.bottom: parent.bottom
-            spacing: root.k
+            spacing: 1
 
             Text {
                 width: parent.width

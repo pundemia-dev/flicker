@@ -275,9 +275,10 @@ provider's broken-image placeholder renders)), dashboard drawer (drag-follow + s
 dashboard cards (one file per card in `modules/dashboard/cards/` + shared
 `DashboardCard`/`CardTitle`/`MiniBar`/`RingArc`; grid-first, iOS-widget look
 (Oct 2026 redesign): thin header strip (time left | date right, shared
-baseline, `dashboard.headerHeight`) + 8x3 grid (base unit 80px × `dashboard.scale` 1.25 → island 892x402; island size AND radius
-are derived in `modules/dashboard/DashMetrics.js` (radius = cardRadius + margins, concentric —
-user, Oct 2026), no `modules.dashboard` entry; cards scale literal px by `k`; user chose growing in width):
+baseline, `dashboard.headerHeight`) + 8x3 grid (unit 100px, island 892x402 — sizes baked in after a 1.25× bump, NO per-module
+scale: a global scale is planned (user, Oct 2026); island size AND radius are derived in
+`modules/dashboard/DashMetrics.js` (radius = cardRadius + margins, concentric — user),
+no `modules.dashboard` entry; user chose growing in width):
 mixed shapes (user: a row of equal squares reads monotonous) —
 `KKWWWWMM / KKSSBBMM / TTSSPPPP` (2x2 squares staggered across rows):
 calendar 2x2 (iOS month, Monday-first, today on a red disc, no backend), weather 4x1 (always 1 unit tall, user), media 2x2

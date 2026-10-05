@@ -216,10 +216,10 @@ PanelWindow {
     readonly property var moduleSize: {
         if (root.moduleKey === "capture")
             return root.captureFrom;
-        // Dashboard: derived from its grid metrics (scale, unit, margins...),
+        // Dashboard: derived from its grid metrics (unit, margins, spacing...),
         // incl. the concentric corner radius (card radius + margins).
         if (root.moduleKey === "dashboard")
-            return DashMetrics.islandSize(DashMetrics.scaled(root.config.dashboard));
+            return DashMetrics.islandSize(root.config.dashboard);
         const all = root.config.modules ?? {};
         const size = all[root.moduleKey] ?? all[root.state.activeModule]
             ?? ({ width: root.islandCfg.moduleWidth, height: root.islandCfg.moduleHeight });

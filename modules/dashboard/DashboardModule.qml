@@ -1,7 +1,6 @@
 import QtQuick
 import "../../components"
 import "./cards"
-import "DashMetrics.js" as DashMetrics
 
 // Dashboard: grid-first layout. A thin header strip (time left, date right,
 // Config.dashboard.headerHeight) sits above an 8 x 3 grid of square cells
@@ -10,9 +9,7 @@ import "DashMetrics.js" as DashMetrics
 // cellX/cellY, sizes via spanPx — no GridLayout stretch to fight. Card
 // content adapts to the allocated rect, never the reverse. Island size in
 // is derived from the same metrics (DashMetrics.islandSize): W = 2*margins +
-// 8*unit + 7*gap, H = 2*margins + header + gap + 3*unit + 2*gap, all scaled
-// by Config.dashboard.scale (cards get the scaled `dash`, plus `k` for
-// their own literal px).
+// 8*unit + 7*gap, H = 2*margins + header + gap + 3*unit + 2*gap (892x402).
 //
 // 8x3 plan (mixed shapes; the 2x2 squares are staggered across rows so
 // no row reads as a line of identical squares):
@@ -39,13 +36,11 @@ Item {
     property var sensors: null
     property var theme: null
     property var dash: null
-    // Scaled metrics handed to every card (raw config stays in `dash`).
-    readonly property var m: DashMetrics.scaled(dash)
 
-    readonly property real _unit: (m?.unit) ?? 80
-    readonly property real _margins: (m?.margins) ?? 9
-    readonly property real _spacing: (m?.spacing) ?? 8
-    readonly property real _headerH: (m?.headerHeight) ?? 40
+    readonly property real _unit: (dash?.unit) ?? 80
+    readonly property real _margins: (dash?.margins) ?? 9
+    readonly property real _spacing: (dash?.spacing) ?? 8
+    readonly property real _headerH: (dash?.headerHeight) ?? 40
 
     // Shared-element slots (core/TransitionLayer): header time.
     function sharedSlot(key: string): var {
@@ -71,7 +66,7 @@ Item {
         height: root._headerH
         clock: root.clock
         theme: root.theme
-        dash: root.m
+        dash: root.dash
     }
 
     Item {
@@ -88,7 +83,7 @@ Item {
             height: root.spanPx(spanRows)
             clock: root.clock
             theme: root.theme
-            dash: root.m
+            dash: root.dash
         }
         SensorsCard {
             x: root.cellX(0)
@@ -97,7 +92,7 @@ Item {
             height: root.spanPx(spanRows)
             sensors: root.sensors
             theme: root.theme
-            dash: root.m
+            dash: root.dash
         }
         WeatherCard {
             x: root.cellX(2)
@@ -107,7 +102,7 @@ Item {
             weather: root.weather
             clock: root.clock
             theme: root.theme
-            dash: root.m
+            dash: root.dash
         }
         SystemLoadCard {
             x: root.cellX(2)
@@ -116,7 +111,7 @@ Item {
             height: root.spanPx(spanRows)
             systemUsage: root.systemUsage
             theme: root.theme
-            dash: root.m
+            dash: root.dash
         }
         MediaCard {
             x: root.cellX(6)
@@ -125,7 +120,7 @@ Item {
             height: root.spanPx(spanRows)
             players: root.players
             theme: root.theme
-            dash: root.m
+            dash: root.dash
         }
         BatteryCard {
             x: root.cellX(4)
@@ -134,7 +129,7 @@ Item {
             height: root.spanPx(spanRows)
             battery: root.battery
             theme: root.theme
-            dash: root.m
+            dash: root.dash
         }
         ProcessesCard {
             x: root.cellX(4)
@@ -143,7 +138,7 @@ Item {
             height: root.spanPx(spanRows)
             systemUsage: root.systemUsage
             theme: root.theme
-            dash: root.m
+            dash: root.dash
         }
     }
 }

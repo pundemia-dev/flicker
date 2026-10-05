@@ -25,18 +25,18 @@ DashboardCard {
     // shrinking the card scales the rings, never the text.
     readonly property real _pad: (dash?.cardPadding) ?? 10
     readonly property real _titleEst: Math.ceil(((dash?.titleSize) ?? 13) * 1.4)
-    readonly property real _colGap: 6 * k
-    readonly property real _rowGap: 12 * k
-    readonly property real _legendTarget: 32 * k
+    readonly property real _colGap: 8
+    readonly property real _rowGap: 15
+    readonly property real _legendTarget: 40
     readonly property real _innerH: root.height - 2 * _pad
     readonly property real _innerW: root.width - 2 * _pad
-    readonly property real _boxSide: Math.max(40 * k, Math.min(_innerH - _titleEst - _colGap, _innerW - _legendTarget - _rowGap))
+    readonly property real _boxSide: Math.max(50, Math.min(_innerH - _titleEst - _colGap, _innerW - _legendTarget - _rowGap))
     readonly property real _legendW: Math.max(20, _innerW - _boxSide - _rowGap)
-    readonly property real _ringW: Math.max(6 * k, Math.round(_boxSide / 12))
-    readonly property real _ringStep: _ringW + 4 * k
-    readonly property real _ringOuter: _boxSide / 2 - _ringW / 2 - 2 * k
-    readonly property real _valueFs: Math.max(8 * k, Math.min(16 * k, _legendW * 0.42))
-    readonly property real _labelFs: Math.max(7 * k, Math.round(_valueFs * 0.75))
+    readonly property real _ringW: Math.max(8, Math.round(_boxSide / 12))
+    readonly property real _ringStep: _ringW + 5
+    readonly property real _ringOuter: _boxSide / 2 - _ringW / 2 - 2.5
+    readonly property real _valueFs: Math.max(10, Math.min(20, _legendW * 0.42))
+    readonly property real _labelFs: Math.max(9, Math.round(_valueFs * 0.75))
 
     ColumnLayout {
         anchors.fill: parent
@@ -44,7 +44,7 @@ DashboardCard {
         spacing: root._colGap
 
         RowLayout {
-            spacing: 8 * root.k
+            spacing: 10
 
             Rectangle {
                 id: dot
@@ -102,7 +102,7 @@ DashboardCard {
             ColumnLayout {
                 Layout.fillWidth: true
                 Layout.alignment: Qt.AlignVCenter
-                spacing: 5 * root.k
+                spacing: 6
 
                 Metric {
                     value: Math.round(root.cpuFrac * 100)

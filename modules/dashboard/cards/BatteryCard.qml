@@ -14,7 +14,7 @@ DashboardCard {
 
     readonly property real _pad: (dash?.cardPadding) ?? 10
     readonly property real _ringBox: root.height - 2 * _pad
-    readonly property real _ringW: Math.max(4 * k, Math.round(_ringBox / 11))
+    readonly property real _ringW: Math.max(5, Math.round(_ringBox / 11))
 
     readonly property bool present: (battery?.present) ?? false
     readonly property bool charging: (battery?.charging) ?? false
@@ -78,15 +78,15 @@ DashboardCard {
                     anchors.top: parent.top
                     width: parent.width * 0.78
                     height: parent.height * 0.78
-                    radius: 2 * root.k
+                    radius: 2.5
                     color: "transparent"
                     border.color: "white"
-                    border.width: Math.round(2 * root.k)
+                    border.width: 3
                 }
                 Rectangle {
                     anchors.bottom: parent.bottom
                     width: parent.width
-                    height: 2.5 * root.k
+                    height: 3
                     radius: height / 2
                     color: "white"
                 }
@@ -106,7 +106,7 @@ DashboardCard {
                     readonly property real h: bolt.w * 1.5
                     fillColor: root.levelColor
                     strokeColor: root.levelColor
-                    strokeWidth: 1.5 * root.k
+                    strokeWidth: 2
                     joinStyle: ShapePath.RoundJoin
                     PathMove { x: bolt.w * 0.62; y: 0 }
                     PathLine { x: 0; y: bolt.h * 0.56 }
@@ -121,7 +121,7 @@ DashboardCard {
 
         Column {
             anchors.left: ring.right
-            anchors.leftMargin: 12 * root.k
+            anchors.leftMargin: 15
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
             spacing: 0

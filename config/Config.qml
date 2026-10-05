@@ -262,32 +262,30 @@ Singleton {
                     sysPollMs: 2000,
                     weatherPollMs: 1800000,
                     updatesPollMs: 900000,
-                    cardRadius: 13,
-                    spacing: 8,
-                    margins: 9,
-                    cardPadding: 10,
+                    cardRadius: 20,
+                    spacing: 10,
+                    margins: 11,
+                    cardPadding: 13,
                     // Grid-first layout: unit side (px) + column count; a thin
                     // header strip (time | date) sits above. The island size
                     // and radius are DERIVED (modules/dashboard/DashMetrics.js):
                     // W = 2*margins + 8*unit + 7*spacing, H = 2*margins +
                     // headerHeight + spacing + 3*unit + 2*spacing, radius =
-                    // cardRadius + margins (concentric). `scale` multiplies all
-                    // dashboard px (sizes here are the scale-1 base).
-                    scale: 1.25,
-                    unit: 80,
+                    // cardRadius + margins (concentric).
+                    unit: 100,
                     cols: 8,
-                    headerHeight: 40,
+                    headerHeight: 50,
                     // Sensors card: sparkline samples, heat bands (°C).
                     sensorHistory: 40,
                     tempWarm: 60,
                     tempHot: 80,
-                    titleSize: 13,
-                    dotSize: 8,
-                    valueSize: 24,
-                    bigValueSize: 32,
-                    headerTimeSize: 30,
-                    headerDateSize: 15,
-                    iconSize: 24
+                    titleSize: 16,
+                    dotSize: 10,
+                    valueSize: 30,
+                    bigValueSize: 40,
+                    headerTimeSize: 38,
+                    headerDateSize: 19,
+                    iconSize: 30
                 })
             // Per-module island sizes (island.moduleWidth/Height = fallback).
             // "notifications" splits by payload mode: notifications:flow/center.
