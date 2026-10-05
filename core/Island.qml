@@ -53,6 +53,10 @@ PanelWindow {
         || (root.state.activeModule === "notifications" && (root.state.activePayload?.mode ?? "") === "center")
         ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
     WlrLayershell.exclusionMode: ExclusionMode.Ignore
+    // Own namespace so compositor rules can target the island (niri
+    // `layer-rule { match namespace="^pillShell-island$" }` with
+    // `background-effect { xray false }` blurs the windows under it).
+    WlrLayershell.namespace: "pillShell-island"
     anchors.top: true
     anchors.left: true
     anchors.right: true
@@ -339,8 +343,52 @@ PanelWindow {
     // paint/blur boundary is masked by a 1px rim over the island edge
     // (see islandRect border) instead. Geometry stays int-snapped.
 
+    // Frost: per-module compositor blur (effects.frostModules, e.g. Quick
+    // Settings + Notification Center). The region goes up at once while the
+    // body is still opaque, then the body colour springs to Theme.frostBody
+    // so the blur emerges smoothly; on the way back the region stays until
+    // the body is opaque again. Independent of disableCompositorBlur (which
+    // governs the always-on blur behind Minimal / islandOpacity < 1).
+    // frostBody = iOS 18 Control Center backdrop, fitted from the user's
+    // iPhone samples (black wall -> #262626, white -> #E9E3E3): a light grey
+    // at ~0.235 alpha, it LIFTS black (no darkening scrim).
+    readonly property bool frostTarget: !root.config.effects.disableBlur
+        && (root.config.effects.frost ?? false) && root.moduleOpen
+        && (root.config.effects.frostModules ?? []).includes(root.moduleKey)
+    property real frostSpringP: frostTarget ? 1 : 0
+    Behavior on frostSpringP {
+        Spring {
+            stiffness: root.config.effects.frostSpring ?? 3
+            damp: root.config.effects.frostDamping ?? 0.5
+            eps: 0.002
+        }
+    }
+    // 0 = opaque rest, 1 = fully frosted (clamped: the spring overshoots).
+    readonly property real frostProgress: Math.max(0, Math.min(1, root.frostSpringP))
+    function mixColor(a: color, b: color, t: real): color {
+        return Qt.rgba(a.r + (b.r - a.r) * t, a.g + (b.g - a.g) * t, a.b + (b.b - a.b) * t, a.a + (b.a - a.a) * t);
+    }
+    readonly property color bodyColor: root.mixColor(
+        Qt.rgba(root.theme.islandBg.r, root.theme.islandBg.g, root.theme.islandBg.b, root.config.effects.islandOpacity ?? 1),
+        root.theme.frostBody, root.frostProgress)
+    readonly property bool compositorBlurOn: !root.config.effects.disableBlur
+        && (!root.config.effects.disableCompositorBlur || root.frostTarget
+            || root.frostSpringP > 0.005)
+    onCompositorBlurOnChanged: root.updateIslandBlur()
+    // Handed to modules (stable object, so the services map never rebuilds):
+    // backing layers (card surfaces, tracks, idle discs, tiles, pills) drop
+    // to frostLayerOpacity together with the body; accent fills stay solid.
+    QtObject {
+        id: frostState
+        readonly property real progress: root.frostProgress
+        readonly property real layerAlpha: 1 - (1 - (root.config.effects.frostLayerOpacity ?? 0.5)) * root.frostProgress
+        function layerColor(c: color): color {
+            return Qt.rgba(c.r, c.g, c.b, c.a * frostState.layerAlpha);
+        }
+    }
+
     function updateIslandBlur(): void {
-        if (root.config.effects.disableBlur || root.config.effects.disableCompositorBlur) {
+        if (!root.compositorBlurOn) {
             blurKickTrail.stop();
             root.BackgroundEffect.blurRegion = null;
             root.blurGeo = "";
@@ -1057,15 +1105,18 @@ PanelWindow {
         height: root.islandHeight
         radius: root.islandRadius
         color: root.shouldDrawIslandShape
-            ? Qt.rgba(root.theme.islandBg.r, root.theme.islandBg.g, root.theme.islandBg.b, root.config.effects.islandOpacity)
+            ? root.bodyColor
             : Qt.rgba(root.theme.minimalBg.r, root.theme.minimalBg.g, root.theme.minimalBg.b, root.theme.minimalOpacity)
         // DMS-style rim, only while compositor blur is on: a 1px border
         // over the island edge masks the zone where the hard compositor
         // blur mask diverges from the smooth painted corner (see blur block
         // above). With compositor blur off the rim just lightens the true
         // black edge, so it is dropped (width 0).
-        border.width: root.config.effects.disableCompositorBlur ? 0 : root.theme.islandRimWidth
-        border.color: root.theme.islandRim
+        // Frost-only blur fades the rim in with the frost.
+        border.width: root.compositorBlurOn ? root.theme.islandRimWidth : 0
+        border.color: root.config.effects.disableCompositorBlur
+            ? Qt.rgba(root.theme.islandRim.r, root.theme.islandRim.g, root.theme.islandRim.b, root.theme.islandRim.a * root.frostProgress)
+            : root.theme.islandRim
         clip: true
 
         Behavior on width { enabled: !root.stolen; Spring {} }
@@ -1095,7 +1146,9 @@ PanelWindow {
             blurEnabled: !root.config.effects.disableBlur
             blurMax: root.config.effects.contentBlurMax ?? 32
             edgeFade: root.config.effects.contentEdgeFade ?? 24
-            fadeColor: root.theme.islandBg
+            // Edge fade matches the (possibly frosted) body, else it paints
+            // opaque bands over the translucent island.
+            fadeColor: root.bodyColor
             blurInMs: root.timingCfg.blurInMs
             fadeInMs: root.timingCfg.fadeInMs
             blurOutMs: root.timingCfg.blurOutMs
@@ -1152,6 +1205,7 @@ PanelWindow {
                         compositor: root.compositor,
                         config: root.config,
                         theme: root.theme,
+                        frost: frostState,
                         stash: root.stash,
                         localSend: root.localSend,
                         controlCenter: root.controlCenter,

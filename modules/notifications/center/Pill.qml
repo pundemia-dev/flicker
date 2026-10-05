@@ -6,12 +6,15 @@ import "../../../components"
 Rectangle {
     id: pill
     property string label
+    // Island frost state: the pill surface fades with the frosted body.
+    property var frost: null
+    readonly property color base: pillMa.containsMouse ? "#3A3A3C" : "#2C2C2E"
     signal clicked
 
     width: Math.max(height, pillText.implicitWidth + 20)
     height: 26
     radius: 13
-    color: pillMa.containsMouse ? "#3A3A3C" : "#2C2C2E"
+    color: pill.frost?.layerColor(pill.base) ?? pill.base
 
     Text {
         id: pillText

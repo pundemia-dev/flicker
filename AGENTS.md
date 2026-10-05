@@ -497,6 +497,23 @@ indicator: exclusion list `config.audio.micExclude` (substring, hot-reload)
 debugState `mic` block: Telegram → +Discord → kill Discord → back).
 
 Simplified / not implemented yet (see pillShell.md for the intended behaviour):
+- Frost (Oct 2026, user): per-module compositor blur only in `effects.frostModules`
+  (QS + `notifications:center`). `Island.frostTarget` → region up at once, body alpha
+  (`frostProgress`, Spring `frostSpring/Damping`) mixes the body to `Theme.frostBody` (#3CA2A2A2 =
+  fit of the user's iOS 18 CC samples: backdrop = wall·0.765+38, buttons = wall·0.565+12 —
+  buttons sit on the WALL, not on the backdrop, so plain over-blending only approximates:
+  black cards at `frostLayerOpacity` 0.5); colours qsFill/Blue/Green/icons from the samples;
+  on close the region stays until the body is opaque again; rim + ContentSwap edge-fade
+  follow the alpha. Independent of `disableCompositorBlur` (still true = no always-on
+  blur). Island layer namespace `pillShell-island`; niri needs a `layer-rule` with
+  `background-effect { xray false }` (added to ~/.config/niri/config.kdl) or it blurs only
+  the wallpaper; driftwm blurs windows under layer surfaces by itself (verified there).
+  Backing layers follow too (user list, NO tint — the frosted body is near-transparent):
+  `services.frost` (= Island `frostState`, stable object) → `layerColor(c)` scales alpha
+  to `effects.frostLayerOpacity` by `frostProgress`: QS card bg, slider track, idle toggle
+  disc, rail disc, footer chips; center tiles/plates, pills, hover ✕. Solid: accents,
+  slider fill, media card, text, group counter. Stack plates cut their surface above
+  `SwipeCard.coverTop` (live overlap with the card above) so they never show through.
 - Blur: backdrop blur via niri's `ext-background-effect-v1` is WIRED
   (`Region` pair + ping-pong kicks in Island.qml, pShell pattern — re-assigning
   the SAME region object is a compositor no-op; the region live-tracks the

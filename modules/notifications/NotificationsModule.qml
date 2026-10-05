@@ -11,6 +11,7 @@ Item {
     required property var notificationsService
     required property var cfg
     property var theme
+    property var frost: null
     signal closeRequested
 
     readonly property bool centerMode: (root.payload?.mode ?? "") === "center"
@@ -42,6 +43,7 @@ Item {
             service: root.notificationsService
             cfg: root.cfg
             theme: root.theme
+            frost: root.frost
             onCloseRequested: root.closeRequested()
         }
     }

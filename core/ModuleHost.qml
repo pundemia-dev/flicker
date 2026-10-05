@@ -77,6 +77,7 @@ Item {
             notificationsService: root.services.notifications
             cfg: root.services.config.notifications
             theme: root.services.theme
+            frost: root.services.frost ?? null
             onCloseRequested: root.closeRequested()
         }
     }

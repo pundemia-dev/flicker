@@ -14,6 +14,7 @@ Item {
     property bool expanded: false
     property var cfg
     property var theme
+    property var frost: null
 
     signal expandRequested(bool on)
     signal activated(var entry)
@@ -61,10 +62,12 @@ Item {
             spacing: 6
 
             Pill {
+                frost: root.frost
                 label: "Свернуть"
                 onClicked: root.expandRequested(false)
             }
             Pill {
+                frost: root.frost
                 label: "✕"
                 onClicked: root.dismissGroup()
             }
@@ -72,6 +75,7 @@ Item {
     }
 
     Repeater {
+        id: cardRepeater
         model: root.entries
 
         SwipeCard {
@@ -87,6 +91,20 @@ Item {
             entry: card.modelData
             cfg: root.cfg
             theme: root.theme
+            frost: root.frost
+            // Translucent plates must not show through the tile above: the
+            // part covered by the previous card (live, scaled geometry) is
+            // cut from this one's surface. 0 once the stack fans out.
+            coverTop: {
+                if (card.index === 0 || cardRepeater.count < 0)
+                    return 0;
+                const prev = cardRepeater.itemAt(card.index - 1);
+                if (!prev || card.scale <= 0)
+                    return 0;
+                // Bottom-anchored scale: visual top = y + h(1 - s), bottom = y + h.
+                const covered = prev.y + prev.height - (card.y + card.height * (1 - card.scale));
+                return Math.max(0, Math.min(card.height, covered / card.scale));
+            }
             // Bottom-anchored scale: a plate's bottom edge stays at y + h,
             // so exactly `peek` px of each layer shows below the one above.
             transformOrigin: Item.Bottom

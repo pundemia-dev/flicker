@@ -9,6 +9,7 @@ Item {
     id: root
     required property var cfg
     required property var theme
+    property var frost: null
     required property var hiddenIds
     signal addRequested(string id)
     signal doneRequested
@@ -26,7 +27,8 @@ Item {
                 width: root.cfg.chipSize
                 height: width
                 radius: width / 2
-                color: ma.containsMouse ? (root.theme?.qsDisc ?? "#3A3A3C") : (root.theme?.cardBg ?? "#1C1C1E")
+                readonly property color base: ma.containsMouse ? (root.theme?.qsDisc ?? "#3A3A3C") : (root.theme?.cardBg ?? "#1C1C1E")
+                color: root.frost?.layerColor(chip.base) ?? chip.base
 
                 Icon {
                     anchors.centerIn: parent

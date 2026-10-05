@@ -128,7 +128,7 @@ Item {
             height: root.horizontal ? bar.height : len
             x: root.horizontal ? bar.width - len : 0
             radius: Math.min(bar.innerR, len / 2)
-            color: root.theme?.cardBg ?? "#1C1C1E"
+            color: root.card?.frost?.layerColor(root.theme?.qsCardBg ?? "#000000") ?? (root.theme?.qsCardBg ?? "#000000")
         }
         Ink {
             inkColor: root.lightInk

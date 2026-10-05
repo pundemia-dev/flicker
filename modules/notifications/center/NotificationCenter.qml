@@ -16,6 +16,7 @@ Item {
     property var service
     property var cfg
     property var theme
+    property var frost: null
     signal closeRequested
 
     readonly property var history: root.service?.history ?? []
@@ -99,6 +100,7 @@ Item {
                 color: "#F0F4FB"
             }
             Pill {
+                frost: root.frost
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
                 label: "Очистить всё"
@@ -154,6 +156,7 @@ Item {
                         expanded: root.expandedApps[modelData.app] === true
                         cfg: root.cfg
                         theme: root.theme
+                        frost: root.frost
                         onExpandRequested: on => root.setExpanded(modelData.app, on)
                         onActivated: entry => root.activate(entry)
                         onDismissGroup: root.service?.dismissAll(modelData.entries)

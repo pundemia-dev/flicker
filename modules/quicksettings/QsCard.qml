@@ -24,6 +24,8 @@ Item {
     required property string cardId
     required property var cfg
     required property var theme
+    // Island frost state (layerColor): backing surfaces fade with the body.
+    property var frost: null
     required property int spanW
     required property int spanH
     property bool editing: false
@@ -64,7 +66,7 @@ Item {
     Rectangle {
         anchors.fill: parent
         radius: root.radius
-        color: root.theme?.cardBg ?? "#1C1C1E"
+        color: root.frost?.layerColor(root.theme?.qsCardBg ?? "#000000") ?? (root.theme?.qsCardBg ?? "#000000")
         opacity: loader.item?.ownSurface === true ? 0 : 1
     }
 

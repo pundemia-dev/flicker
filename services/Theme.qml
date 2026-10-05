@@ -31,16 +31,21 @@ QtObject {
     readonly property color batteryLow: "#E35D5D"
     // Quick Settings (iOS Control Center): accents of active controls,
     // the icon disc of inactive wide/large toggles, slider fill.
-    readonly property color qsBlue: "#0A84FF"
+    readonly property color qsBlue: "#017EFC"
     readonly property color qsIndigo: "#5E5CE6"
-    readonly property color qsGreen: "#30D158"
+    readonly property color qsGreen: "#38C65A"
     readonly property color qsOrange: "#FF9F0A"
     readonly property color qsDisc: "#3A3A3C"
-    readonly property color qsFill: "#F2F2F7"
+    // QS card surface (card bg + slider track): black, user (Oct 2026).
+    readonly property color qsCardBg: "#000000"
+    // Frosted body (QS / notification center over the compositor blur):
+    // grey #A2A2A2 at 0.235 — fitted to iOS 18 Control Center samples.
+    readonly property color frostBody: "#3CA2A2A2"
+    readonly property color qsFill: "#F8F8F6"
     readonly property color qsOnFill: "#1C1C1E"
     // Slider card glyphs (both over the track and inside the fill).
-    readonly property color qsVolumeIcon: "#00BFE9"
-    readonly property color qsBrightnessIcon: "#FFCB01"
+    readonly property color qsVolumeIcon: "#32ADE6"
+    readonly property color qsBrightnessIcon: "#FDC818"
     readonly property int fontSizeClock: 14
     readonly property int fontSizeBody: 12
     readonly property int fontSizeIndicator: 11

@@ -16,6 +16,10 @@ Item {
     property var entry
     property var cfg
     property var theme
+    // Island frost state: tile/plate surfaces fade with the frosted body.
+    property var frost: null
+    // Local px from the top hidden behind the card above (stack plates).
+    property real coverTop: 0
     // false = blank plate (lower layers of a collapsed stack).
     property bool showContent: true
     property bool interactive: true
@@ -55,15 +59,30 @@ Item {
         Spring { stiffness: 5; damp: 0.45 }
     }
 
-    Rectangle {
+    Item {
         id: tile
         x: root.dragX
         width: root.width
         height: root.height
-        radius: 20
-        color: Qt.darker(root.theme?.cardBg ?? "#1C1C1E", 1 + 0.12 * root.plateShade)
         // Fades while dragged away, so a dismissal reads as "thrown out".
         opacity: 1 - Math.min(0.6, Math.abs(root.dragX) / (root.width * 1.5))
+
+        // Surface, cut below coverTop (see NotificationGroup).
+        Item {
+            y: root.coverTop
+            width: parent.width
+            height: Math.max(0, parent.height - root.coverTop)
+            clip: root.coverTop > 0
+
+            Rectangle {
+                readonly property color base: Qt.darker(root.theme?.qsCardBg ?? "#000000", 1 + 0.12 * root.plateShade)
+                y: -root.coverTop
+                width: tile.width
+                height: tile.height
+                radius: 20
+                color: root.frost?.layerColor(base) ?? base
+            }
+        }
 
         NotificationCard {
             anchors.fill: parent
@@ -135,9 +154,10 @@ Item {
         width: 22
         height: 22
         radius: 11
-        color: closeMa.containsMouse ? "#4A4A4E" : "#2C2C2E"
+        readonly property color base: closeMa.containsMouse ? "#4A4A4E" : "#2C2C2E"
+        color: root.frost?.layerColor(base) ?? base
         border.width: 1
-        border.color: "#3A3A3C"
+        border.color: root.frost?.layerColor("#3A3A3C") ?? "#3A3A3C"
         opacity: root.interactive && root.showContent && (ma.containsMouse || closeMa.containsMouse) && !ma.pressed ? 1 : 0
         visible: opacity > 0.01
         Behavior on opacity { Spring { stiffness: 6; damp: 0.6; eps: 0.01 } }

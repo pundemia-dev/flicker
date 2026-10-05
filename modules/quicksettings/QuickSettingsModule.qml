@@ -34,6 +34,7 @@ Item {
     readonly property var cc: root.services.controlCenter
     readonly property var cfg: root.services.config.quicksettings
     readonly property var theme: root.services.theme
+    readonly property var frost: root.services.frost ?? null
     readonly property real unit: root.cfg.unit
     readonly property real pitch: root.cfg.unit + root.cfg.spacing
     readonly property bool editing: root.cc.editing
@@ -226,6 +227,7 @@ Item {
                     cardId: modelData
                     cfg: root.cfg
                     theme: root.theme
+                    frost: root.frost
                     editing: root.editing
                     pointerSpace: root
                     content: factory.componentFor(modelData)
@@ -325,6 +327,7 @@ Item {
         height: root.bodyH
         cfg: root.cfg
         theme: root.theme
+        frost: root.frost
         glyphs: root.cc.shown.map(p => root.pageGlyph(p))
         pagePos: root.pagePos
         editing: root.editing
@@ -342,6 +345,7 @@ Item {
         height: QsMetrics.footerHeight(root.cfg, root.cc.hiddenIds.length)
         cfg: root.cfg
         theme: root.theme
+        frost: root.frost
         hiddenIds: root.cc.hiddenIds
         opacity: root.editing ? 1 : 0
         visible: opacity > 0.01

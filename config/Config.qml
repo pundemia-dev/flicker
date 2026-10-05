@@ -152,6 +152,11 @@ Singleton {
                     disableBlur: false,
                     disableCompositorBlur: false,
                     islandOpacity: 1.0,
+                    frost: true,
+                    frostModules: ["quicksettings", "notifications:center"],
+                    frostSpring: 3,
+                    frostDamping: 0.5,
+                    frostLayerOpacity: 0.5,
                     contentBlurMax: 32,
                     contentEdgeFade: 24
                 })

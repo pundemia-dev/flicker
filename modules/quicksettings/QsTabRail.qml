@@ -11,6 +11,7 @@ Item {
     id: root
     required property var cfg
     required property var theme
+    property var frost: null
     required property var glyphs
     required property real pagePos
     property bool editing: false
@@ -37,7 +38,7 @@ Item {
         width: root.icon
         height: root.icon
         radius: width / 2
-        color: root.theme?.qsDisc ?? "#3A3A3C"
+        color: root.frost?.layerColor(root.theme?.qsDisc ?? "#3A3A3C") ?? (root.theme?.qsDisc ?? "#3A3A3C")
         visible: root.glyphs.length > 0
     }
 

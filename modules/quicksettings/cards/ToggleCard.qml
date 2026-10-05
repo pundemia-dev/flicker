@@ -34,7 +34,8 @@ Item {
     function mix(a: color, b: color, t: real): color {
         return Qt.rgba(a.r + (b.r - a.r) * t, a.g + (b.g - a.g) * t, a.b + (b.b - a.b) * t, a.a + (b.a - a.a) * t);
     }
-    readonly property color discColor: root.mix(root.form === "small" ? Qt.rgba(0, 0, 0, 0) : (root.theme?.qsDisc ?? "#3A3A3C"), root.accent, root.onP)
+    readonly property color idleDisc: root.card?.frost?.layerColor(root.theme?.qsDisc ?? "#3A3A3C") ?? (root.theme?.qsDisc ?? "#3A3A3C")
+    readonly property color discColor: root.mix(root.form === "small" ? Qt.rgba(0, 0, 0, 0) : root.idleDisc, root.accent, root.onP)
 
     Rectangle {
         id: disc
