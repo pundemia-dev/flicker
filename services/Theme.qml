@@ -38,12 +38,18 @@ QtObject {
     readonly property color qsDisc: "#3A3A3C"
     // QS card surface (card bg + slider track): black, user (Oct 2026).
     readonly property color qsCardBg: "#000000"
+    // Launcher: hairline between the search row and the results.
+    readonly property color launcherDivider: "#2EFFFFFF"
     // Frosted body (QS / notification center over the compositor blur):
     // grey #A2A2A2 at 0.235 — fitted to iOS 18 Control Center samples.
     readonly property color frostBody: "#3CA2A2A2"
     // Frosted button surface, straight on the blur (the tint is knocked
     // out under it): #1C1C1C at 0.435 = fit of the samples (wall·0.565+12).
     readonly property color frostButton: "#6F1C1C1C"
+    // QS edit mode: card rim blinks clear -> darker than the card surface
+    // (the frosted button #6F1C1C1C) and back (fade).
+    readonly property color qsEditRim: "#00000000"
+    readonly property color qsEditRimDim: "#B3000000"
     readonly property color qsFill: "#F8F8F6"
     readonly property color qsOnFill: "#1C1C1E"
     // Slider card glyphs (both over the track and inside the fill).
@@ -54,8 +60,8 @@ QtObject {
     readonly property int fontSizeIndicator: 11
     readonly property int fontSizeTiny: 10
     // Global shell font (otf-san-francisco, fc family name "SF Pro Display").
-    // Applied by default in components/Text.qml; theme-less spots (launcher
-    // TextInput) reference the same family literally.
+    // Applied by default in components/Text.qml (theme-less, references the
+    // same family literally); TextInputs set it themselves.
     readonly property string fontFamily: "SF Pro Display"
     // Icon glyph font (fc family "tabler-icons"; the filled media-control set
     // lives in the U+F6xx plane: prev f697 pause f690 play f691 next f696).

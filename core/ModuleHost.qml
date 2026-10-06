@@ -8,6 +8,7 @@ import "../modules/dictation"
 import "../modules/stash"
 import "../modules/osd"
 import "../modules/player"
+import "../modules/polkit"
 
 Item {
     id: root
@@ -27,8 +28,10 @@ Item {
         return host.item.sharedSlot(key);
     }
 
-    // Content-fitted height the current module asks for (-1 = none; Island
-    // then uses the config.modules size). Only the notification center sets it.
+    // Content-fitted size the current module asks for (-1 = none; Island
+    // then uses the config.modules size). The notification center sets the
+    // height, the launcher both.
+    readonly property real preferredWidth: host.item?.preferredWidth ?? -1
     readonly property real preferredHeight: host.item?.preferredHeight ?? -1
     // Frost knockouts (components/Knockout.js) in module = island coords.
     readonly property var knockouts: host.item?.knockouts ?? []
@@ -64,13 +67,20 @@ Item {
                 return recordingActionsComp;
             if (root.moduleName === "hotspot-actions")
                 return hotspotActionsComp;
+            if (root.moduleName === "polkit")
+                return polkitComp;
             return null;
         }
     }
 
     Component {
         id: launcherComp
-        LauncherModule { onCloseRequested: root.closeRequested() }
+        LauncherModule {
+            payload: root.payload
+            theme: root.services.theme
+            cfg: root.services.config.launcher
+            onCloseRequested: root.closeRequested()
+        }
     }
     Component {
         id: notificationsComp
@@ -162,6 +172,15 @@ Item {
             theme: root.services.theme
             audio: root.services.audio
             brightness: root.services.brightness
+            onCloseRequested: root.closeRequested()
+        }
+    }
+    Component {
+        id: polkitComp
+        PolkitModule {
+            polkit: root.services.polkit
+            theme: root.services.theme
+            cfg: root.services.config.polkit
             onCloseRequested: root.closeRequested()
         }
     }

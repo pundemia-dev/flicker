@@ -6,17 +6,22 @@
 // Nx1, tall 1xN, large NxN, panorama wider than tall and >= 2 rows; media
 // keys its own layout by footprint) — see each card file.
 
+// Default buttons (cards/ButtonCard.qml): 1x1 glyph, 2x1 glyph + text,
+// 2x2 glyph top-left + text bottom. First = default when added.
+const BUTTON_WIDE = [[2, 1], [1, 1], [2, 2]];
+const BUTTON_SMALL = [[1, 1], [2, 1], [2, 2]];
+
 const CARDS = {
-    wifi: { glyph: "\ueb52", title: "Wi‑Fi", sizes: [[2, 1], [1, 1], [1, 2], [2, 2]] },
-    bluetooth: { glyph: "\uea37", title: "Bluetooth", sizes: [[2, 1], [1, 1], [1, 2], [2, 2]] },
-    hotspot: { glyph: "\ued1b", title: "Точка доступа", sizes: [[1, 1], [2, 1], [1, 2], [2, 2]] },
-    dnd: { glyph: "\uf684", title: "Не беспокоить", sizes: [[1, 1], [2, 1], [1, 2], [2, 2]] },
-    mic: { glyph: "\ueaf0", title: "Микрофон", sizes: [[1, 1], [2, 1], [1, 2], [2, 2]] },
+    wifi: { glyph: "\ueb52", title: "Wi‑Fi", sizes: BUTTON_WIDE },
+    bluetooth: { glyph: "\uea37", title: "Bluetooth", sizes: BUTTON_WIDE },
+    hotspot: { glyph: "\ued1b", title: "Точка доступа", sizes: BUTTON_SMALL },
+    dnd: { glyph: "\uf684", title: "Не беспокоить", sizes: BUTTON_SMALL },
+    mic: { glyph: "\ueaf0", title: "Микрофон", sizes: BUTTON_SMALL },
     volume: { glyph: "\ueb51", title: "Громкость", sizes: [[1, 2], [1, 1], [2, 1], [4, 1], [1, 3], [2, 2]] },
     brightness: { glyph: "\uD800\uDD08", title: "Яркость", sizes: [[1, 2], [1, 1], [2, 1], [4, 1], [1, 3], [2, 2]] },
     media: { glyph: "\ueafc", title: "Музыка", sizes: [[2, 2], [1, 1], [2, 1], [4, 1], [4, 2], [4, 4], [4, 6]] },
-    record: { glyph: "\ued47", title: "Запись экрана", sizes: [[1, 1], [2, 1], [1, 2], [2, 2]] },
-    screenshot: { glyph: "\uf201", title: "Снимок экрана", sizes: [[1, 1], [2, 1], [1, 2], [2, 2]] }
+    record: { glyph: "\ued47", title: "Запись экрана", sizes: BUTTON_SMALL },
+    screenshot: { glyph: "\uf201", title: "Снимок экрана", sizes: BUTTON_SMALL }
 };
 
 // Stable order (Repeater model: delegates are never recreated, cards

@@ -26,44 +26,43 @@ Item {
 
     Component {
         id: wifiComp
-        ToggleCard {
+        ButtonCard {
             glyph: on ? "" : ""
             title: "Wi‑Fi"
             on: root.network?.wifiEnabled ?? false
-            subtitle: !on ? "Выкл." : (root.network?.wifiConnected ? root.network.wifiSsid : "Не подключено")
+            status: !on ? "Выкл." : (root.network?.wifiConnected ? root.network.wifiSsid : "Не подключено")
             activate: () => root.network?.toggleWifi()
         }
     }
     Component {
         id: btComp
-        ToggleCard {
+        ButtonCard {
             readonly property var devices: root.bluetooth?.connectedDevices ?? []
             glyph: !on ? "" : devices.length > 0 ? "" : ""
             title: "Bluetooth"
             on: root.bluetooth?.powered ?? false
-            subtitle: !on ? "Выкл." : devices.length > 0 ? (devices[0].name ?? "Подключено") : "Вкл."
+            status: !on ? "Выкл." : devices.length > 0 ? (devices[0].name ?? "Подключено") : "Вкл."
             activate: () => root.bluetooth?.toggle()
         }
     }
     Component {
         id: hotspotComp
-        ToggleCard {
+        ButtonCard {
             glyph: on ? "" : ""
             title: "Точка доступа"
             accent: root.theme?.qsGreen ?? "#30D158"
             on: root.network?.hotspotEnabled ?? false
-            subtitle: on ? (root.network?.hotspotName ?? "") : "Выкл."
+            status: on ? (root.network?.hotspotName ?? "") : "Выкл."
             activate: () => root.network?.setHotspotEnabled(!on)
         }
     }
     Component {
         id: dndComp
-        ToggleCard {
+        ButtonCard {
             glyph: ""
             title: "Не беспокоить"
             accent: root.theme?.qsIndigo ?? "#5E5CE6"
             on: root.notifications?.doNotDisturb ?? false
-            subtitle: on ? "Вкл." : "Выкл."
             activate: () => {
                 if (root.notifications)
                     root.notifications.doNotDisturb = !root.notifications.doNotDisturb;
@@ -72,23 +71,22 @@ Item {
     }
     Component {
         id: micComp
-        ToggleCard {
+        ButtonCard {
             glyph: on ? "" : ""
             title: "Микрофон"
             accent: root.theme?.qsOrange ?? "#FF9F0A"
             on: !(root.audio?.sourceMuted ?? true)
-            subtitle: on ? "Вкл." : "Выкл."
             activate: () => { root.audio?.quiet(); root.audio?.toggleSourceMute(); }
         }
     }
     Component {
         id: recordComp
-        ToggleCard {
+        ButtonCard {
             glyph: on ? "" : ""
             title: "Запись экрана"
             accent: root.theme?.accentRed ?? "#E4483E"
             on: root.recorder?.recording ?? false
-            subtitle: on ? (root.recorder?.elapsedText ?? "") : "Выкл."
+            status: on ? (root.recorder?.elapsedText ?? "") : "Выкл."
             activate: () => {
                 if (root.recorder?.recording)
                     root.recorder.stop();
@@ -99,10 +97,10 @@ Item {
     }
     Component {
         id: screenshotComp
-        ToggleCard {
+        ButtonCard {
             glyph: ""
             title: "Снимок экрана"
-            subtitle: "Область"
+            toggle: false
             activate: () => root.services.quickAction("screenshot")
         }
     }

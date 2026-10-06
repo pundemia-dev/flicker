@@ -10,12 +10,24 @@ Singleton {
     property alias data: adapter
     property bool ready: false
 
+    // Quiet period after the last change event before re-reading the file
+    // (cannot live in the config itself).
+    Timer {
+        id: reloadDebounce
+        interval: 150
+        onTriggered: configFile.reload()
+    }
+
     FileView {
         id: configFile
         path: `${Quickshell.shellDir}/config/config.json`
         watchChanges: true
         blockLoading: true
-        onFileChanged: reload()
+        // Debounced: editors save in several writes (truncate + write); an
+        // immediate reload parsed the half-written file ("unterminated
+        // object") and the event of the final write was lost, so the edit
+        // never applied until the next save.
+        onFileChanged: reloadDebounce.restart()
         onAdapterUpdated: if (root.ready) writeAdapter()
         onLoaded: root.ready = true
         onLoadFailed: err => {
@@ -360,6 +372,8 @@ Singleton {
                     margins: 14,
                     padding: 12,
                     iconSize: 22,
+                    // Default button (ButtonCard) glyph size.
+                    buttonIconSize: 33,
                     titleSize: 13,
                     subtitleSize: 11,
                     // Long press on a card enters edit mode (ms).
@@ -387,6 +401,16 @@ Singleton {
                     // closes the module instead.
                     pageSwipeDistance: 40,
                     closeZone: 32,
+                    // Edit mode: inner rim of every card (px) blinking to a
+                    // darker ink and back (ms per half cycle).
+                    editRimWidth: 3,
+                    editRimBlinkMs: 700,
+                    // Resize arc (QsResizeArc), round caps: thickness (px);
+                    // own bend radius = corner radius x curve (< 1 =
+                    // tighter). Middle on the corner rounding circle, cap
+                    // centres on the rim's inner edge (sets the length).
+                    resizeArcWidth: 12,
+                    resizeArcCurve: 0.45,
                     // Media card: the player module's px sizes times this
                     // (cards/MediaLayout.js) — 4x2 = the player at card scale
                     // (unit 80: 4x2 card 356x172 ≈ player module 360x170).
@@ -425,10 +449,90 @@ Singleton {
                     stretchStiffness: 5,
                     stretchDamping: 0.3
                 })
+            // Launcher (modules/launcher, pShell port): island size derived in
+            // LauncherMetrics.js (radius = padding + inputHeight / 2, concentric
+            // with the search pill). "!" in the search field picks a plugin;
+            // plugins = modules/launcher/plugins (order/disabled by id, order[0]
+            // = default plugin for plain typing).
+            property var launcher: ({
+                    width: 620,
+                    panelWidth: 330,
+                    radius: 32,
+                    padding: 12,
+                    gap: 10,
+                    inputHeight: 52,
+                    inputInset: 7,
+                    dividerInset: 24,
+                    dividerWidth: 1,
+                    itemHeight: 60,
+                    itemSpacing: 5,
+                    itemRadius: 20,
+                    itemPadding: 12,
+                    iconBox: 40,
+                    iconSize: 21,
+                    fontSize: 16,
+                    subFontSize: 14,
+                    // Result motion (LauncherList): rows sliding + selection
+                    // plate + scroll (motion*), rows fading in/out of a blur
+                    // (appear*, rowBlurMax), hover ignored while rows move.
+                    motionStiffness: 5,
+                    motionDamping: 0.45,
+                    appearStiffness: 4,
+                    appearDamping: 0.5,
+                    removeStiffness: 9,
+                    removeDamping: 1,
+                    removeMs: 260,
+                    rowBlurMax: 24,
+                    hoverHoldMs: 350,
+                    windowExtra: 3,
+                    maxShown: 6,
+                    magicSymbol: "!",
+                    escapeMs: 400,
+                    order: [],
+                    disabled: [],
+                    apps: ({
+                            launchPrefix: ["app2unit", "--"],
+                            terminal: ["kitty"],
+                            detailsIconSize: 88
+                        }),
+                    clipboard: ({
+                            historyLimit: 100,
+                            autoPaste: false,
+                            pasteCommand: "wtype -M ctrl v -m ctrl",
+                            cacheDir: ""
+                        })
+                })
+            // Polkit agent (services/Polkit + modules/polkit). Only one agent
+            // per session: disable when another one (polkit-gnome, pShell)
+            // should answer. Island height is content-fitted
+            // (estimatedHeight until the module renders); radius is derived
+            // (padding + buttonHeight / 2, concentric with the buttons).
+            property var polkit: ({
+                    enabled: true,
+                    preferCurrentUser: true,
+                    width: 440,
+                    estimatedHeight: 230,
+                    padding: 18,
+                    gap: 12,
+                    discSize: 40,
+                    iconSize: 22,
+                    titleSize: 15,
+                    fontSize: 13,
+                    monoFamily: "monospace",
+                    messageLines: 3,
+                    commandLines: 2,
+                    fieldHeight: 44,
+                    fieldIconSize: 18,
+                    buttonHeight: 36,
+                    buttonMinWidth: 96,
+                    shakeKick: 14,
+                    shakeSpring: 6,
+                    shakeDamping: 0.12,
+                    successHoldMs: 700
+                })
             // Per-module island sizes (island.moduleWidth/Height = fallback).
             // "notifications" splits by payload mode: notifications:flow/center.
             property var modules: ({
-                    launcher: ({ width: 560, height: 210 }),
                     player: ({ width: 448, height: 230 }),
                     notifications: ({ width: 520, height: 180 }),
                     "notifications:flow": ({ width: 520, height: 150 }),

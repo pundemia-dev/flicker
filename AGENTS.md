@@ -30,7 +30,7 @@ Not a git repo. No tests, no linter, no formatter.
 - IPC: `quickshell -p $PWD ipc call <target> <fn>` (with the user's instance running,
   address yours via `quickshell ipc --id <by-id dir> call ...`). `island` is ONE handler
   (`core/IslandIpc.qml`) routed via `core/IslandRegistry.qml` to the island on
-  `compositor.focusedOutput` — never put an IpcHandler in per-screen Island. Targets: `island` (launcher, quicksettings, quicksettingsEdit/Page/Resize,
+  `compositor.focusedOutput` — never put an IpcHandler in per-screen Island. Targets: `island` (launcher (toggle), launcherPlugin <id> (apps|clipboard, toggle), quicksettings, quicksettingsEdit/Page/Resize,
   notifications, stash (tray toggle), capture (again while open = next mode), captureMode(shot|record|color|
   window|ai), captureScreen (= Enter in the active tool), captureCancel, screenshot
   (instant, no overlay), record (toggle), recordPause, recordControls, dashboard, player, lock, close, minimal, island, osd, debugState,
@@ -239,6 +239,58 @@ Not a git repo. No tests, no linter, no formatter.
   them: 4x2↔2x2 morph frames, 4x4/4x6 layouts, page slide + rail.
   NOT live-tested (no mouse tool): drag-move (incl. across tabs), resize arc, remove/add,
   taps, slider drags, swipe paging/close zone, wheel.
+- Launcher (`modules/launcher/`, Oct 2026) = pShell launcher port, only the apps + clipboard
+  plugins. `LauncherModule` (host: plate-less search row, hairline divider (`launcher.dividerInset/Width`, `Theme.launcherDivider`, centred in `gap`, short of the edges) / list / side panel) + `LauncherManager`
+  (pShell ModuleManager: default → `!` picker → active plugin pill; Backspace on empty steps
+  back, active needs a double press within `escapeMs`, the tag turns red in between).
+  Plugin = folder `plugins/<id>/` with `XxxManifest.qml` (`api/LauncherManifest`: `pluginId`
+  — `id` is reserved in QML — title/icon/trigger, lazy `content`) + a `api/LauncherPlugin`
+  (listModel entries in UniversalDelegate format, `hasRightPanel`/`rightPanelComponent`,
+  `inputExtensionComponent`, handleInput/onActivated/handleExecute, requestClose). Listed
+  EXPLICITLY in `PluginRegistry.qml` (no FolderListModel scan: the scanner misses imports of
+  dynamically created files); `config.launcher.order/disabled` by id, order[0] = default.
+  `api/` is its own dir so plugins (`import "../../api"`) and the registry never import each
+  other's dirs in a cycle. Search = `fuzzysort.js` (pShell copy, fzf.js dropped). Island
+  size: module `preferredWidth/Height` (`LauncherMetrics.js`, radius = `launcher.radius`, 0 = padding +
+  inputHeight/2) → `ModuleHost` → `Island.moduleSize`; full-list estimate before the
+  handover; `surfaceReserve` holds the max height while open (list resizes per keystroke).
+  The list is NOT a drag-Flickable (press-transparency): own `selected` index (ListView's
+  currentIndex auto-scrolls), wheel steps it, contentY springs to keep it in view.
+  Result motion (user pick over caelestia/DMS/end-4 styles, Oct 2026): rows are cached
+  per item (apps per DesktopEntry, clipboard per cliphist id, picker per manifest) and
+  LauncherList feeds the view its OWN ScriptModel over a WINDOW of `manager.entries`
+  (visible rows + `windowExtra`, growing past the selection; all window rows kept
+  created via cacheBuffer). Without the window the first letter / erasing a word arrived
+  as mostly row MOVES (54 moves vs 2 removes measured) — a row moved in from off-screen
+  was created fresh (no animation), one moved away destroyed at once (user: "не везде
+  срабатывает"). Rows
+  that come fade in out of a blur, leaving rows dissolve (fast critically damped
+  `remove*`), the rest FLIP-slide (row offsets itself by old−new y, springs to 0), one
+  selection plate springs between target slots; `listKey` change (plugin / "!" picker) =
+  whole-list FadeBlur out → swap → in. contentY springs ONLY for selection scrolls
+  (`scrollTo`, Behavior enabled per write): ListView shifts contentY itself on inserts
+  above the top row, animating that made the list jump up and back. Tunables `launcher.motion*/appear*/remove*/
+  rowBlurMax/hoverHoldMs/windowExtra`. Verified frame by frame in a scratch overlay PanelWindow
+  (`grabToImage` at 80/200/450 ms + row dumps) — a FloatingWindow off-screen on driftwm
+  gets no frame callbacks, its animations freeze and the frames lie. A re-open
+  over the open launcher only swaps the payload (`onPayloadChanged` → `applyPayload`).
+  Apps launch through `launcher.apps.launchPrefix` (app2unit). Clipboard needs
+  `wl-paste --watch cliphist store` running — niri spawns it, driftwm does NOT.
+  Verified via IPC on the live instance + a headless harness (state machine, picker,
+  fuzzy, double Backspace). NOT live-tested (no keyboard/mouse tool): typing, Enter/Alt+Enter,
+  launching, copy/auto-paste, wheel, hover, the details toggle.
+- Polkit agent (Oct 2026, refs: DMS PolkitService, end-4 ii, caelestia): `services/Polkit.qml`
+  (Quickshell `PolkitAgent` in a Loader, `Config.polkit.enabled`; ONE agent per session —
+  a second pillShell / polkit-gnome just fails to register) → `started` opens module `polkit`
+  (`modules/polkit/`) on the focused output. Service keeps a `request` snapshot + `phase`
+  (idle|input|checking|success) + `failCount` (field shakes via SpringAnimation). AuthFlow
+  restarts PAM by itself after a wrong password; switching `selectedIdentity` cancels+restarts
+  (`switching` swallows that failure); `preferCurrentUser` picks $USER over root (DMS).
+  Island: Exclusive keyboard while open, `polkitHolds` blocks every other openModule (OSD,
+  flow cards queue), closeModule (swipe up) = cancel, success holds the tick `successHoldMs`.
+  Height content-fitted (preferredHeight), radius = padding + buttonHeight/2.
+  Verified live with `pkexec /usr/bin/true` + wtype: render, wrong password → error, Esc →
+  "Request dismissed". Success path NOT tested (needs the real password).
 - MPRIS multi-player: `services/Players.qml` picks `active` dms-style (prefer a playing
   player, remember the last playing one, a paused player beats registered-idle ones at
   cold start). Plain `players[0]` picks early-registrants like Telegram (registers
@@ -284,8 +336,22 @@ Not a git repo. No tests, no linter, no formatter.
   every close.
 - Fullscreen decorative/large surfaces must set `mask: Region {}` (empty) or they
   swallow all input; keep PanelWindow heights tight around the island.
-- Launcher needs keyboard: Island sets `WlrLayershell.keyboardFocus: OnDemand`
-  only while the launcher module is open, else `None`.
+- Launcher needs keyboard: Island sets `WlrLayershell.keyboardFocus: Exclusive`
+  only while the launcher module is open, else `None` (OnDemand focuses only on a click:
+  a hotkey from a focused text field left the search field deaf).
+- Config hot-reload is DEBOUNCED (`reloadDebounce`, 150 ms in `config/Config.qml`): editors
+  save in several writes; reloading on the first `fileChanged` parsed a half-written file
+  ("JsonAdapter ... unterminated object") and the final write's event was lost, so the
+  edit only applied on the NEXT save (user saw "it doesn't re-read the value", Oct 2026).
+  Verified with a split write (half, 30 ms, rest).
+- ListView view transitions (add/remove/displaced/move): a `SpringAnimation` inside them
+  never gets its implicit target — moved rows KEEP their old y, removed rows stay fully
+  visible forever (dump showed idx=-1 rows at appear 1). And a `displaced` transition that
+  does not animate y also leaves rows at the old y. Pattern (launcher): transitions only
+  `PropertyAction` row flags (+ `PauseAnimation` to hold a removed row), the row's own
+  Behavior springs do the motion, moves have no transition (row FLIP). Also set
+  `currentIndex: -1` when the selection is your own — ListView's default current item 0
+  stuck in slot 0 over the newcomer.
 - Avoid QML property names that collide with handler syntax (e.g. `on`).
 - Item built-ins shadow same-named JS functions: `function layer()` on an Item →
   "Property 'layer' ... is not a function" (it resolves to the `layer` group). Same for

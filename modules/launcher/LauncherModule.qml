@@ -1,128 +1,148 @@
 import QtQuick
-import Quickshell
 import "../../components"
+import "LauncherMetrics.js" as Metrics
 
+// Launcher island (pShell launcher port): search pill on top, the active
+// plugin's list below, optional side panel on the right. Plugins live in
+// plugins/<id>/ (PluginRegistry); LauncherManager runs the default /
+// picker ("!") / active-plugin states. The island size follows the content
+// (preferredWidth/Height → ModuleHost → Island, LauncherMetrics).
+// payload: { plugin: "<id>", query: "" } opens straight into a plugin.
 Item {
     id: root
+    required property var payload
+    required property var theme
+    required property var cfg
     signal closeRequested
 
-    readonly property var allApps: DesktopEntries.applications.values.filter(a => !a.noDisplay)
-    property string query: ""
+    readonly property var plugin: manager.currentState === manager.stateSelecting ? null : manager.activePlugin
+    readonly property bool panelShown: !!root.plugin?.hasRightPanel && !!root.plugin?.rightPanelComponent
+    readonly property real listWidth: (root.plugin?.customListWidth ?? -1) > 0 ? root.plugin.customListWidth : root.cfg.width
+    readonly property real panelWidth: (root.plugin?.customPanelWidth ?? -1) > 0 ? root.plugin.customPanelWidth : root.cfg.panelWidth
+    readonly property var size: Metrics.islandSize(root.cfg, {
+        entries: manager.entries,
+        listWidth: root.listWidth,
+        panel: root.panelShown,
+        panelWidth: root.panelWidth
+    })
+    readonly property real preferredWidth: root.size.width
+    readonly property real preferredHeight: root.size.height
 
-    readonly property var results: {
-        const q = query.toLowerCase().trim();
-        if (q.length === 0)
-            return allApps.slice().sort((a, b) => a.name.localeCompare(b.name)).slice(0, 6);
-        return allApps.filter(a => a.name.toLowerCase().includes(q)).sort((a, b) => {
-            const an = a.name.toLowerCase(), bn = b.name.toLowerCase();
-            const ap = an.startsWith(q) ? 0 : 1, bp = bn.startsWith(q) ? 0 : 1;
-            return ap - bp || an.localeCompare(bn);
-        }).slice(0, 6);
+    LauncherManager {
+        id: manager
+        cfg: root.cfg
+        theme: root.theme
     }
 
-    function launch(entry: var): void {
-        if (!entry)
+    // Also on a re-open over the open launcher (another plugin): the host
+    // keeps this instance and only swaps the payload.
+    function applyPayload(): void {
+        const id = root.payload?.plugin ?? "";
+        const q = root.payload?.query ?? "";
+        input.setText("");
+        if (id) {
+            manager.activateById(id, q);
+        } else {
+            manager.resetToDefault();
+            if (q) {
+                input.setText(q);
+                manager.processInput(q);
+            }
+        }
+    }
+
+    Component.onCompleted: applyPayload()
+    onPayloadChanged: applyPayload()
+
+    Connections {
+        target: manager.activePlugin
+        function onRequestClose(closeLauncher: bool): void {
+            if (closeLauncher)
+                root.closeRequested();
+            else
+                input.setText(manager.escapeCurrentState() ?? "");
+        }
+        function onRequestSetInput(text: string): void {
+            input.setText(text);
+        }
+    }
+
+    function execute(query: string, isAlt: bool): void {
+        const entry = list.current;
+        if (manager.currentState !== manager.stateSelecting
+                && root.plugin?.handleExecute(query, isAlt))
             return;
-        const props = { command: entry.command };
-        if (entry.workingDirectory)
-            props.workingDirectory = entry.workingDirectory;
-        Quickshell.execDetached(props);
-        root.closeRequested();
+        if (entry) {
+            if (isAlt && typeof entry.onAltClicked === "function")
+                entry.onAltClicked();
+            else if (typeof entry.onClicked === "function")
+                entry.onClicked();
+        } else {
+            root.plugin?.execute(query, isAlt);
+        }
     }
 
-    function launchFirst(): void {
-        if (results.length > 0)
-            launch(results[0]);
+    LauncherInput {
+        id: input
+        x: root.cfg.padding
+        y: root.cfg.padding
+        width: root.width - root.cfg.padding * 2
+        height: root.cfg.inputHeight
+        manager: manager
+        theme: root.theme
+        cfg: root.cfg
+        onMoveUp: list.move(-1)
+        onMoveDown: list.move(1)
+        onExecute: (query, isAlt) => root.execute(query, isAlt)
+        onCloseRequested: root.closeRequested()
     }
 
-    Column {
-        anchors.fill: parent
-        anchors.margins: 10
-        spacing: 6
+    // Thin divider between the search row and the results, centred in the
+    // gap and kept short of the island edges.
+    Rectangle {
+        x: root.cfg.dividerInset
+        y: input.y + input.height + (root.cfg.gap - height) / 2
+        width: Math.max(0, root.width - root.cfg.dividerInset * 2)
+        height: root.cfg.dividerWidth
+        radius: height / 2
+        color: root.theme.launcherDivider
+    }
+
+    LauncherList {
+        id: list
+        x: root.cfg.padding
+        y: input.y + input.height + root.cfg.gap
+        width: root.listWidth
+        height: Math.max(0, root.height - y - root.cfg.padding)
+        entries: manager.entries
+        listKey: manager.listKey
+        theme: root.theme
+        cfg: root.cfg
+        pendingSelection: root.plugin?.pendingSelection ?? -1
+        onSelectionApplied: if (root.plugin) root.plugin.pendingSelection = -1
+        emptyText: manager.currentState === manager.stateSelecting ? "Нет такого модуля" : "Ничего не найдено"
+    }
+
+    FadeBlur {
+        id: panel
+        anchors.right: parent.right
+        anchors.rightMargin: root.cfg.padding
+        y: list.y
+        width: root.panelWidth
+        height: list.height
+        shown: root.panelShown
 
         Rectangle {
-            width: parent.width
-            height: 30
-            radius: 10
-            color: "#222731"
-
-            TextInput {
-                id: searchField
-                anchors.fill: parent
-                anchors.leftMargin: 10
-                anchors.rightMargin: 10
-                verticalAlignment: TextInput.AlignVCenter
-                color: "#F0F4FB"
-                selectionColor: "#4C6EF5"
-                selectedTextColor: "white"
-                font.pixelSize: 13
-                // Matches Theme.fontFamily (this module is theme-less).
-                font.family: "SF Pro Display"
-                focus: true
-                clip: true
-                onTextChanged: root.query = text
-                onAccepted: {
-                    // Enter launches the keyboard-selected result, falling
-                    // back to the first one when nothing is highlighted.
-                    const idx = resultsList.currentIndex;
-                    if (idx >= 0 && idx < root.results.length)
-                        root.launch(root.results[idx]);
-                    else
-                        root.launchFirst();
-                }
-
-                Text {
-                    anchors.fill: parent
-                    verticalAlignment: Text.AlignVCenter
-                    text: "Search applications..."
-                    color: "#6E7A8C"
-                    font.pixelSize: 13
-                    visible: searchField.text.length === 0 && !searchField.activeFocus
-                }
-            }
+            anchors.fill: parent
+            radius: root.cfg.itemRadius
+            color: root.theme.cardBg
         }
 
-        ListView {
-            id: resultsList
-            width: parent.width
-            height: parent.height - 36
-            clip: true
-            model: root.results
-            spacing: 2
-            keyNavigationWraps: true
-            highlightMoveDuration: 90
-
-            delegate: Rectangle {
-                id: itemRect
-                required property var modelData
-                required property int index
-                width: ListView.view.width
-                height: 30
-                radius: 8
-                color: ListView.view.currentIndex === itemRect.index ? "#2A3140" : "transparent"
-
-                Text {
-                    anchors.fill: parent
-                    anchors.leftMargin: 10
-                    anchors.rightMargin: 10
-                    verticalAlignment: Text.AlignVCenter
-                    text: itemRect.modelData.name
-                    color: "#E6EBF5"
-                    font.pixelSize: 12
-                    elide: Text.ElideRight
-                }
-
-                MouseArea {
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    onEntered: resultsList.currentIndex = itemRect.index
-                    onClicked: root.launch(itemRect.modelData)
-                }
-            }
+        Loader {
+            anchors.fill: parent
+            anchors.margins: root.cfg.itemPadding
+            active: panel.p > 0.01 && !!root.plugin?.rightPanelComponent
+            sourceComponent: root.plugin?.rightPanelComponent ?? null
         }
     }
-
-    Keys.onEscapePressed: root.closeRequested()
-    Keys.onUpPressed: resultsList.decrementCurrentIndex()
-    Keys.onDownPressed: resultsList.incrementCurrentIndex()
 }

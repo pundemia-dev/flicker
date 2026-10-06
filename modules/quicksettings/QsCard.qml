@@ -167,29 +167,48 @@ Item {
 
     // Edit decorations ------------------------------------------------------
 
-    // Resize arc: concentric with the bottom-right corner rounding.
-    Shape {
+    // Edit rim: inner border that blinks clear -> darker than the card and back.
+    // Timed loop, not a Spring (springs cannot loop) — like the arcs' hide.
+    Rectangle {
+        id: rim
         anchors.fill: parent
-        preferredRendererType: Shape.CurveRenderer
+        radius: root.radius
+        color: "transparent"
+        border.width: root.cfg?.editRimWidth ?? 3
+        border.color: root.theme?.qsEditRim ?? "transparent"
         opacity: root.editing ? 1 : 0
         visible: opacity > 0
         Behavior on opacity { Spring { eps: 0.01 } }
 
-        ShapePath {
-            fillColor: "transparent"
-            strokeColor: "white"
-            strokeWidth: 3
-            capStyle: ShapePath.RoundCap
-
-            PathAngleArc {
-                centerX: root.width - root.radius
-                centerY: root.height - root.radius
-                radiusX: root.radius - 5
-                radiusY: root.radius - 5
-                startAngle: 15
-                sweepAngle: 60
+        SequentialAnimation on border.color {
+            running: rim.visible
+            loops: Animation.Infinite
+            ColorAnimation {
+                to: root.theme?.qsEditRimDim ?? "#B3000000"
+                duration: root.cfg?.editRimBlinkMs ?? 700
+                easing.type: Easing.InOutSine
+            }
+            ColorAnimation {
+                to: root.theme?.qsEditRim ?? "transparent"
+                duration: root.cfg?.editRimBlinkMs ?? 700
+                easing.type: Easing.InOutSine
             }
         }
+    }
+
+    // Resize arc (see QsResizeArc): middle on the corner rounding circle,
+    // cap centres on the rim's inner edge.
+    QsResizeArc {
+        anchors.fill: parent
+        cx: root.width - root.radius
+        cy: root.height - root.radius
+        radius: root.radius
+        thickness: root.cfg?.resizeArcWidth ?? 12
+        endRadius: root.radius - rim.border.width
+        curve: root.cfg?.resizeArcCurve ?? 0.45
+        opacity: root.editing ? 1 : 0
+        visible: opacity > 0
+        Behavior on opacity { Spring { eps: 0.01 } }
     }
     MouseArea {
         id: handle

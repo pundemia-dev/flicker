@@ -6,6 +6,7 @@ import "../components"
 import "../modules/dashboard/DashMetrics.js" as DashMetrics
 import "../modules/stash/StashMetrics.js" as StashMetrics
 import "../modules/quicksettings/QsMetrics.js" as QsMetrics
+import "../modules/launcher/LauncherMetrics.js" as LauncherMetrics
 import "../components/Knockout.js" as Knockout
 
 PanelWindow {
@@ -38,6 +39,8 @@ PanelWindow {
     // Quick Settings layout state (services/ControlCenter).
     required property var controlCenter
     required property var haptics
+    // Polkit agent (services/Polkit); the prompt is the `polkit` module.
+    required property var polkit
     // Shared per-screen island registry (IPC routes to the focused output).
     required property var registry
 
@@ -49,10 +52,13 @@ PanelWindow {
     // island (minimal strip, tickers, modules opened from minimal) to work
     // during fullscreen, so the island lives on Overlay.
     WlrLayershell.layer: WlrLayer.Overlay
-    // Keyboard only while a module needs it: the launcher's search field and
-    // the notification center's mini-games (OnDemand: focus on click).
-    WlrLayershell.keyboardFocus: root.state.activeModule === "launcher"
-        || (root.state.activeModule === "notifications" && (root.state.activePayload?.mode ?? "") === "center")
+    // Keyboard only while a module needs it. Launcher: Exclusive (pShell
+    // NiriFocusGrab) — OnDemand only focuses on a click, so a hotkey from a
+    // focused text field left the search pill deaf. Notification center
+    // mini-games: OnDemand (focus on click, never steals from windows).
+    // Polkit prompt: Exclusive too (pkexec from a focused terminal).
+    WlrLayershell.keyboardFocus: root.state.activeModule === "launcher" || root.state.activeModule === "polkit" ? WlrKeyboardFocus.Exclusive
+        : (root.state.activeModule === "notifications" && (root.state.activePayload?.mode ?? "") === "center")
         ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
     WlrLayershell.exclusionMode: ExclusionMode.Ignore
     // Own namespace so compositor rules can target the island (niri
@@ -124,8 +130,11 @@ PanelWindow {
     // The Notification Center resizes itself while open (group fan-out,
     // dismissals): reserve its cap height for the whole session so those
     // morphs never resize the layer surface mid-animation (a frame stall).
-    readonly property real surfaceReserve: root.moduleOpen && root.moduleKey === "notifications:center"
-        ? root.islandY + ((root.config.modules ?? {})["notifications:center"]?.height ?? 0) : 0
+    // Same for the launcher: its list resizes the island on every keystroke.
+    readonly property real surfaceReserve: !root.moduleOpen ? 0
+        : root.moduleKey === "notifications:center"
+        ? root.islandY + ((root.config.modules ?? {})["notifications:center"]?.height ?? 0)
+        : root.moduleKey === "launcher" ? root.islandY + LauncherMetrics.maxHeight(root.config.launcher) : 0
     // The surface must NOT follow paintBottom per frame: every layer-shell
     // resize reallocates the buffer and round-trips the compositor, which
     // froze collapse transitions. Grow at once (ratchet up), hold the peak
@@ -251,6 +260,21 @@ PanelWindow {
         if (root.moduleKey === "quicksettings")
             return QsMetrics.islandSize(root.config.quicksettings, root.controlCenter.rows,
                 root.controlCenter.editing, root.controlCenter.hiddenIds.length, root.controlCenter.railIcons);
+        // Launcher fits its list (+ side panel); until it is rendered
+        // (ContentSwap handover) assume a full list.
+        if (root.moduleKey === "launcher") {
+            const c = root.config.launcher;
+            if (root.shownModule === "launcher" && moduleHost.preferredHeight > 0)
+                return { width: moduleHost.preferredWidth, height: moduleHost.preferredHeight, radius: LauncherMetrics.radius(c) };
+            return { width: c.padding * 2 + c.width, height: LauncherMetrics.maxHeight(c), radius: LauncherMetrics.radius(c) };
+        }
+        // Polkit prompt fits its content (message / command / status lines).
+        if (root.moduleKey === "polkit") {
+            const c = root.config.polkit;
+            const h = root.shownModule === "polkit" && moduleHost.preferredHeight > 0
+                ? moduleHost.preferredHeight : c.estimatedHeight;
+            return { width: c.width, height: h, radius: c.padding + c.buttonHeight / 2 };
+        }
         // Stash views fit their content (file / device / incoming counts).
         if (root.moduleKey.startsWith("stash:"))
             return StashMetrics.islandSize(root.config.stash, root.moduleKey.slice(6), {
@@ -470,7 +494,15 @@ PanelWindow {
             root.state.setIsland();
     }
 
+    // A pending polkit prompt owns the island: nothing replaces it (the
+    // request would sit unanswered behind another module); its own
+    // re-open (next request after a success) passes.
+    readonly property bool polkitHolds: root.moduleOpen && root.state.activeModule === "polkit"
+        && root.polkit.phase !== "idle"
+
     function openModule(name: string, payload: var): void {
+        if (root.polkitHolds && name !== "polkit")
+            return;
         // Shared element (spec): an indicator handing its element over
         // (payload.shared = contract holder) flies it into the module.
         if (payload?.shared && transitionLayer.contractFor(payload.shared, name))
@@ -525,8 +557,15 @@ PanelWindow {
         openModule("dashboard", { shared: indicators.clockOwner });
     }
 
-    function openLauncher(): void {
-        openModule("launcher", {});
+    // Launcher, optionally straight into a plugin ("clipboard"). Toggles:
+    // the same call while it is open closes it.
+    function openLauncher(plugin: string): void {
+        const p = plugin ?? "";
+        if (root.state.activeModule === "launcher" && (root.state.activePayload?.plugin ?? "") === p) {
+            closeModule();
+            return;
+        }
+        openModule("launcher", { plugin: p });
     }
 
     function openQuickSettings(): void {
@@ -630,6 +669,30 @@ PanelWindow {
         }
     }
 
+    function openPolkit(): void {
+        polkitClose.stop();
+        openModule("polkit", {});
+    }
+
+    // The flow ended: success holds the tick for successHoldMs first.
+    Connections {
+        target: root.polkit
+        function onFinished(success: bool): void {
+            if (!root.moduleOpen || root.state.activeModule !== "polkit")
+                return;
+            polkitClose.interval = success ? root.config.polkit.successHoldMs : 0;
+            polkitClose.restart();
+        }
+    }
+    Timer {
+        id: polkitClose
+        onTriggered: {
+            root.polkit.settle();
+            if (root.moduleOpen && root.state.activeModule === "polkit" && !root.polkit.active)
+                root.closeModule();
+        }
+    }
+
     function openLock(): void {
         root.lock.activate();
     }
@@ -721,6 +784,10 @@ PanelWindow {
     }
 
     function closeModule(): void {
+        // Closing the prompt (swipe up, Esc) = cancel the request.
+        if (root.state.activeModule === "polkit" && root.polkit.active)
+            root.polkit.cancel();
+        polkitClose.stop();
         moduleIdle.stop();
         flowAutoClose.stop();
         state.closeModule();
@@ -837,7 +904,7 @@ PanelWindow {
             // owns the keyboard (it closes itself on Esc/launch).
             // HoverHandler does not see drags: a file held over the chooser
             // and a running device scan / upload count as use too.
-            if (islandHover.hovered || root.state.activeModule === "launcher" || root.stash.outgoingDrag
+            if (islandHover.hovered || root.state.activeModule === "launcher" || root.polkitHolds || root.stash.outgoingDrag
                 || root.stashDragOver || (root.state.activeModule === "stash" && root.localSend.busy)) {
                 moduleIdle.restart();
                 return;
@@ -1294,6 +1361,7 @@ PanelWindow {
                         localSend: root.localSend,
                         controlCenter: root.controlCenter,
                         haptics: root.haptics,
+                        polkit: root.polkit,
                         quickAction: root.runQuickAction
                     })
                 onCloseRequested: root.closeModule()

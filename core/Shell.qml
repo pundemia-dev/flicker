@@ -26,6 +26,12 @@ Scope {
     Weather { id: weatherService }
     Haptics { id: hapticsService }
     Stash { id: stashService; cfg: Config.data.stash }
+    // Polkit agent: a request opens the prompt on the focused output.
+    Polkit {
+        id: polkitService
+        cfg: Config.data.polkit
+        onStarted: islandRegistry.forOutput(compositorService.focusedOutput ?? "")?.openPolkit()
+    }
     ControlCenter { id: controlCenterService; cfg: Config.data.quicksettings; haptics: hapticsService }
     LocalSend {
         id: localSendService
@@ -105,6 +111,7 @@ Scope {
                 localSend: localSendService
                 controlCenter: controlCenterService
                 haptics: hapticsService
+                polkit: polkitService
             }
 
             Corners {

@@ -21,7 +21,10 @@ Scope {
 
     IpcHandler {
         target: "island"
-        function launcher(): void { root.island?.openLauncher(); }
+        function launcher(): void { root.island?.openLauncher(""); }
+        // Launcher straight into a plugin (id from modules/launcher/plugins:
+        // apps, clipboard); again while it is open closes it.
+        function launcherPlugin(id: string): void { root.island?.openLauncher(id); }
         function quicksettings(): void { root.island?.openQuickSettings(); }
         // Quick Settings straight into edit mode (= long press on a card).
         function quicksettingsEdit(): void {
