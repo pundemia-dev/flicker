@@ -66,24 +66,27 @@ Item {
 
     // Wheel / touchpad. A plain MouseArea (no buttons: card clicks pass
     // through) gets wheel events along BOTH axes — WheelHandler only sees
-    // its `orientation`, which dropped pure horizontal swipes. The dominant
-    // axis drives the carousel: a mouse wheel is vertical, a touchpad swipe
-    // sideways is horizontal. Touchpad deltas (pixelDelta set) step per
-    // touchpadStep, wheel notches per 120.
-    property int debugLeft: 40
+    // its `orientation`, which dropped pure horizontal swipes. Mouse wheel
+    // = vertical only (120 per card), touchpad = horizontal only
+    // (touchpadStep per card). Qt on Wayland reports the touchpad as a Mouse
+    // device; finger scrolling is recognised by a scroll phase or a pixel
+    // delta, and anything within touchpadHoldMs of such an event belongs to
+    // the same gesture (slow motion rounds pixelDelta to 0).
+    property real touchpadAt: 0
     MouseArea {
         anchors.fill: parent
         z: 1000 // above the cards (z up to 100); presses fall through
         acceptedButtons: Qt.NoButton
         onWheel: wheel => {
-            const dx = wheel.angleDelta.x, dy = wheel.angleDelta.y;
-            const touchpad = wheel.pixelDelta.x !== 0 || wheel.pixelDelta.y !== 0;
-            if (root.debugLeft > 0) {
-                root.debugLeft--;
-                console.log("[wallpapers] wheel", touchpad ? "touchpad" : "mouse", "angle", dx, dy, "pixel", wheel.pixelDelta.x, wheel.pixelDelta.y);
-            }
-            const delta = Math.abs(dx) > Math.abs(dy) ? dx : dy;
-            root.plugin.wheel(delta, touchpad ? (root.c.touchpadStep ?? 120) : 120);
+            const now = Date.now();
+            const phase = wheel.phase ?? Qt.NoScrollPhase;
+            if (phase !== Qt.NoScrollPhase || wheel.pixelDelta.x !== 0 || wheel.pixelDelta.y !== 0)
+                root.touchpadAt = now;
+            const touchpad = now - root.touchpadAt < (root.c.touchpadHoldMs ?? 150);
+            if (touchpad)
+                root.plugin.wheel(wheel.angleDelta.x, root.c.touchpadStep ?? 120);
+            else
+                root.plugin.wheel(wheel.angleDelta.y, 120);
         }
     }
 }

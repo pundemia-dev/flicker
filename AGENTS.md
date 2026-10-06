@@ -304,8 +304,9 @@ Not a git repo. No tests, no linter, no formatter.
   (`touchpadStep` angle units per card). Traps hit: Qt on Wayland reports the touchpad as a
   Mouse device (tell it apart by scroll phase / pixelDelta); `WheelHandler` sees only events
   along its `orientation` (default Vertical → pure horizontal swipes never arrived, only
-  diagonals) — a `MouseArea { acceptedButtons: Qt.NoButton; onWheel }` gets both axes, the
-  dominant one steps; touchpads also interleave zero-delta events (must not reset an
+  diagonals) — a `MouseArea { acceptedButtons: Qt.NoButton; onWheel }` gets both axes;
+  touchpad = phase/pixelDelta seen within `touchpadHoldMs` (slow finger motion rounds
+  pixelDelta to 0) → x only, else wheel → y only; touchpads also interleave zero-delta events (must not reset an
   accumulator).
   Trap hit: `service: service` in the carousel Component = self-reference (renamed `wallService`).
   Edits to `plugins/wallpapers/*` did NOT hot-reload the live instance (only files the scanner

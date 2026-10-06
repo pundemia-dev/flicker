@@ -543,6 +543,7 @@ Singleton {
                             // Touchpad horizontal swipe per card (angle-delta
                             // units; a mouse wheel notch = 120).
                             touchpadStep: 120,
+                            touchpadHoldMs: 150,
                             flyMax: 30,
                             playDelayMs: 60,
                             settleEps: 0.05,
