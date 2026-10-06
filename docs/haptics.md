@@ -14,6 +14,7 @@ device vibrate. Pick a bundled backend, or write your own in any language.
 | Quick Settings: a dragged card snaps to a new layout | `click` | `haptics.quickSettings` |
 | Quick Settings: tab switch; a resized card snaps to a new size | `release` | `haptics.quickSettings` |
 | QS volume/brightness slider reaches 0 or 100 %; seek bar dragged past an end | `release` | `haptics.limits` |
+| Wallpaper carousel: a card passes the centre (keys, wheel, click; a far jump = one click) | `click` | `haptics.wallpapers` |
 
 Quick Settings slider moves themselves do not tick. Haptics are felt only
 under a finger on the trackpad — on key presses you mostly *hear* the tick.
@@ -58,7 +59,7 @@ the first usable one.
   "minIntervalMs": 40,                  // rate limit (held keys, drags)
   "respawnMs": 5000,                    // restart delay after a backend crash
   "rescanMs": 30000,                    // re-probe while nothing is usable (0 = never)
-  "osdSteps": true, "quickSettings": true, "limits": true,
+  "osdSteps": true, "quickSettings": true, "limits": true, "wallpapers": true,
   "intensity": { "click": 1, "deep": 1, "release": 1, "tick": 1 }, // 0..1, 0 = off
   "backendOptions": {                   // passed to the backend as JSON
     "apple-t2": { "click": { "strength": 40, "softness": 144 } }

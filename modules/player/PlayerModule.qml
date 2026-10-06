@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Shapes
 import Quickshell.Services.Mpris
 import "../../components"
+import "../../config"
 
 // Player module: full-height cover on the left (rounded like dashboard
 // cards); right column = track title (bold) + artist with the lyrics button
@@ -132,7 +133,7 @@ Item {
 
                     Text {
                         width: parent.width
-                        text: root.players.trackTitle.length > 0 ? root.players.trackTitle : "Ничего не играет"
+                        text: root.players.trackTitle.length > 0 ? root.players.trackTitle : I18n.tr("Not Playing")
                         color: "#F0F4FB"
                         font.pixelSize: 14
                         font.weight: Font.Bold

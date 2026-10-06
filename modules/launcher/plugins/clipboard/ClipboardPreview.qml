@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell.Io
 import "../../../../components"
+import "../../../../config"
 
 // Side-panel preview of the selected entry (pShell ClipboardPreviewPanel
 // port): image fitted, colour as a big swatch + HEX/RGB/HSL, text / url /
@@ -144,7 +145,7 @@ Item {
         anchors.bottom: parent.bottom
         horizontalAlignment: Text.AlignHCenter
         elide: Text.ElideRight
-        text: "Enter — копировать" + (root.svc?.autoPaste ? " и вставить" : "") + " · Alt+Enter — только копировать"
+        text: root.svc?.autoPaste ? I18n.tr("Enter — copy and paste · Alt+Enter — copy only") : I18n.tr("Enter — copy · Alt+Enter — copy only")
         font.pixelSize: root.cfg.subFontSize - 1
         color: root.theme.cardDim
     }

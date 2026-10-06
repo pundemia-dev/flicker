@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import "../config"
 
 // LocalSend (pShell stash port), both directions.
 // Outbound: `start(files)` → discover peers (scripts/localsend/discover.py,
@@ -32,7 +33,7 @@ Scope {
         if (!root.enabled || !files || files.length === 0)
             return false;
         if (root.phase === "sending") {
-            Quickshell.execDetached(["notify-send", "-a", "pillShell", "LocalSend", "Дождитесь окончания текущей отправки"]);
+            Quickshell.execDetached(["notify-send", "-a", "pillShell", "LocalSend", I18n.tr("Wait for the current transfer to finish")]);
             return false;
         }
         root.pendingFiles = files;
@@ -263,7 +264,7 @@ Scope {
             if (!root.receiving)
                 return;
             console.warn("[LocalSend] receive server exited:", code);
-            Quickshell.execDetached(["notify-send", "-a", "pillShell", "LocalSend", "Приём не запустился (порт 53317 занят?)"]);
+            Quickshell.execDetached(["notify-send", "-a", "pillShell", "LocalSend", I18n.tr("Receiving failed to start (port 53317 busy?)")]);
             root.receiving = false;
         }
     }

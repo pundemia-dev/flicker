@@ -1,5 +1,6 @@
 import QtQuick
 import "../../components"
+import "../../config"
 
 Item {
     id: root
@@ -8,16 +9,16 @@ Item {
 
     readonly property string phaseText: {
         if (!root.dictation.active)
-            return root.dictation.lastError.length > 0 ? root.dictation.lastError : "Dictation ready";
+            return root.dictation.lastError.length > 0 ? root.dictation.lastError : I18n.tr("Dictation ready");
         const lang = (root.dictation.sessionLang ?? "").length > 0 ? ` · ${root.dictation.sessionLang.toUpperCase()}` : "";
         const p = root.dictation.phase ?? "streaming";
         if (p === "switching")
-            return "Switching..." + lang;
+            return I18n.tr("Switching…") + lang;
         if (p === "refining")
-            return "Refining..." + lang;
+            return I18n.tr("Refining…") + lang;
         if (p === "finalizing")
-            return "Finalizing..." + lang;
-        return "Listening..." + lang;
+            return I18n.tr("Finalizing…") + lang;
+        return I18n.tr("Listening…") + lang;
     }
     readonly property string live: root.dictation.liveText ?? ""
 

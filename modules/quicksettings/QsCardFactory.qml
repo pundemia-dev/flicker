@@ -1,5 +1,6 @@
 import QtQuick
 import "./cards"
+import "../../config"
 
 // Card id → content Component, bound to the services. Ids/footprints live
 // in QsCatalog.js; this file only says what each card shows and does.
@@ -30,7 +31,7 @@ Item {
             glyph: on ? "" : ""
             title: "Wi‑Fi"
             on: root.network?.wifiEnabled ?? false
-            status: !on ? "Выкл." : (root.network?.wifiConnected ? root.network.wifiSsid : "Не подключено")
+            status: !on ? I18n.tr("Off") : (root.network?.wifiConnected ? root.network.wifiSsid : I18n.tr("Not connected"))
             activate: () => root.network?.toggleWifi()
         }
     }
@@ -41,7 +42,7 @@ Item {
             glyph: !on ? "" : devices.length > 0 ? "" : ""
             title: "Bluetooth"
             on: root.bluetooth?.powered ?? false
-            status: !on ? "Выкл." : devices.length > 0 ? (devices[0].name ?? "Подключено") : "Вкл."
+            status: !on ? I18n.tr("Off") : devices.length > 0 ? (devices[0].name ?? I18n.tr("Connected")) : I18n.tr("On")
             activate: () => root.bluetooth?.toggle()
         }
     }
@@ -49,10 +50,10 @@ Item {
         id: hotspotComp
         ButtonCard {
             glyph: on ? "" : ""
-            title: "Точка доступа"
+            title: I18n.tr("Hotspot")
             accent: root.theme?.qsGreen ?? "#30D158"
             on: root.network?.hotspotEnabled ?? false
-            status: on ? (root.network?.hotspotName ?? "") : "Выкл."
+            status: on ? (root.network?.hotspotName ?? "") : I18n.tr("Off")
             activate: () => root.network?.setHotspotEnabled(!on)
         }
     }
@@ -60,7 +61,7 @@ Item {
         id: dndComp
         ButtonCard {
             glyph: ""
-            title: "Не беспокоить"
+            title: I18n.tr("Do Not Disturb")
             accent: root.theme?.qsIndigo ?? "#5E5CE6"
             on: root.notifications?.doNotDisturb ?? false
             activate: () => {
@@ -73,7 +74,7 @@ Item {
         id: micComp
         ButtonCard {
             glyph: on ? "" : ""
-            title: "Микрофон"
+            title: I18n.tr("Microphone")
             accent: root.theme?.qsOrange ?? "#FF9F0A"
             on: !(root.audio?.sourceMuted ?? true)
             activate: () => { root.audio?.quiet(); root.audio?.toggleSourceMute(); }
@@ -83,10 +84,10 @@ Item {
         id: recordComp
         ButtonCard {
             glyph: on ? "" : ""
-            title: "Запись экрана"
+            title: I18n.tr("Screen Recording")
             accent: root.theme?.accentRed ?? "#E4483E"
             on: root.recorder?.recording ?? false
-            status: on ? (root.recorder?.elapsedText ?? "") : "Выкл."
+            status: on ? (root.recorder?.elapsedText ?? "") : I18n.tr("Off")
             activate: () => {
                 if (root.recorder?.recording)
                     root.recorder.stop();
@@ -99,7 +100,7 @@ Item {
         id: screenshotComp
         ButtonCard {
             glyph: ""
-            title: "Снимок экрана"
+            title: I18n.tr("Screenshot")
             toggle: false
             activate: () => root.services.quickAction("screenshot")
         }
@@ -109,7 +110,7 @@ Item {
         SliderCard {
             readonly property real max: root.audio?.maxVolume ?? 1
             muted: root.audio?.muted ?? false
-            title: "Громкость"
+            title: I18n.tr("Volume")
             haptics: root.services.haptics
             value: muted ? 0 : (root.audio?.volume ?? 0) / max
             volume: true
@@ -123,7 +124,7 @@ Item {
     Component {
         id: brightnessComp
         SliderCard {
-            title: "Яркость"
+            title: I18n.tr("Brightness")
             haptics: root.services.haptics
             iconColor: root.theme?.qsBrightnessIcon ?? "#FFCB01"
             value: root.services.brightness?.brightness ?? 0

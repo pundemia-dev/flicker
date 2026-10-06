@@ -1,8 +1,8 @@
 import QtQuick
 import "../../../components"
 
-// Small rounded text button of the Notification Center (iOS «Свернуть» /
-// «Очистить» / ✕ pills).
+// Small rounded text button of the Notification Center (iOS «Show Less» /
+// «Clear All» / ✕ pills).
 Rectangle {
     id: pill
     property string label

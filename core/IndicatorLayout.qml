@@ -59,7 +59,7 @@ Item {
     // Deliberately excludes Row spacing so spacing never feeds back into itself.
     readonly property real contentNow: indicatorsNow + clockWidth
     readonly property real spacing: Math.max(4, contentNow * cfg.indicatorSpacingFactor)
-    readonly property real edgePad: Math.max(12, contentNow * cfg.edgePaddingFactor)
+    readonly property real edgePad: Math.max(cfg.edgePaddingMin ?? 16, contentNow * cfg.edgePaddingFactor)
 
     // Measured row width (includes inter-item spacing).
     readonly property real barRowWidth: barRow.width
@@ -129,7 +129,7 @@ Item {
     }
     readonly property real desiredContent: indicatorsDesired + clockWidth
     readonly property real spacingD: Math.max(4, desiredContent * cfg.indicatorSpacingFactor)
-    readonly property real edgePadD: Math.max(12, desiredContent * cfg.edgePaddingFactor)
+    readonly property real edgePadD: Math.max(cfg.edgePaddingMin ?? 16, desiredContent * cfg.edgePaddingFactor)
 
     // Eviction against the single shared budget: the whole centered row must
     // fit under maxWidth. Each kept indicator costs its width plus one gap.

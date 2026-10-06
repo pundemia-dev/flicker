@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import "../../components"
+import "../../config"
 
 // Minimal lock skin: dark bg, clock, password dots, state feedback.
 // Receives lock/pam/screen as initial properties (see LockSurface).
@@ -48,7 +49,7 @@ Item {
             }
             Text {
                 anchors.horizontalCenter: parent.horizontalCenter
-                text: Qt.formatDateTime(new Date(), "dddd, d MMMM")
+                text: I18n.capitalize(new Date().toLocaleDateString(I18n.locale, I18n.tr("dddd, MMMM d")))
                 color: "#8B93A3"
                 font.pixelSize: 15
             }
@@ -73,11 +74,11 @@ Item {
                 visible: text.length > 0
                 text: {
                     if (root.pam.state === "fail")
-                        return "Incorrect password";
+                        return I18n.tr("Incorrect password");
                     if (root.pam.state === "error")
-                        return "Authentication error";
+                        return I18n.tr("Authentication error");
                     if (root.pam.state === "max")
-                        return "Too many attempts";
+                        return I18n.tr("Too many attempts");
                     return root.pam.lockMessage;
                 }
                 color: "#D98080"

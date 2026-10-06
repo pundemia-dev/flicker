@@ -30,7 +30,7 @@ Not a git repo. No tests, no linter, no formatter.
 - IPC: `quickshell -p $PWD ipc call <target> <fn>` (with the user's instance running,
   address yours via `quickshell ipc --id <by-id dir> call ...`). `island` is ONE handler
   (`core/IslandIpc.qml`) routed via `core/IslandRegistry.qml` to the island on
-  `compositor.focusedOutput` — never put an IpcHandler in per-screen Island. Targets: `island` (launcher (toggle), launcherPlugin <id> (apps|clipboard, toggle), quicksettings, quicksettingsEdit/Page/Resize,
+  `compositor.focusedOutput` — never put an IpcHandler in per-screen Island. Targets: `island` (launcher (toggle), launcherPlugin <id> (apps|clipboard|wallpapers, toggle), quicksettings, quicksettingsEdit/Page/Resize,
   notifications, stash (tray toggle), capture (again while open = next mode), captureMode(shot|record|color|
   window|ai), captureScreen (= Enter in the active tool), captureCancel, screenshot
   (instant, no overlay), record (toggle), recordPause, recordControls, dashboard, player, lock, close, minimal, island, osd, debugState,
@@ -127,7 +127,8 @@ Not a git repo. No tests, no linter, no formatter.
   toggles): BOUND volume/brightness reaching/passing a multiple of `osdStepEvery` % (10) = tick (OsdWatcher; QS sliders are quiet →
   silent); QS edit entry = deep, layout snap during drag-move =
   click, tab switch / resize snap = release (ControlCenter.setPage/beginEdit/setPreview); QS slider reaching 0/100 and SeekBar
-  crossing an end = release. Explicitly NOT wanted: GestureZones swipes, dashboard drawer
+  crossing an end = release; wallpaper carousel = click per card passing the centre
+  (`haptics.wallpapers`, haptics reach plugins via `LauncherPlugin.host.haptics`). Explicitly NOT wanted: GestureZones swipes, dashboard drawer
   threshold, notification swipe, QS tab rubber band. Probe/CLI tools in `temp/haptic/`.
 - `Process.signal(2)` sends SIGINT (pShell pattern); `terminate("SIGINT")` does NOT work —
   use `signal()` for graceful stops (see Dictation).
@@ -240,7 +241,7 @@ Not a git repo. No tests, no linter, no formatter.
   NOT live-tested (no mouse tool): drag-move (incl. across tabs), resize arc, remove/add,
   taps, slider drags, swipe paging/close zone, wheel.
 - Launcher (`modules/launcher/`, Oct 2026) = pShell launcher port, only the apps + clipboard
-  plugins. `LauncherModule` (host: plate-less search row, hairline divider (`launcher.dividerInset/Width`, `Theme.launcherDivider`, centred in `gap`, short of the edges) / list / side panel) + `LauncherManager`
+  plugins. `LauncherModule` (host: plate-less search row, hairline divider (`launcher.dividerInset/Width`, `Theme.launcherDivider`, centred in `gap`, short of the edges) / list / plate-less side panel behind a vertical hairline (the same `panelGap` list edge → line → panel content, counted in `LauncherMetrics.islandSize`; the list narrows by `panelListShrink` (0.3) while the panel is open, rendered width on the island's own `Spring {}` so both move in step; `panelDividerInset` short of both the horizontal divider and the island bottom, fades with the panel)) + `LauncherManager`
   (pShell ModuleManager: default → `!` picker → active plugin pill; Backspace on empty steps
   back, active needs a double press within `escapeMs`, the tag turns red in between).
   Plugin = folder `plugins/<id>/` with `XxxManifest.qml` (`api/LauncherManifest`: `pluginId`
@@ -279,6 +280,39 @@ Not a git repo. No tests, no linter, no formatter.
   Verified via IPC on the live instance + a headless harness (state machine, picker,
   fuzzy, double Backspace). NOT live-tested (no keyboard/mouse tool): typing, Enter/Alt+Enter,
   launching, copy/auto-paste, wheel, hover, the details toggle.
+- Wallpapers launcher plugin (`plugins/wallpapers/`, Oct 2026, backend **wallr** 0.6.4 — user
+  decision after a source audit; spec/decisions in `temp/wallpapers-plugin-spec.md`). Launcher API
+  grew for it: `LauncherPlugin.bodyComponent/bodyWidth/bodyHeight` (a body REPLACES list + panel,
+  `LauncherMetrics.islandSize({body})`, `estimate()` pre-handover, `maxHeight` counts
+  `wallpapers.cardHeight`), `handleKey(event)` (first chance at keys in the search field),
+  `host` ({screen, originX/Y} = bar centre normalized, y from top — Island services `launcherHost`).
+  Plugin owns the state (`entries`, `selected`, animated `pos` on a Spring whose params come from
+  `wallpapers.speeds[speedLevel]`: single step / quick steps within `speedWindowMs` / auto-repeat
+  + jumps; jumps > `flyMax` snap); `WallCarousel` only draws a WINDOW of cards (ScriptModel slice
+  around round(pos), `CarouselMath.reach`) — the user's folder has ~3600 files. `CarouselMath.js`:
+  width/height/x per offset d (body = `visibleCards` cards, tiers `cardWidths[k]`/`cardHeights[k]` by |d|, gap stays exactly
+  `cardSpacing`), parallax = art wider than the card shifted −d·parallax (clamped to the overscan).
+  GIF/video play in the centre card `playDelayMs` after it rests (AnimatedImage / MediaPlayer+
+  VideoOutput, muted, looped). Thumbs on demand (`thumbAhead` around the selection) via
+  `scripts/wallpapers/thumbs.sh` (ffmpeg, `thumbJobs` parallel) → `~/.cache/pillShell/wallpapers/
+  <md5(path|mtime|size)>.jpg`; scan `scripts/wallpapers/scan.sh` (dot files/dirs skipped), rescan
+  only when the dir-mtime signature changes (poll `rescanMs` while active). Live preview (fade,
+  `--no-theme`) after `previewDelayMs`; Esc/close/other plugin restores the original read from
+  `~/.cache/wallr/last_wallpaper/<output>` (execDetached from onDestruction). Enter = this output,
+  Alt+Enter = all; effect `island` = `grow -o <bar centre>`. Prefixes `v `/`g `/`i ` filter type.
+  Scrolling: mouse wheel = vertical (notch = 1 card), touchpad = horizontal only
+  (`touchpadStep` angle units per card). Traps hit: Qt on Wayland reports the touchpad as a
+  Mouse device (tell it apart by scroll phase / pixelDelta); `WheelHandler` sees only events
+  along its `orientation` (default Vertical → pure horizontal swipes never arrived, only
+  diagonals) — a `MouseArea { acceptedButtons: Qt.NoButton; onWheel }` gets both axes, the
+  dominant one steps; touchpads also interleave zero-delta events (must not reset an
+  accumulator).
+  Trap hit: `service: service` in the carousel Component = self-reference (renamed `wallService`).
+  Edits to `plugins/wallpapers/*` did NOT hot-reload the live instance (only files the scanner
+  saw are watched) — force it with a real edit of e.g. `PluginRegistry.qml`.
+  NOT done yet: fullscreen/battery video pause, `island wallpaperRandom`, settings, favourites/
+  history. Verified via IPC + log only (centre on current wallpaper, thumbs, video init); visuals
+  and keys NOT checked — the user checks visuals themselves (asked: no screenshots).
 - Polkit agent (Oct 2026, refs: DMS PolkitService, end-4 ii, caelestia): `services/Polkit.qml`
   (Quickshell `PolkitAgent` in a Loader, `Config.polkit.enabled`; ONE agent per session —
   a second pillShell / polkit-gnome just fails to register) → `started` opens module `polkit`
@@ -289,12 +323,47 @@ Not a git repo. No tests, no linter, no formatter.
   Island: Exclusive keyboard while open, `polkitHolds` blocks every other openModule (OSD,
   flow cards queue), closeModule (swipe up) = cancel, success holds the tick `successHoldMs`.
   Height content-fitted (preferredHeight), radius = padding + buttonHeight/2.
+  pam_faillock lockout ("(N minutes left to unlock)" in supplementaryMessage) is latched as
+  `lockUntil` + 1s countdown → the password pill turns red with «Заблокировано · N мин» inside
+  (input `readOnly`, NOT disabled — a disabled TextInput drops Esc). Verified live during a real
+  lockout. Don't burn wrong passwords testing: 3 fails = 10 min lock (`faillock --user $USER`).
+  In-field texts (placeholder / checking / lockout) are three `FadeBlur` layers; the lockout
+  string is split at `%1` (`lockPrefix` static + `lockValue` in `RollingText`). Status line
+  blur-fades in, keeps its last text + height until faded out, then collapses (Column `move`
+  springs). Haptics `Config.haptics.polkit`: deep on a failure that answers a submit, release on
+  success. Spring-driven colour alphas are clamped (overshoot → "setAlphaF: invalid value").
+  Field states testable without PAM in a scratch FloatingWindow harness (symlinked dirs,
+  `grabToImage` frames) — verified crossfades + 4→3 roll that way.
   Verified live with `pkexec /usr/bin/true` + wtype: render, wrong password → error, Esc →
   "Request dismissed". Success path NOT tested (needs the real password).
 - MPRIS multi-player: `services/Players.qml` picks `active` dms-style (prefer a playing
   player, remember the last playing one, a paused player beats registered-idle ones at
   cold start). Plain `players[0]` picks early-registrants like Telegram (registers
   Stopped with stale voice-message metadata) over the actually playing app.
+
+- i18n (Oct 2026, user: source language ENGLISH): `config/I18n.qml` (pragma Singleton next to
+  Config, so `import "<rel>/config"` brings both). EVERY user-visible string = `I18n.tr("English")`
+  (+ `.arg()` for `%1`), plurals `I18n.trN(n, "%1 file", "%1 files")`, dates via `I18n.locale`
+  (`toLocaleDateString(I18n.locale, I18n.tr("dddd, MMMM d"))` — the format pattern itself is a
+  key; ru `MMMM` = genitive, `standaloneMonthName` = nominative; `I18n.capitalize` for ru's
+  lowercase names). Catalog `assets/i18n/<lang>.json` = flat `{English: перевод}`, plural entry =
+  array in the language's CLDR order (ru one/few/many, rule in `pluralIndex`), missing/empty →
+  English. Language = `Config.i18n.language` (`"auto"` = Qt.locale(), default; the user's
+  config pins `"en"` (Oct 2026; system LANG is en_US, so "auto" = English too)). Catalog watched; switching language
+  re-evaluates bindings live (tr() reads `table`) — verified ru↔en on the dashboard. Never hard-code
+  non-English UI text or keep translated strings in services: return English keys and translate
+  at the display site (`Weather.desc`, `QsCatalog` titles) so a switch follows without a refetch.
+  Data in a language: the weather city is geocoded with `language=I18n.lang` (resolve key =
+  location|lang, re-geocoded on a switch); auto-by-IP (ipinfo) names are English only.
+  Strings passed to shell commands go through `shq()` (translations may contain quotes). NOT
+  translated on purpose: DictationRefine/dictation prompts (language data), `dev/` previews, game
+  arcade captions (`G A M E  O V E R`, `HI`). Key check: every literal `I18n.tr/trN` key must
+  exist in ru.json (one-off python grep in the session that added it).
+- ClockPlate (record/hotspot plate on the clock): the plate's width ALWAYS counts in the bar
+  width (spec: the island keeps its size while the plate leaves), so a HIDDEN plate must carry
+  no text — it used to say "Hotspot" and widened the bar once translated. Label: recording =
+  elapsed time, hotspot = the clock (spec: same mechanics as recording); the last label is held
+  while the plate flies away.
 
 ## Quickshell 0.3.1 / QML gotchas (hit before, verified)
 

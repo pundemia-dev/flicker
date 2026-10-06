@@ -1,6 +1,7 @@
 import QtQuick
 import "../../components"
 import "LauncherMetrics.js" as Metrics
+import "../../config"
 
 // Launcher island (pShell launcher port): search pill on top, the active
 // plugin's list below, optional side panel on the right. Plugins live in
@@ -13,17 +14,30 @@ Item {
     required property var payload
     required property var theme
     required property var cfg
+    // Island context passed on to plugins (LauncherPlugin.host).
+    property var host: null
     signal closeRequested
 
     readonly property var plugin: manager.currentState === manager.stateSelecting ? null : manager.activePlugin
-    readonly property bool panelShown: !!root.plugin?.hasRightPanel && !!root.plugin?.rightPanelComponent
-    readonly property real listWidth: (root.plugin?.customListWidth ?? -1) > 0 ? root.plugin.customListWidth : root.cfg.width
+    // A plugin body (wallpaper carousel) replaces the list + side panel.
+    readonly property bool bodyShown: !!root.plugin?.bodyComponent
+    readonly property bool panelShown: !root.bodyShown && !!root.plugin?.hasRightPanel && !!root.plugin?.rightPanelComponent
+    readonly property real baseListWidth: (root.plugin?.customListWidth ?? -1) > 0 ? root.plugin.customListWidth : root.cfg.width
+    // The list gives up launcher.panelListShrink of its width while the side
+    // panel is open (TARGET width: the island sizes from it).
+    readonly property real listWidth: root.panelShown ? root.baseListWidth * (1 - root.cfg.panelListShrink) : root.baseListWidth
+    // Rendered list width: the island's own width spring (Spring {}), so the
+    // list narrows in step with the island growing; the hairline and the
+    // panel ride on it.
+    property real listWidthAnimated: root.listWidth
+    Behavior on listWidthAnimated { Spring {} }
     readonly property real panelWidth: (root.plugin?.customPanelWidth ?? -1) > 0 ? root.plugin.customPanelWidth : root.cfg.panelWidth
     readonly property var size: Metrics.islandSize(root.cfg, {
         entries: manager.entries,
         listWidth: root.listWidth,
         panel: root.panelShown,
-        panelWidth: root.panelWidth
+        panelWidth: root.panelWidth,
+        body: root.bodyShown ? { width: root.plugin.bodyWidth, height: root.plugin.bodyHeight } : null
     })
     readonly property real preferredWidth: root.size.width
     readonly property real preferredHeight: root.size.height
@@ -32,6 +46,7 @@ Item {
         id: manager
         cfg: root.cfg
         theme: root.theme
+        host: root.host
     }
 
     // Also on a re-open over the open launcher (another plugin): the host
@@ -112,7 +127,7 @@ Item {
         id: list
         x: root.cfg.padding
         y: input.y + input.height + root.cfg.gap
-        width: root.listWidth
+        width: root.listWidthAnimated
         height: Math.max(0, root.height - y - root.cfg.padding)
         entries: manager.entries
         listKey: manager.listKey
@@ -120,27 +135,60 @@ Item {
         cfg: root.cfg
         pendingSelection: root.plugin?.pendingSelection ?? -1
         onSelectionApplied: if (root.plugin) root.plugin.pendingSelection = -1
-        emptyText: manager.currentState === manager.stateSelecting ? "Нет такого модуля" : "Ничего не найдено"
+        emptyText: manager.currentState === manager.stateSelecting ? I18n.tr("No such module") : I18n.tr("Nothing found")
+        // Gives way to a plugin body (opacity, not visible: see FadeBlur).
+        opacity: root.bodyShown ? 0 : 1
+        enabled: !root.bodyShown
+        Behavior on opacity { Spring { eps: 0.01 } }
+    }
+
+    // Plugin body in place of the list (keyed by plugin, so switching
+    // plugins rebuilds it).
+    FadeBlur {
+        id: body
+        x: root.cfg.padding
+        y: list.y
+        width: root.plugin?.bodyWidth ?? 0
+        height: root.plugin?.bodyHeight ?? 0
+        shown: root.bodyShown
+
+        Loader {
+            anchors.fill: parent
+            active: body.p > 0.01 && root.bodyShown
+            sourceComponent: root.plugin?.bodyComponent ?? null
+        }
+    }
+
+    // Vertical hairline between the list and the side panel: the same
+    // panelGap on both sides (list edge → line → panel content); stops
+    // short of the horizontal divider and the island bottom
+    // (launcher.panelDividerInset). Fades with the panel.
+    Rectangle {
+        id: panelDivider
+        x: list.x + root.listWidthAnimated + root.cfg.panelGap
+        y: list.y + root.cfg.panelDividerInset
+        width: root.cfg.dividerWidth
+        height: Math.max(0, list.height - root.cfg.panelDividerInset * 2)
+        radius: width / 2
+        color: root.theme.launcherDivider
+        opacity: panel.p
     }
 
     FadeBlur {
         id: panel
-        anchors.right: parent.right
-        anchors.rightMargin: root.cfg.padding
+        x: panelDivider.x + panelDivider.width + root.cfg.panelGap
         y: list.y
         width: root.panelWidth
         height: list.height
         shown: root.panelShown
 
-        Rectangle {
-            anchors.fill: parent
-            radius: root.cfg.itemRadius
-            color: root.theme.cardBg
-        }
-
+        // No plate (it read as one more, huge, selected row): the content
+        // sits on the island body, split from the list by a hairline.
+        // Left edge flush: the gap to the hairline is panelGap already.
         Loader {
             anchors.fill: parent
             anchors.margins: root.cfg.itemPadding
+            anchors.leftMargin: 0
             active: panel.p > 0.01 && !!root.plugin?.rightPanelComponent
             sourceComponent: root.plugin?.rightPanelComponent ?? null
         }

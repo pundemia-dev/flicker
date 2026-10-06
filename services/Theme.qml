@@ -40,6 +40,10 @@ QtObject {
     readonly property color qsCardBg: "#000000"
     // Launcher: hairline between the search row and the results.
     readonly property color launcherDivider: "#2EFFFFFF"
+    // Wallpaper carousel: caption shade (bottom of the centre card) and the
+    // GIF/VIDEO badge.
+    readonly property color wallCaptionShade: "#B3000000"
+    readonly property color wallBadge: "#59FFFFFF"
     // Frosted body (QS / notification center over the compositor blur):
     // grey #A2A2A2 at 0.235 — fitted to iOS 18 Control Center samples.
     readonly property color frostBody: "#3CA2A2A2"

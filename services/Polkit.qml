@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import Quickshell.Services.Polkit
+import "../config"
 
 // Polkit authentication agent (DMS / end-4 / caelestia pattern: one
 // Quickshell PolkitAgent per session). Only one agent can be registered per
@@ -15,6 +16,9 @@ import Quickshell.Services.Polkit
 Scope {
     id: root
     required property var cfg
+    // Trackpad haptics (Config.haptics.polkit): deep on a wrong response,
+    // release on success.
+    property var haptics: null
 
     readonly property var agent: agentLoader.item
     readonly property var flow: root.agent?.flow ?? null
@@ -26,7 +30,7 @@ Scope {
     property string phase: "idle"
     // Bumped on every wrong response: the module shakes on change.
     property int failCount: 0
-    // { title, message, command, actionId, iconName } of the current/last request.
+    // { title, message, actionId, iconName } of the current/last request.
     property var request: null
 
     readonly property string prompt: (root.flow?.inputPrompt ?? "").trim().replace(/[\s:]+$/, "")
@@ -36,27 +40,59 @@ Scope {
     readonly property var identities: (root.flow?.identities ?? []).filter(i => !i.isGroup)
     readonly property string identityName: root.flow?.selectedIdentity?.string ?? ""
 
+    // pam_faillock lockout: "(N minutes left to unlock)" / "The account is
+    // locked due to N failed logins" arrive as supplementary info. Latched as
+    // a deadline (the message only comes with each PAM round) and counted
+    // down by `lockTick`; `lockedText` is what the password field shows,
+    // split at the %1 placeholder into a static `lockPrefix` and the rolling
+    // `lockValue` ("4 min" → "3 min", RollingText in the field).
+    property real lockUntil: 0
+    property real now: Date.now()
+    readonly property bool locked: root.lockUntil > root.now
+    readonly property var lockParts: {
+        if (!root.locked)
+            return ["", ""];
+        const s = Math.ceil((root.lockUntil - root.now) / 1000);
+        const tpl = s >= 60 ? I18n.tr("Locked · %1 min") : I18n.tr("Locked · %1 s");
+        const n = s >= 60 ? Math.ceil(s / 60) : s;
+        const i = tpl.indexOf("%1");
+        return i < 0 ? [tpl, ""] : [tpl.slice(0, i), tpl.slice(i).replace("%1", String(n))];
+    }
+    readonly property string lockPrefix: root.lockParts[0]
+    readonly property string lockValue: root.lockParts[1]
+    readonly property string lockedText: root.lockPrefix + root.lockValue
+    // The lock message itself: the module hides it from the status line.
+    readonly property bool supplementaryIsLock: /left to unlock|account is locked/i.test(root.supplementary)
+
+    onSupplementaryChanged: {
+        const m = root.supplementary.match(/(\d+)\s*(minute|second)s?\s+left to unlock/i);
+        if (m)
+            root.lockUntil = Date.now() + Number(m[1]) * (m[2].toLowerCase() === "minute" ? 60000 : 1000);
+        else if (/account is locked/i.test(root.supplementary) && !root.locked)
+            root.lockUntil = Date.now() + root.cfg.lockFallbackMs;
+        root.now = Date.now();
+    }
+
+    Timer {
+        id: lockTick
+        interval: 1000
+        repeat: true
+        running: root.lockUntil > root.now
+        onTriggered: root.now = Date.now()
+    }
+
     // A new request needs the prompt (Shell routes it to the focused island).
     signal started
     // The flow ended (success / cancel / caller gone): islands close the module.
     signal finished(bool success)
 
-    // pkexec: "Authentication is needed to run `/usr/bin/x' as the super user"
-    // → the command goes on its own monospace line (caelestia).
+    // The polkit message is shown verbatim (the module's big card), minus a
+    // trailing dot; the action id goes under it as the small detail line.
     function parse(flow: var): var {
-        let msg = (flow?.message ?? "").trim();
-        let cmd = "";
-        const pk = msg.match(/run [`'"](.+?)['`"] as the super user/);
-        if (pk) {
-            cmd = pk[1];
-            msg = "Запуск от имени суперпользователя";
-        } else if (msg.endsWith(".")) {
-            msg = msg.slice(0, -1);
-        }
+        const msg = (flow?.message ?? "").trim();
         return {
-            title: "Требуется аутентификация",
-            message: msg,
-            command: cmd,
+            title: I18n.tr("Authentication required"),
+            message: msg.endsWith(".") ? msg.slice(0, -1) : msg,
             actionId: flow?.actionId ?? "",
             iconName: flow?.iconName ?? ""
         };
@@ -66,7 +102,16 @@ Scope {
         if (!root.flow || root.phase !== "input" || !root.flow.isResponseRequired)
             return;
         root.phase = "checking";
+        root.submitted = true;
         root.flow.submit(text);
+    }
+
+    // Haptic only for failures that answer a submit (a PAM round that fails
+    // on its own, e.g. at session restart, never buzzes).
+    property bool submitted: false
+    function buzz(effect: string): void {
+        if (root.haptics && (root.haptics.cfg?.polkit ?? true))
+            root.haptics.play(effect);
     }
 
     function cancel(): void {
@@ -108,6 +153,8 @@ Scope {
         function onAuthenticationRequestStarted(): void {
             root.request = root.parse(root.flow);
             root.failCount = 0;
+            root.submitted = false;
+            root.now = Date.now();
             root.phase = root.flow?.isResponseRequired ? "input" : "checking";
             if (root.cfg?.preferCurrentUser ?? true)
                 root.preferCurrentUser();
@@ -133,9 +180,14 @@ Scope {
             if (root.switching)
                 return;
             root.failCount++;
+            if (root.submitted)
+                root.buzz("deep");
+            root.submitted = false;
             root.phase = root.flow.isResponseRequired ? "input" : "checking";
         }
         function onAuthenticationSucceeded(): void {
+            root.submitted = false;
+            root.buzz("release");
             root.phase = "success";
         }
     }

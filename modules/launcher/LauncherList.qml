@@ -2,6 +2,7 @@ import QtQuick
 import Quickshell
 import "../../components"
 import "LauncherMetrics.js" as Metrics
+import "../../config"
 
 // Result list. Not a drag-Flickable (module content stays press-transparent
 // for the swipe-up close): the selection is our own index (ListView's
@@ -28,7 +29,7 @@ Item {
     // Index to land on after the next entries change (-1 = top); the
     // owner resets it via selectionApplied().
     property int pendingSelection: -1
-    property string emptyText: "Ничего не найдено"
+    property string emptyText: I18n.tr("Nothing found")
 
     // What the view renders: lags `entries` while a list swap fades out.
     property var rows: []

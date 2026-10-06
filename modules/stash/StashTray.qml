@@ -2,6 +2,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Widgets
 import "../../components"
+import "../../config"
 
 // Tray view of the stash module: file grid (cfg.columns wide, island grows
 // up to cfg.rowsMax rows, wheel-scrolls past that — no Flickable, it would
@@ -78,13 +79,13 @@ Item {
             }
             Text {
                 anchors.horizontalCenter: parent.horizontalCenter
-                text: "Лоток пуст"
+                text: I18n.tr("Tray is empty")
                 color: root.theme.islandFg
                 font.pixelSize: root.theme.fontSizeClock
             }
             Text {
                 anchors.horizontalCenter: parent.horizontalCenter
-                text: "Перетащите файл на остров"
+                text: I18n.tr("Drop a file onto the island")
                 color: root.theme.subtleFg
                 font.pixelSize: root.theme.fontSizeBody
             }
@@ -140,7 +141,7 @@ Item {
         Text {
             anchors.centerIn: parent
             visible: root.stash.count > 0
-            text: root.stash.count + " " + root.plural(root.stash.count)
+            text: I18n.trN(root.stash.count, "%1 file", "%1 files")
             color: root.theme.subtleFg
             font.pixelSize: root.theme.fontSizeBody
         }
@@ -154,14 +155,5 @@ Item {
             glyph: ""
             onClicked: root.stash.clearAll()
         }
-    }
-
-    function plural(n: int): string {
-        const m10 = n % 10, m100 = n % 100;
-        if (m10 === 1 && m100 !== 11)
-            return "файл";
-        if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14))
-            return "файла";
-        return "файлов";
     }
 }

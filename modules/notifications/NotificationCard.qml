@@ -2,6 +2,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Widgets
 import "../../components"
+import "../../config"
 
 // One notification card, used by both flow and center-expanded modes.
 // Layout: [avatar | title … time / body]. Max 3 lines total: title is a
@@ -26,8 +27,8 @@ Item {
     // Shared-element slot "time" (the bar clock flies in and docks here).
     readonly property Item timeSlot: timeBox
 
-    // Relative timestamp: today "18:13", yesterday "Вчера, 18:13", within
-    // a week "Пн 12:57", older "23.09.2026".
+    // Relative timestamp: today "18:13", yesterday "Yesterday, 18:13", within
+    // a week "Mon 12:57", older = the locale's short date ("23.09.2026" in ru).
     function formatTime(ms) {
         if (!ms)
             return "";
@@ -41,10 +42,10 @@ Item {
         if (diffDays <= 0)
             return hm;
         if (diffDays === 1)
-            return "Вчера, " + hm;
+            return I18n.tr("Yesterday, %1").arg(hm);
         if (diffDays < 7)
-            return ["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"][d.getDay()] + " " + hm;
-        return pad(d.getDate()) + "." + pad(d.getMonth() + 1) + "." + d.getFullYear();
+            return I18n.capitalize(I18n.locale.dayName(d.getDay(), Locale.ShortFormat)) + " " + hm;
+        return d.toLocaleDateString(I18n.locale, Locale.ShortFormat);
     }
 
     // ── Avatar / app icon ──

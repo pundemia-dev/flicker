@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Effects
 import "ColorMath.js" as ColorMath
+import "../../../config"
 
 // Colour-pick mode on one screen (port of pShell ColorLoupe): circular
 // magnifier over the frozen grab, pixels sampled synchronously through a
@@ -51,9 +52,9 @@ Item {
         if (panel.fieldFocused)
             return;
         if (panel.open)
-            root.actions.copyText(panel.valueText, "Цвет скопирован");
+            root.actions.copyText(panel.valueText, I18n.tr("Color copied"));
         else if (root.liveColor)
-            root.actions.copyText(ColorMath.format(root.liveColor.r, root.liveColor.g, root.liveColor.b, panel.initialFmt()), "Цвет скопирован");
+            root.actions.copyText(ColorMath.format(root.liveColor.r, root.liveColor.g, root.liveColor.b, panel.initialFmt()), I18n.tr("Color copied"));
         root.capture.done();
     }
 

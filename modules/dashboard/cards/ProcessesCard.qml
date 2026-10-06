@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 import "../../../components"
+import "../../../config"
 
 // Top CPU consumers (4x1, iOS stat tiles): three equal columns, each with
 // the load as a big load-coloured number, the process name and a mini bar,
@@ -27,7 +28,7 @@ DashboardCard {
     Text {
         anchors.centerIn: parent
         visible: root.rows.length === 0
-        text: "Сбор данных…"
+        text: I18n.tr("Collecting data…")
         color: root.theme?.cardDim ?? "#99EBEBF5"
         font.pixelSize: root.dash?.titleSize ?? 13
     }

@@ -1,5 +1,6 @@
 import QtQuick
 import "../../../components"
+import "../../../config"
 
 // Default Quick Settings button template (Wi‑Fi, Bluetooth, DND, mic,
 // record, screenshot...). Three footprints only (QsCatalog.BUTTON_SIZES):
@@ -18,7 +19,7 @@ Item {
     property string title: ""
     property bool toggle: true
     property bool on: false
-    property string status: root.on ? "Вкл." : "Выкл."
+    property string status: root.on ? I18n.tr("On") : I18n.tr("Off")
     property color accent: theme?.qsBlue ?? "#0A84FF"
     property var activate: null
 

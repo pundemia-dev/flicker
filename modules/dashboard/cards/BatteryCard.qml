@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Shapes
 import "../../../components"
+import "../../../config"
 
 // Battery card (2x1, iOS Batteries widget): level ring with a device glyph
 // (laptop, or a bolt while charging) on the left; big percentage + state
@@ -32,18 +33,18 @@ DashboardCard {
             return "";
         const h = Math.floor(sec / 3600);
         const m = Math.floor((sec % 3600) / 60);
-        return h > 0 ? `${h} ч ${m} мин` : `${m} мин`;
+        return h > 0 ? I18n.tr("%1 h %2 min").arg(h).arg(m) : I18n.tr("%1 min").arg(m);
     }
 
     readonly property string statusStr: {
         if (!root.present)
-            return "Нет батареи";
+            return I18n.tr("No battery");
         if (root.charging) {
             const full = root.fmtDur(battery?.secondsToFull ?? 0);
-            return root.pct >= 100 ? "Заряжена" : (full ? `до полной ${full}` : "Заряжается");
+            return root.pct >= 100 ? I18n.tr("Charged") : (full ? I18n.tr("%1 until full").arg(full) : I18n.tr("Charging"));
         }
         const left = root.fmtDur(battery?.secondsToEmpty ?? 0);
-        return left ? `осталось ${left}` : "Батарея";
+        return left ? I18n.tr("%1 left").arg(left) : I18n.tr("Battery");
     }
 
     Item {

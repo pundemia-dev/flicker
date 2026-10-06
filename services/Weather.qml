@@ -44,15 +44,23 @@ Item {
     }
 
     on_WantedChanged: root.reload()
+    // The geocoded city name comes in the UI language: re-resolve on a switch.
+    readonly property string _lang: I18n.lang
+    on_LangChanged: root.reload()
+
+    // Cache key of the resolved location: config value + name language.
+    function _key(): string {
+        return `${(root._wanted ?? "").trim()}|${root._lang}`;
+    }
 
     function reload(): void {
         const cfg = (root._wanted ?? "").trim();
-        if (root._resolvedKey === cfg && root._loc.indexOf(",") !== -1) {
+        if (root._resolvedKey === root._key() && root._loc.indexOf(",") !== -1) {
             root._fetch();
             return;
         }
         if (cfg && cfg.indexOf(",") !== -1 && !isNaN(parseFloat(cfg.split(",")[0]))) {
-            root._resolvedKey = cfg;
+            root._resolvedKey = root._key();
             root._loc = cfg;
             root.city = "";
             root._fetch();
@@ -62,7 +70,7 @@ Item {
             root._get("https://ipinfo.io/json", r => {
                 const loc = r?.loc ?? "";
                 if (loc.indexOf(",") !== -1) {
-                    root._resolvedKey = cfg;
+                    root._resolvedKey = root._key();
                     root._loc = loc;
                     root.city = r?.city ?? "";
                     root._fetch();
@@ -72,11 +80,11 @@ Item {
     }
 
     function _geocodeCity(name: string): void {
-        const cfg = (root._wanted ?? "").trim();
-        root._get(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(name)}&count=1&language=ru&format=json`, r => {
+        const key = root._key();
+        root._get(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(name)}&count=1&language=${encodeURIComponent(root._lang || "en")}&format=json`, r => {
             const hit = r?.results?.[0] ?? null;
             if (hit) {
-                root._resolvedKey = cfg;
+                root._resolvedKey = key;
                 root._loc = `${hit.latitude},${hit.longitude}`;
                 root.city = hit.name ?? name;
                 root._fetch();
@@ -116,23 +124,24 @@ Item {
         return iso.length >= 16 ? iso.slice(11, 16) : "";
     }
 
+    // English I18n keys; the card translates them (follows a language switch).
     function wmoDesc(code: int): string {
         if (code === 0)
-            return "Ясно";
+            return "Clear";
         if (code >= 1 && code <= 3)
-            return code === 1 ? "Преимущественно ясно" : code === 2 ? "Переменная облачность" : "Пасмурно";
+            return code === 1 ? "Mostly clear" : code === 2 ? "Partly cloudy" : "Overcast";
         if (code === 45 || code === 48)
-            return "Туман";
+            return "Fog";
         if (code >= 51 && code <= 57)
-            return "Морось";
+            return "Drizzle";
         if (code >= 61 && code <= 67)
-            return "Дождь";
+            return "Rain";
         if (code >= 71 && code <= 77)
-            return "Снег";
+            return "Snow";
         if (code >= 80 && code <= 82)
-            return "Ливни";
+            return "Showers";
         if (code >= 95)
-            return "Гроза";
+            return "Thunderstorm";
         return "—";
     }
 

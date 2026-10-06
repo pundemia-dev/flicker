@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import "../../../components"
+import "../../../config"
 
 // Flappy-style mini-game: the Dino pterodactyl flaps through gaps between
 // pillars. Flap: LMB / Space / ↑. Same deck contract as DinoGame.
@@ -231,7 +232,7 @@ Item {
         }
         Text {
             anchors.horizontalCenter: parent.horizontalCenter
-            text: root.over ? "Клик или Space — заново" : "Клик / Space — взмах"
+            text: root.over ? I18n.tr("Click or Space — play again") : I18n.tr("Click / Space — flap")
             font.pixelSize: 11
             color: "#8E95A1"
         }

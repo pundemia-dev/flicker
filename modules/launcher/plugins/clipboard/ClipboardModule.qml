@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import "../../api"
+import "../../../../config"
 
 // Clipboard history (pShell clipboard plugin port): cliphist entries as
 // rows by type (image row / colour swatch / url / path / text), preview in
@@ -75,7 +76,7 @@ LauncherPlugin {
         switch (rec.type) {
         case "image":
             return Object.assign(base, {
-                header: "Изображение",
+                header: I18n.tr("Image"),
                 text: (rec.width && rec.height ? rec.width + "×" + rec.height : "") + (rec.size ? " · " + rec.size : ""),
                 backgroundImage: "file://" + rec.imagePath
             });
@@ -89,7 +90,7 @@ LauncherPlugin {
             return Object.assign(base, {
                 leftIcon: "", // tabler typography
                 header: rec.firstLine,
-                text: rec.lineCount > 1 ? `${rec.chars} симв. · ${rec.lineCount} стр.` : `${rec.chars} симв.`
+                text: rec.lineCount > 1 ? I18n.tr("%1 chars · %2 lines").arg(rec.chars).arg(rec.lineCount) : I18n.tr("%1 chars").arg(rec.chars)
             });
         }
     }

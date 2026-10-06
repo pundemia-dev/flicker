@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import Quickshell
 import "../../../components"
+import "../../../config"
 
 // Weather card (4x1 strip): city top-left, big degrees bottom-left; icon
 // top-right, description + day min/max packed bottom-right. The card body is a bottom-to-top
@@ -225,7 +226,7 @@ DashboardCard {
 
     readonly property string tempStr: root.ok ? root.fmt(weather.tempC) : "—"
     readonly property string cityStr: (weather?.city) ?? ""
-    readonly property string descStr: root.ok ? (weather.desc || "") : "Нет данных"
+    readonly property string descStr: root.ok ? I18n.tr(weather.desc || "") : I18n.tr("No data")
     readonly property string iconEmoji: root.ok ? root.iconEmojiFor((weather?.weatherCode) ?? -1, root.sun.d > 0.5) : ""
     readonly property string iconFile: {
         if (!root.ok)

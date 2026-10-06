@@ -2,6 +2,7 @@ import QtQuick
 import Quickshell.Io
 import QtQuick.Layouts
 import "../../../components"
+import "../../../config"
 
 // Pending pacman + AUR updates (checkupdates / yay-or-paru) and days since
 // the last -Syu (from /var/log/pacman.log mtime). Missing tools degrade to
@@ -23,39 +24,21 @@ DashboardCard {
 
     readonly property int total: (root.repoCount < 0 || root.aurCount < 0) ? -1 : root.repoCount + root.aurCount
 
-    function plural(n: int): string {
-        const m10 = n % 10, m100 = n % 100;
-        if (m10 === 1 && m100 !== 11)
-            return "пакет";
-        if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14))
-            return "пакета";
-        return "пакетов";
-    }
-
-    function dayPlural(n: int): string {
-        const m10 = n % 10, m100 = n % 100;
-        if (m10 === 1 && m100 !== 11)
-            return "день";
-        if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14))
-            return "дня";
-        return "дней";
-    }
-
     readonly property string bigStr: {
         if (root.total < 0)
             return "—";
         if (root.total === 0)
-            return "Всё обновлено";
-        return `${root.total} ${root.plural(root.total)}`;
+            return I18n.tr("Up to date");
+        return I18n.trN(root.total, "%1 package", "%1 packages");
     }
 
     readonly property string subStr: {
         if (!(root.lastSyncEpoch > 0))
-            return "pacman.log недоступен";
+            return I18n.tr("pacman.log unavailable");
         const days = Math.floor((Date.now() / 1000 - root.lastSyncEpoch) / 86400);
         if (days <= 0)
-            return "Обновлено сегодня";
-        return `-Syu ${days} ${root.dayPlural(days)} назад`;
+            return I18n.tr("Updated today");
+        return I18n.trN(days, "-Syu %1 day ago", "-Syu %1 days ago");
     }
 
     Timer {
@@ -87,7 +70,7 @@ DashboardCard {
         spacing: 2
 
         CardTitle {
-            label: "Обновления"
+            label: I18n.tr("Updates")
             theme: root.theme
             dash: root.dash
         }

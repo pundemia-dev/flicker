@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import "../../config"
 
 // Capture command builders + session memories (port of pShell
 // services/Capture). WM-agnostic: grim/magick/wl-copy work on niri and
@@ -69,9 +70,9 @@ Scope {
             parts.push(`wl-copy -t image/png < ${root.shq(file)}`);
         if (save && root.saveDir) {
             const path = `${root.saveDir}/screenshot-${root.stamp()}.png`;
-            parts.push(`mkdir -p ${root.shq(root.saveDir)} && cp ${root.shq(file)} ${root.shq(path)} && notify-send -a pillShell 'Скриншот сохранён' ${root.shq(path)}`);
+            parts.push(`mkdir -p ${root.shq(root.saveDir)} && cp ${root.shq(file)} ${root.shq(path)} && notify-send -a pillShell ${root.shq(I18n.tr("Screenshot saved"))} ${root.shq(path)}`);
         } else {
-            parts.push(`notify-send -a pillShell 'Скриншот скопирован'`);
+            parts.push(`notify-send -a pillShell ${root.shq(I18n.tr("Screenshot copied"))}`);
         }
         return parts.join(" && ");
     }
@@ -108,8 +109,8 @@ Scope {
         Quickshell.execDetached(["bash", "-c", `magick ${root.shq(src)} -crop ${r.width}x${r.height}+${r.x}+${r.y} +repage ${root.shq(file)}`
             + ` && url="$(curl -sf -F "files[]=@${file}" ${root.shq(root.cfg.lensUploadUrl)} | jq -r '.files[0].url')"`
             + ` && [ -n "$url" ] && [ "$url" != null ] && xdg-open "https://lens.google.com/uploadbyurl?url=$url"`
-            + ` || notify-send -a pillShell 'Google Lens' 'Не удалось загрузить'`]);
-        Quickshell.execDetached(["notify-send", "-a", "pillShell", "Google Lens", "Загружаю фрагмент…"]);
+            + ` || notify-send -a pillShell 'Google Lens' ${root.shq(I18n.tr("Upload failed"))}`]);
+        Quickshell.execDetached(["notify-send", "-a", "pillShell", "Google Lens", I18n.tr("Uploading the snippet…")]);
     }
 
     // scripts/capture/<name> (uv inline-deps script). Offline first: online

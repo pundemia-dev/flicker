@@ -103,7 +103,8 @@ Singleton {
             // Places: osdSteps = tick on every bound volume/brightness step (not QS
             // sliders), quickSettings = edit-mode entry (deep) + layout
             // snaps + tab switch (click), limits = a QS slider / seek bar
-            // reaching an end while dragged (release).
+            // reaching an end while dragged (release), polkit = wrong
+            // password (deep) / authenticated (release).
             property var haptics: ({
                     enabled: true,
                     backend: "auto",
@@ -118,6 +119,9 @@ Singleton {
                     osdStepEvery: 10,
                     quickSettings: true,
                     limits: true,
+                    polkit: true,
+                    // Wallpaper carousel: click per card passing the centre.
+                    wallpapers: true,
                     intensity: { click: 1, deep: 1, release: 1, tick: 1 },
                     backendOptions: {}
                 })
@@ -136,7 +140,8 @@ Singleton {
                 })
             property var indicators: ({
                     indicatorSpacingFactor: 0.018,
-                    edgePaddingFactor: 0.06,
+                    edgePaddingFactor: 0.08,
+                    edgePaddingMin: 16,
                     musicCoverDiameter: 24,
                     micDotDiameter: 8,
                     micLabelMaxWidth: 180,
@@ -464,6 +469,9 @@ Singleton {
                     inputInset: 7,
                     dividerInset: 24,
                     dividerWidth: 1,
+                    panelDividerInset: 14,
+                    panelGap: 14,
+                    panelListShrink: 0.3,
                     itemHeight: 60,
                     itemSpacing: 5,
                     itemRadius: 20,
@@ -500,6 +508,57 @@ Singleton {
                             autoPaste: false,
                             pasteCommand: "wtype -M ctrl v -m ctrl",
                             cacheDir: ""
+                        }),
+                    // Wallpaper carousel (plugins/wallpapers, backend wallr).
+                    // Cards by distance from the centre: cardWidths[k] x
+                    // cardHeight*cardHeights[k] (centre largest, each step
+                    // out a bit lower and narrower; the last tier repeats);
+                    // the body shows visibleCards. The art lags the card by
+                    // `parallax` px per step. speeds[0..2] = spring per
+                    // scroll pace (single step / quick steps within
+                    // speedWindowMs / key auto-repeat + jumps). GIF/video play
+                    // in the centre card playDelayMs after the carousel stops.
+                    // effect: island (grow from the bar) | fade | wipe |
+                    // slide | wave | grow | outer | random. theme: "" = wallr
+                    // config, "none" = --no-theme, or a provider name.
+                    wallpapers: ({
+                            dirs: ["~/Pictures/Wallpapers"],
+                            recursive: true,
+                            sort: "name",
+                            visibleCards: 5,
+                            cardHeight: 230,
+                            cardWidths: [340, 240, 175],
+                            cardHeights: [1, 0.92, 0.85],
+                            cardSpacing: 10,
+                            cardRadius: 18,
+                            edgeFadeWidth: 120,
+                            parallax: 60,
+                            speeds: [
+                                ({ stiffness: 3.2, damping: 0.42 }),
+                                ({ stiffness: 6, damping: 0.5 }),
+                                ({ stiffness: 12, damping: 0.7 })
+                            ],
+                            speedWindowMs: 280,
+                            pageStep: 5,
+                            // Touchpad horizontal swipe per card (angle-delta
+                            // units; a mouse wheel notch = 120).
+                            touchpadStep: 120,
+                            flyMax: 30,
+                            playDelayMs: 60,
+                            settleEps: 0.05,
+                            livePreview: true,
+                            previewDelayMs: 120,
+                            previewDurationMs: 300,
+                            effect: "island",
+                            durationMs: 1000,
+                            mode: "fill",
+                            theme: "",
+                            thumbHeight: 460,
+                            thumbJobs: 3,
+                            thumbBatch: 9,
+                            thumbAhead: 8,
+                            rescanMs: 2000,
+                            cacheDir: ""
                         })
                 })
             // Polkit agent (services/Polkit + modules/polkit). Only one agent
@@ -518,13 +577,20 @@ Singleton {
                     iconSize: 22,
                     titleSize: 15,
                     fontSize: 13,
-                    monoFamily: "monospace",
-                    messageLines: 3,
-                    commandLines: 2,
+                    messageSize: 18,
+                    detailSize: 11,
+                    cardPadding: 16,
+                    messageLines: 4,
                     fieldHeight: 44,
                     fieldIconSize: 18,
                     buttonHeight: 36,
                     buttonMinWidth: 96,
+                    textBlurMax: 12,
+                    lockFillAlpha: 0.35,
+                    lockFallbackMs: 600000,
+                    lockBorderWidth: 1.5,
+                    lockBorderDarker: 1.5,
+                    lockPulseMs: 1600,
                     shakeKick: 14,
                     shakeSpring: 6,
                     shakeDamping: 0.12,
@@ -643,6 +709,11 @@ Singleton {
                     incomingWidth: 400,
                     incomingFileRowHeight: 26,
                     incomingTextHeight: 96
+                })
+            // UI language: "auto" = system locale (Qt.locale()), or a tag like
+            // "ru" / "en". Translations: assets/i18n/<lang>.json.
+            property var i18n: ({
+                    language: "auto"
                 })
         }
     }

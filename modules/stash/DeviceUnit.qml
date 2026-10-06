@@ -1,5 +1,6 @@
 import QtQuick
 import "../../components"
+import "../../config"
 
 // One LocalSend peer row (pShell DeviceUnit port): type glyph, alias and two
 // badges (#last IP octet, advertised device model). Roles from
@@ -70,7 +71,7 @@ Rectangle {
                 tint: root.theme.cardBlue
             }
             Badge {
-                label: root.os.trim() !== "" ? root.os : "Unknown"
+                label: root.os.trim() !== "" ? root.os : I18n.tr("Unknown")
                 tint: root.theme.subtleFg
             }
         }

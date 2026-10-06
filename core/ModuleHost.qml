@@ -79,6 +79,7 @@ Item {
             payload: root.payload
             theme: root.services.theme
             cfg: root.services.config.launcher
+            host: root.services.launcherHost ?? null
             onCloseRequested: root.closeRequested()
         }
     }

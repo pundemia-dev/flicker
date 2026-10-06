@@ -1,5 +1,6 @@
 import QtQuick
 import "../../components"
+import "../../config"
 
 // Search row (pShell RowInput port): magnifier that grows into the active
 // plugin's name tag (blue; red while a second Backspace would leave the
@@ -126,7 +127,7 @@ Rectangle {
 
         Text {
             anchors.verticalCenter: parent.verticalCenter
-            text: root.tagShown ? "Поиск" : `Поиск · «${root.manager.magicSymbol}» — модули`
+            text: root.tagShown ? I18n.tr("Search") : I18n.tr("Search · «%1» — modules").arg(root.manager.magicSymbol)
             color: root.theme.cardDim
             font.pixelSize: root.cfg.fontSize
             visible: field.text.length === 0
@@ -135,6 +136,11 @@ Rectangle {
         Keys.onPressed: event => {
             if (event.key !== Qt.Key_Backspace || text.length > 0)
                 root.manager.cancelEscape();
+            const plugin = root.manager.currentState === root.manager.stateSelecting ? null : root.manager.activePlugin;
+            if (plugin?.handleKey(event)) {
+                event.accepted = true;
+                return;
+            }
             switch (event.key) {
             case Qt.Key_Backspace:
                 if (text.length === 0) {

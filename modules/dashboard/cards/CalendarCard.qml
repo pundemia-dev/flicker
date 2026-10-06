@@ -1,5 +1,6 @@
 import QtQuick
 import "../../../components"
+import "../../../config"
 
 // Month calendar (2x2, iOS month widget): red month name, Monday-first
 // weekday initials, the month's dates (5 or 6 rows, row height shares the
@@ -18,8 +19,8 @@ DashboardCard {
     readonly property int year: root.now.getFullYear()
     readonly property int month: root.now.getMonth()
     readonly property int today: root.now.getDate()
-    readonly property var _months: ["Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"]
-    readonly property var _wd: ["П", "В", "С", "Ч", "П", "С", "В"]
+    // Monday-first one-letter weekday names in the UI language.
+    readonly property var _wd: [1, 2, 3, 4, 5, 6, 0].map(d => I18n.locale.standaloneDayName(d, Locale.NarrowFormat).toUpperCase())
 
     // Monday-first offset of the 1st and the month length.
     readonly property int lead: (new Date(root.year, root.month, 1).getDay() + 6) % 7
@@ -35,7 +36,7 @@ DashboardCard {
 
         Text {
             id: title
-            text: root._months[root.month].toUpperCase()
+            text: I18n.locale.standaloneMonthName(root.month, Locale.LongFormat).toUpperCase()
             color: root.theme?.accentRed ?? "#E4483E"
             font.pixelSize: (root.dash?.titleSize ?? 13) - 2
             font.weight: Font.Bold

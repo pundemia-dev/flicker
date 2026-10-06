@@ -266,7 +266,7 @@ PanelWindow {
             const c = root.config.launcher;
             if (root.shownModule === "launcher" && moduleHost.preferredHeight > 0)
                 return { width: moduleHost.preferredWidth, height: moduleHost.preferredHeight, radius: LauncherMetrics.radius(c) };
-            return { width: c.padding * 2 + c.width, height: LauncherMetrics.maxHeight(c), radius: LauncherMetrics.radius(c) };
+            return LauncherMetrics.estimate(c, root.state.activePayload?.plugin ?? "");
         }
         // Polkit prompt fits its content (message / command / status lines).
         if (root.moduleKey === "polkit") {
@@ -1362,7 +1362,16 @@ PanelWindow {
                         controlCenter: root.controlCenter,
                         haptics: root.haptics,
                         polkit: root.polkit,
-                        quickAction: root.runQuickAction
+                        quickAction: root.runQuickAction,
+                        // Launcher plugins: output + bar centre (normalized,
+                        // y from the top) — the wallpaper "island" effect
+                        // grows from there.
+                        launcherHost: ({
+                                haptics: root.haptics,
+                                screen: root.targetScreen?.name ?? "",
+                                originX: 0.5,
+                                originY: (root.islandCfg.topMargin + root.islandCfg.height / 2) / Math.max(1, root.targetScreen?.height ?? 1)
+                            })
                     })
                 onCloseRequested: root.closeModule()
                 // Only the module that is still the active one may switch

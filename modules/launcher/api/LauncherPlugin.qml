@@ -18,6 +18,10 @@ Item {
     // Injected by the manager on creation.
     property var theme: null
     property var cfg: null
+    // Island context (LauncherModule.host): { screen: output name,
+    // originX/originY: bar centre on that screen, normalized 0..1,
+    // haptics: services/Haptics }.
+    property var host: null
 
     property bool isActive: false
 
@@ -30,6 +34,11 @@ Item {
     // Width overrides (-1 = config.launcher.width / panelWidth).
     property real customListWidth: -1
     property real customPanelWidth: -1
+    // Custom body INSTEAD of the list + side panel (wallpaper carousel):
+    // the island fits bodyWidth x bodyHeight under the search row.
+    property Component bodyComponent: null
+    property real bodyWidth: 0
+    property real bodyHeight: 0
 
     // Index the host selects after the next model rebuild (-1 = top).
     property int pendingSelection: -1
@@ -39,6 +48,11 @@ Item {
     // Put text into the search field (does not run handleInput).
     signal requestSetInput(string text)
 
+    // First chance at a key in the search field (before the list
+    // navigation); return true when handled.
+    function handleKey(event: var): bool {
+        return false;
+    }
     // Search text changed (without the magic prefix).
     function handleInput(query: string): void {}
     // Activated: by the picker, as the default plugin, or with a query.

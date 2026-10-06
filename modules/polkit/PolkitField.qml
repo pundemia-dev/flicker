@@ -1,5 +1,6 @@
 import QtQuick
 import "../../components"
+import "../../config"
 
 // Password pill: key glyph, masked input (plain when polkit asks for a
 // visible response), eye toggle, busy dim while PAM checks. Shakes on a
@@ -9,10 +10,16 @@ Rectangle {
     id: root
     required property var theme
     required property var cfg
-    property string placeholder: "Пароль"
+    property string placeholder: I18n.tr("Password")
     property bool plainText: false
     property bool busy: false
     property bool error: false
+    // pam_faillock lockout: the whole pill turns red, the text sits inside
+    // it in place of the placeholder and input is off.
+    property bool locked: false
+    // Lockout text split by the service: static prefix + rolling value.
+    property string lockPrefix: ""
+    property string lockValue: ""
     readonly property alias text: input.text
     property bool reveal: false
     signal accepted
@@ -26,6 +33,8 @@ Rectangle {
         input.forceActiveFocus();
     }
 
+    onLockedChanged: if (root.locked) input.text = ""
+
     function shake(): void {
         shakeAnim.restart();
     }
@@ -34,9 +43,41 @@ Rectangle {
     radius: height / 2
     color: root.theme.cardBg
     border.width: 1
-    border.color: Qt.alpha(root.theme.accentRed, root.errorAlpha)
-    property real errorAlpha: root.error ? 0.8 : 0
-    Behavior on errorAlpha { Spring { eps: 0.01 } }
+    border.color: Qt.alpha(root.theme.accentRed, root.errorAlpha * (1 - root.lockAlpha))
+    property real errorSpring: root.error ? 0.8 : 0
+    Behavior on errorSpring { Spring { eps: 0.01 } }
+    readonly property real errorAlpha: Math.max(0, Math.min(1, root.errorSpring))
+    property real lockSpring: root.locked ? 1 : 0
+    Behavior on lockSpring { Spring { eps: 0.01 } }
+    // Springs overshoot past 0..1; colour alphas must stay in range.
+    readonly property real lockAlpha: Math.max(0, Math.min(1, root.lockSpring))
+
+    // Red fill of the locked state (fades over the card colour).
+    Rectangle {
+        anchors.fill: parent
+        radius: parent.radius
+        color: Qt.alpha(root.theme.accentRed, root.cfg.lockFillAlpha * root.lockAlpha)
+    }
+
+    // Locked outline: blinks transparent ↔ a shade darker than the red fill
+    // (fill = accentRed at lockFillAlpha over the card). A looping timed
+    // fade by nature (user decision), not a spring.
+    readonly property color lockFillColor: Qt.tint(root.theme.cardBg, Qt.alpha(root.theme.accentRed, root.cfg.lockFillAlpha))
+    property real lockPulse: 0
+    Rectangle {
+        anchors.fill: parent
+        radius: parent.radius
+        color: "transparent"
+        border.width: root.cfg.lockBorderWidth
+        border.color: Qt.alpha(Qt.darker(root.lockFillColor, root.cfg.lockBorderDarker), root.lockAlpha * root.lockPulse)
+    }
+    SequentialAnimation {
+        running: root.locked
+        loops: Animation.Infinite
+        onStopped: root.lockPulse = 0
+        NumberAnimation { target: root; property: "lockPulse"; from: 0; to: 1; duration: root.cfg.lockPulseMs / 2; easing.type: Easing.InOutSine }
+        NumberAnimation { target: root; property: "lockPulse"; from: 1; to: 0; duration: root.cfg.lockPulseMs / 2; easing.type: Easing.InOutSine }
+    }
 
     transform: Translate { id: shift }
 
@@ -64,7 +105,7 @@ Rectangle {
         text: "" // tabler lock
         font.family: root.theme.iconFamily
         font.pixelSize: root.cfg.fieldIconSize
-        color: root.theme.cardDim
+        color: Qt.tint(root.theme.cardDim, Qt.alpha(root.theme.islandFg, root.lockAlpha))
     }
 
     TextInput {
@@ -81,21 +122,68 @@ Rectangle {
         font.pixelSize: root.cfg.fontSize
         echoMode: root.plainText || root.reveal ? TextInput.Normal : TextInput.Password
         passwordCharacter: "•"
-        enabled: !root.busy
-        opacity: root.busy ? 0.5 : 1
+        // readOnly, not enabled: a disabled input drops Esc (cancel).
+        readOnly: root.busy || root.locked
+        opacity: root.busy && !root.locked ? 0.5 : 1
         Behavior on opacity { Spring { eps: 0.01 } }
         clip: true
         focus: true
 
-        onAccepted: root.accepted()
+        onAccepted: if (!readOnly) root.accepted()
         Keys.onEscapePressed: root.escaped()
 
-        Text {
-            anchors.verticalCenter: parent.verticalCenter
-            text: root.busy ? "Проверка…" : root.placeholder
-            color: root.theme.cardDim
-            font: input.font
-            visible: input.text.length === 0
+        // In-field texts: placeholder / checking / lockout, each its own
+        // blur-fade layer so a state change crossfades (FadeBlur).
+        FadeBlur {
+            width: parent.width
+            height: parent.height
+            blurMax: root.cfg.textBlurMax
+            shown: !root.locked && !root.busy && input.text.length === 0
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                text: root.placeholder
+                color: root.theme.cardDim
+                font.family: input.font.family
+                font.pixelSize: input.font.pixelSize
+            }
+        }
+        FadeBlur {
+            width: parent.width
+            height: parent.height
+            blurMax: root.cfg.textBlurMax
+            shown: !root.locked && root.busy && input.text.length === 0
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                text: I18n.tr("Checking…")
+                color: root.theme.cardDim
+                font.family: input.font.family
+                font.pixelSize: input.font.pixelSize
+            }
+        }
+        FadeBlur {
+            width: parent.width
+            height: parent.height
+            blurMax: root.cfg.textBlurMax
+            shown: root.locked
+            Row {
+                anchors.verticalCenter: parent.verticalCenter
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: root.lockPrefix
+                    color: root.theme.islandFg
+                    font.family: input.font.family
+                    font.pixelSize: input.font.pixelSize
+                    font.weight: Font.DemiBold
+                }
+                RollingText {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: root.lockValue
+                    color: root.theme.islandFg
+                    family: input.font.family
+                    pixelSize: input.font.pixelSize
+                    weight: Font.DemiBold
+                }
+            }
         }
     }
 

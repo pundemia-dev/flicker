@@ -1,5 +1,6 @@
 import QtQuick
 import "../../../components"
+import "../../../config"
 
 // Now-playing card (2x2 square, iOS Now Playing widget): the album art,
 // heavily blurred and darkened, fills the card; sharp cover top-left,
@@ -21,8 +22,8 @@ DashboardCard {
     readonly property bool hasTrack: (players?.active) !== null && (players?.active) !== undefined
     readonly property bool playing: (players?.musicActive) ?? false
     readonly property string art: (players?.artUrl) ?? ""
-    readonly property string titleStr: root.hasTrack ? ((players?.trackTitle) || "Без названия") : "Ничего не играет"
-    readonly property string artistStr: root.hasTrack ? ((players?.trackArtist) ?? "") : "Музыка"
+    readonly property string titleStr: root.hasTrack ? ((players?.trackTitle) || I18n.tr("Untitled")) : I18n.tr("Not Playing")
+    readonly property string artistStr: root.hasTrack ? ((players?.trackArtist) ?? "") : I18n.tr("Music")
 
     // Backdrop: blurred art (rounded to the card) + dark scrim for text.
     RoundedImage {

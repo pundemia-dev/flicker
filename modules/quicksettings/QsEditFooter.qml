@@ -1,6 +1,7 @@
 import QtQuick
 import "../../components"
 import "QsCatalog.js" as QsCatalog
+import "../../config"
 
 // Edit-mode footer: hidden cards as glyph chips (tap = add back at the
 // first free slot) + "Готово" (saves, leaves edit mode). Row count is
@@ -68,7 +69,7 @@ Item {
     Text {
         anchors.verticalCenter: done.verticalCenter
         visible: root.hiddenIds.length === 0
-        text: "Все элементы на месте"
+        text: I18n.tr("All items are in place")
         color: root.theme?.cardDim ?? "#99EBEBF5"
         font.pixelSize: (root.cfg?.subtitleSize) ?? 11
     }
@@ -84,7 +85,7 @@ Item {
 
         Text {
             anchors.centerIn: parent
-            text: "Готово"
+            text: I18n.tr("Done")
             color: "white"
             font.pixelSize: (root.cfg?.titleSize) ?? 13
             font.weight: Font.DemiBold

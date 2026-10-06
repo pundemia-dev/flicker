@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 import "../../../components"
+import "../../../config"
 
 // Agenda card. No calendar backend is wired yet, so `events` stays empty and
 // the card renders its empty state — the list model + delegate already match
@@ -25,14 +26,14 @@ DashboardCard {
         spacing: 3
 
         CardTitle {
-            label: "События"
+            label: I18n.tr("Events")
             theme: root.theme
             dash: root.dash
         }
 
         Text {
             visible: root.events.length === 0
-            text: "Нет событий"
+            text: I18n.tr("No events")
             color: root.theme?.cardDim ?? "#99EBEBF5"
             font.pixelSize: root.dash?.titleSize ?? 13
         }

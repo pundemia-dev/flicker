@@ -1,5 +1,6 @@
 import QtQuick
 import "../../components"
+import "../../config"
 
 Item {
     id: root
@@ -18,7 +19,7 @@ Item {
             height: 30
             radius: 10
             color: root.theme.islandBg
-            Text { anchors.centerIn: parent; text: "Cancel"; color: root.theme.islandFg }
+            Text { anchors.centerIn: parent; text: I18n.tr("Cancel"); color: root.theme.islandFg }
             MouseArea {
                 anchors.fill: parent
                 onClicked: root.closeRequested()
@@ -29,7 +30,7 @@ Item {
             height: 30
             radius: 10
             color: root.kind === "recording" ? root.theme.accentRed : root.theme.accentGreen
-            Text { anchors.centerIn: parent; text: "Stop"; color: root.theme.islandFg }
+            Text { anchors.centerIn: parent; text: I18n.tr("Stop"); color: root.theme.islandFg }
             MouseArea {
                 anchors.fill: parent
                 onClicked: {

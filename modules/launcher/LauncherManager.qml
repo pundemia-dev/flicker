@@ -11,6 +11,7 @@ Item {
     id: root
     required property var cfg
     required property var theme
+    property var host: null
 
     readonly property int stateDefault: 0
     readonly property int stateSelecting: 1
@@ -158,6 +159,7 @@ Item {
         activeManifest = manifest;
         activePlugin = inst;
         if (inst) {
+            inst.host = root.host;
             inst.isActive = true;
             inst.onActivated(initialQuery);
         }

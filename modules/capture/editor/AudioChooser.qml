@@ -1,5 +1,6 @@
 import QtQuick
 import "../../../components"
+import "../../../config"
 
 // Record pending state (port of pShell RecordPill's chooser): audio chips
 // next to the selection; recording starts only when one is clicked
@@ -14,10 +15,10 @@ Item {
     readonly property var cfg: root.editor.cfg
     readonly property var recorder: root.editor.capture.recorder
     readonly property var choices: [
-        { v: "none", label: "Без звука", glyph: "" },
-        { v: "system", label: "Система", glyph: "" },
-        { v: "mic", label: "Микрофон", glyph: "" },
-        { v: "both", label: "Оба", glyph: "" }
+        { v: "none", label: I18n.tr("No audio"), glyph: "" },
+        { v: "system", label: I18n.tr("System"), glyph: "" },
+        { v: "mic", label: I18n.tr("Microphone"), glyph: "" },
+        { v: "both", label: I18n.tr("Both"), glyph: "" }
     ]
 
     // Below the selection, else above, else inside at the bottom.

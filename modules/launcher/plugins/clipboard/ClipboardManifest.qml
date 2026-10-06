@@ -1,10 +1,11 @@
 import QtQuick
 import "../../api"
+import "../../../../config"
 
 LauncherManifest {
     pluginId: "clipboard"
-    title: "Буфер обмена"
-    description: "История буфера обмена (cliphist)"
+    title: I18n.tr("Clipboard")
+    description: I18n.tr("Clipboard history (cliphist)")
     icon: "" // tabler clipboard
     trigger: "clip"
     order: 15

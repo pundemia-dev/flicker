@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Shapes
 import "../../../components"
+import "../../../config"
 
 // Hardware sensors (2x1, iOS stat tile): CPU temperature (heat-coloured)
 // left, fan speed right, a faint temperature sparkline along the bottom.
@@ -97,7 +98,7 @@ DashboardCard {
             }
             Text {
                 anchors.right: parent.right
-                text: "об/мин"
+                text: I18n.tr("rpm")
                 color: root.theme?.cardDim ?? "#99EBEBF5"
                 font.pixelSize: (root.dash?.titleSize ?? 13) - 2
             }

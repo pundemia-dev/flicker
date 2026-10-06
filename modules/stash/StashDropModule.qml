@@ -1,5 +1,6 @@
 import QtQuick
 import "../../components"
+import "../../config"
 
 // Drop chooser (pShell stash design): opens when a file drag hovers the
 // island. Two tiles side by side: the tray (no fill, dashed outline while
@@ -68,7 +69,7 @@ Item {
 
             ZoneLabel {
                 glyph: ""
-                label: "Лоток"
+                label: I18n.tr("Tray")
             }
 
             DropArea {

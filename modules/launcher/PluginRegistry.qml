@@ -1,6 +1,7 @@
 import QtQuick
 import "plugins/apps"
 import "plugins/clipboard"
+import "plugins/wallpapers"
 
 // Launcher plugins (pShell PluginRegistry semantics without folder
 // scanning: Quickshell's scanner misses imports of dynamically loaded
@@ -15,7 +16,8 @@ QtObject {
 
     readonly property list<QtObject> all: [
         AppsManifest {},
-        ClipboardManifest {}
+        ClipboardManifest {},
+        WallpapersManifest {}
     ]
 
     readonly property var active: {

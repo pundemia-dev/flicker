@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import "../../../components"
+import "../../../config"
 
 // Chrome T-Rex runner (port of components/DinoGame.qml from the caelestia
 // fork dim-ghub/caelestia-shell, GPL-3.0; sprites in assets/dino/, recoloured
@@ -311,7 +312,7 @@ Item {
         }
         Text {
             anchors.horizontalCenter: parent.horizontalCenter
-            text: root.over ? "Клик или Space — заново" : "Клик / Space — прыжок, ПКМ / ↓ — пригнуться"
+            text: root.over ? I18n.tr("Click or Space — play again") : I18n.tr("Click / Space — jump, RMB / ↓ — duck")
             font.pixelSize: 11
             color: "#8E95A1"
         }

@@ -30,6 +30,7 @@ Scope {
     Polkit {
         id: polkitService
         cfg: Config.data.polkit
+        haptics: hapticsService
         onStarted: islandRegistry.forOutput(compositorService.focusedOutput ?? "")?.openPolkit()
     }
     ControlCenter { id: controlCenterService; cfg: Config.data.quicksettings; haptics: hapticsService }

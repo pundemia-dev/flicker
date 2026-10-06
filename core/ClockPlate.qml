@@ -3,7 +3,7 @@ import "../components"
 
 // Clock area: normally shows the time; while recording or hotspot is active a
 // coloured plate flies in from above (scale 0.5 -> 1), shows a stop/hotspot
-// icon, then fades to the elapsed time. Clicking the plate opens the
+// icon, then fades to the elapsed time (recording) / the clock (hotspot). Clicking the plate opens the
 // cancel/stop action buttons. The island itself never changes size.
 // The clock face has no MouseArea of its own: presses fall through to the
 // gesture layer underneath, which drives the dashboard drawer drag.
@@ -24,6 +24,14 @@ Item {
     readonly property color plateColor: root.rec ? root.theme.accentRed : root.theme.accentGreen
 
     property bool showIcon: false
+
+    // Plate label: recording = elapsed time, hotspot = the clock (spec: same
+    // mechanics as recording, time on the plate). A hidden plate carries no
+    // text (it would size the plate and widen the bar); while flying away it
+    // keeps the last label so it does not shrink mid-exit.
+    readonly property string plateLabel: root.rec ? (root.recorder?.elapsedText ?? "") : root.hot ? root.clock.time : ""
+    property string heldLabel: ""
+    onPlateLabelChanged: if (root.active) root.heldLabel = root.plateLabel
 
     // Shared element contracts (core/TransitionLayer), per target module.
     // Not offered while the recording/hotspot plate replaces the clock face.
@@ -147,7 +155,7 @@ Item {
             color: root.theme.islandFg
             font.pixelSize: root.theme.fontSizeIndicator
             font.weight: Font.Medium
-            text: root.rec ? root.recorder.elapsedText : "Hotspot"
+            text: root.active ? root.plateLabel : plate.visible ? root.heldLabel : ""
             opacity: root.showIcon ? 0 : 1
             Behavior on opacity { NumberAnimation { duration: 120 } }
         }

@@ -1,11 +1,12 @@
 import QtQuick
 import "../../../components"
 import "../../../components/Knockout.js" as Knockout
+import "../../../config"
 
 // One app's notifications in the center, iOS-style. Collapsed: the newest
 // tile in front, up to centerStackDepth blank plates peeking out below it
 // (each a bit narrower). A tap fans the stack out into a list under a
-// header (app name, «Свернуть», ✕ = clear group). All positions are
+// header (app name, «Show Less», ✕ = clear group). All positions are
 // springs, so expand/collapse is one continuous fan motion.
 Item {
     id: root
@@ -77,7 +78,7 @@ Item {
 
             Pill {
                 frost: root.frost
-                label: "Свернуть"
+                label: I18n.tr("Show Less")
                 onClicked: root.expandRequested(false)
             }
             Pill {

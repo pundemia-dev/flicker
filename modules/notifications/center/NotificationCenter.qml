@@ -2,6 +2,7 @@ import QtQuick
 import "../../../components/Knockout.js" as Knockout
 import "../../../components"
 import "../games"
+import "../../../config"
 
 // Notification Center (history view of the notifications module), iOS
 // style: entries grouped by app (newest group first, stacks fan out on
@@ -63,7 +64,7 @@ Item {
         const order = [];
         const byApp = {};
         for (const e of root.history) {
-            const app = (e?.appName ?? "").trim() || "Без имени";
+            const app = (e?.appName ?? "").trim() || I18n.tr("Unnamed");
             if (!byApp[app]) {
                 byApp[app] = [];
                 order.push(app);
@@ -119,7 +120,7 @@ Item {
                 anchors.left: parent.left
                 anchors.leftMargin: 6
                 anchors.verticalCenter: parent.verticalCenter
-                text: "Уведомления"
+                text: I18n.tr("Notifications")
                 font.pixelSize: 20
                 font.weight: Font.Bold
                 color: "#F0F4FB"
@@ -128,7 +129,7 @@ Item {
                 frost: root.frost
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
-                label: "Очистить всё"
+                label: I18n.tr("Clear All")
                 onClicked: root.service?.dismissAll(root.history)
             }
         }

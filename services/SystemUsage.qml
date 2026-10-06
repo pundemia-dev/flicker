@@ -28,7 +28,7 @@ Item {
     function formatGib(bytes: real): string {
         if (!(bytes > 0))
             return "—";
-        return `${(bytes / 1073741824).toFixed(1)} ГиБ`;
+        return I18n.tr("%1 GiB").arg((bytes / 1073741824).toFixed(1));
     }
 
     Timer {

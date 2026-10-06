@@ -1,6 +1,7 @@
 import QtQuick
 import "../../../components"
 import "ColorMath.js" as ColorMath
+import "../../../config"
 
 // Picked-colour panel (port of pShell ColorPanel, plain rounded panel
 // instead of the SDF blob): live + picked previews, an editable value field
@@ -147,8 +148,8 @@ Item {
                     spacing: root.gap * 2
                     Repeater {
                         model: [
-                            { label: "курсор", picked: false },
-                            { label: "выбран", picked: true }
+                            { label: I18n.tr("cursor"), picked: false },
+                            { label: I18n.tr("picked"), picked: true }
                         ]
                         Column {
                             required property var modelData
@@ -184,7 +185,7 @@ Item {
                         height: width
                         glyph: ""
                         iconSize: root.cfg.toolIconSize
-                        onClicked: root.actions.copyText(root.valueText, "Цвет скопирован")
+                        onClicked: root.actions.copyText(root.valueText, I18n.tr("Color copied"))
                     }
                     IconButton {
                         theme: root.theme

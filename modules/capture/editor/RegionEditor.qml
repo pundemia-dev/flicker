@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import "../../../config"
 
 // Flameshot-style region editor on one screen (port of pShell
 // RegionEditor). Drag selects (click = whole screen), then the toolbar ring
@@ -215,7 +216,7 @@ Item {
             if (ocr.running)
                 return; // Enter would close before the text arrives
             if (ocr.text !== "")
-                root.actions.copyText(ocr.text, "Текст скопирован");
+                root.actions.copyText(ocr.text, I18n.tr("Text copied"));
             root.capture.done();
         } else if (root.capture.mode !== "ai")
             root.commitDefault();

@@ -1,5 +1,6 @@
 import QtQuick
 import "../../components"
+import "../../config"
 
 // LocalSend target picker (pShell DevicePicker port): header (state +
 // rescan, which spins while scanning), device rows (wheel-scroll past
@@ -37,10 +38,10 @@ Item {
             anchors.rightMargin: 8
             anchors.verticalCenter: parent.verticalCenter
             elide: Text.ElideRight
-            text: root.phase === "scanning" ? "Поиск устройств…"
-                : root.sending ? "Отправка…"
-                : root.localSend.devices.count === 0 ? "Устройства не найдены"
-                : root.fileCount > 1 ? `Отправить файлы (${root.fileCount})` : "Отправить на"
+            text: root.phase === "scanning" ? I18n.tr("Searching for devices…")
+                : root.sending ? I18n.tr("Sending…")
+                : root.localSend.devices.count === 0 ? I18n.tr("No devices found")
+                : root.fileCount > 1 ? I18n.tr("Send files (%1)").arg(root.fileCount) : I18n.tr("Send to")
             color: root.theme.islandFg
             font.pixelSize: root.theme.fontSizeClock
             font.weight: Font.DemiBold
@@ -125,7 +126,7 @@ Item {
         Text {
             anchors.centerIn: parent
             visible: root.phase === "ready" && root.localSend.devices.count === 0
-            text: "Откройте LocalSend на другом устройстве"
+            text: I18n.tr("Open LocalSend on another device")
             color: root.theme.subtleFg
             font.pixelSize: root.theme.fontSizeBody
         }
@@ -171,7 +172,7 @@ Item {
             anchors.top: track.bottom
             anchors.topMargin: 8
             anchors.horizontalCenter: parent.horizontalCenter
-            text: root.fileCount > 1 ? `Загрузка файлов (${root.fileCount})…` : "Загрузка файла…"
+            text: root.fileCount > 1 ? I18n.tr("Uploading files (%1)…").arg(root.fileCount) : I18n.tr("Uploading file…")
             color: root.theme.subtleFg
             font.pixelSize: root.theme.fontSizeBody
         }

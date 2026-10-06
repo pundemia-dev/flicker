@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 import "../../../components"
+import "../../../config"
 
 // CPU / RAM / disk as three concentric rings + legend. Layout: fixed title
 // row pinned top-left, bottom row = square indicator box (left, as large as
@@ -57,7 +58,7 @@ DashboardCard {
 
             CardTitle {
                 Layout.fillWidth: true
-                label: "Нагрузка"
+                label: I18n.tr("Load")
                 theme: root.theme
                 dash: root.dash
             }
@@ -124,7 +125,7 @@ DashboardCard {
                 }
                 Metric {
                     value: Math.round(root.diskFrac * 100)
-                    unit: "Диск"
+                    unit: I18n.tr("Disk")
                     color: root.theme?.cardBlue ?? "#0F7CEC"
                     theme: root.theme
                     dash: root.dash

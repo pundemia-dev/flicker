@@ -120,9 +120,9 @@ Item {
             root.paused = false;
             root.discardRequested = false;
             if (discard)
-                Quickshell.execDetached(["bash", "-c", `rm -f ${f}; notify-send -a pillShell 'Запись удалена'`]);
+                Quickshell.execDetached(["bash", "-c", `rm -f ${f}; notify-send -a pillShell ${root.shq(I18n.tr("Recording discarded"))}`]);
             else
-                Quickshell.execDetached(["bash", "-c", `[ -s ${f} ] && notify-send -a pillShell 'Запись сохранена' ${f} || notify-send -a pillShell 'Запись не удалась' 'wf-recorder завершился без файла'`]);
+                Quickshell.execDetached(["bash", "-c", `[ -s ${f} ] && notify-send -a pillShell ${root.shq(I18n.tr("Recording saved"))} ${f} || notify-send -a pillShell ${root.shq(I18n.tr("Recording failed"))} ${root.shq(I18n.tr("wf-recorder exited without a file"))}`]);
         }
     }
 

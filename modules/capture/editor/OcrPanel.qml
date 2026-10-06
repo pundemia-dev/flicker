@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell.Io
 import "../../../components"
+import "../../../config"
 
 // Inline OCR (port of pShell OcrPanel + RegionEditor OCR state): the
 // selection stays adjustable while the text is shown — moving/resizing the
@@ -140,14 +141,14 @@ Item {
                 Column {
                     anchors.verticalCenter: parent.verticalCenter
                     Text {
-                        text: "Распознавание текста"
+                        text: I18n.tr("Text Recognition")
                         color: root.theme.islandFg
                         font.family: root.theme.fontFamily
                         font.pixelSize: root.theme.fontSizeClock
                         font.weight: Font.DemiBold
                     }
                     Text {
-                        text: root.running ? "Распознаю…" : (root.text !== "" ? "Скопировано в буфер" : "Текст не найден")
+                        text: root.running ? I18n.tr("Recognizing…") : (root.text !== "" ? I18n.tr("Copied to clipboard") : I18n.tr("No text found"))
                         color: root.theme.subtleFg
                         font.family: root.theme.fontFamily
                         font.pixelSize: root.theme.fontSizeTiny
@@ -164,7 +165,7 @@ Item {
                         glyph: ""
                         iconSize: root.cfg.toolIconSize
                         disabled: root.running || root.text === ""
-                        onClicked: root.actions.copyText(root.text, "Текст скопирован")
+                        onClicked: root.actions.copyText(root.text, I18n.tr("Text copied"))
                     }
                     IconButton {
                         theme: root.theme
@@ -195,7 +196,7 @@ Item {
                         Text {
                             id: chipText
                             anchors.centerIn: parent
-                            text: chip.modelData === "" ? "Все" : chip.modelData
+                            text: chip.modelData === "" ? I18n.tr("All") : chip.modelData
                             color: root.theme.islandFg
                             font.family: root.theme.fontFamily
                             font.pixelSize: root.theme.fontSizeIndicator
@@ -230,7 +231,7 @@ Item {
                         readOnly: true
                         selectByMouse: true
                         wrapMode: TextEdit.Wrap
-                        text: root.text !== "" ? root.text : (root.running ? "…" : "(пусто)")
+                        text: root.text !== "" ? root.text : (root.running ? "…" : I18n.tr("(empty)"))
                         color: root.text !== "" ? root.theme.islandFg : root.theme.subtleFg
                         selectionColor: root.theme.cardBlue
                         font.family: root.theme.fontFamily

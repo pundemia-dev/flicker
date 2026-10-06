@@ -1,5 +1,6 @@
 import QtQuick
 import "../../../components"
+import "../../../config"
 
 // Mini-games of the empty Notification Center. One game is live at a time
 // (Loader — idle games cost nothing); a horizontal swipe switches to the
@@ -94,7 +95,7 @@ Item {
         anchors.top: parent.top
         anchors.leftMargin: 16
         anchors.topMargin: 12
-        text: "Нет уведомлений · " + (root.game?.title ?? "")
+        text: I18n.tr("No notifications · %1").arg(root.game?.title ?? "")
         font.pixelSize: 12
         color: "#8E95A1"
     }

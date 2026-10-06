@@ -11,17 +11,18 @@
 const BUTTON_WIDE = [[2, 1], [1, 1], [2, 2]];
 const BUTTON_SMALL = [[1, 1], [2, 1], [2, 2]];
 
+// Titles are English I18n keys: translate at the display site (I18n.tr).
 const CARDS = {
     wifi: { glyph: "\ueb52", title: "Wi‑Fi", sizes: BUTTON_WIDE },
     bluetooth: { glyph: "\uea37", title: "Bluetooth", sizes: BUTTON_WIDE },
-    hotspot: { glyph: "\ued1b", title: "Точка доступа", sizes: BUTTON_SMALL },
-    dnd: { glyph: "\uf684", title: "Не беспокоить", sizes: BUTTON_SMALL },
-    mic: { glyph: "\ueaf0", title: "Микрофон", sizes: BUTTON_SMALL },
-    volume: { glyph: "\ueb51", title: "Громкость", sizes: [[1, 2], [1, 1], [2, 1], [4, 1], [1, 3], [2, 2]] },
-    brightness: { glyph: "\uD800\uDD08", title: "Яркость", sizes: [[1, 2], [1, 1], [2, 1], [4, 1], [1, 3], [2, 2]] },
-    media: { glyph: "\ueafc", title: "Музыка", sizes: [[2, 2], [1, 1], [2, 1], [4, 1], [4, 2], [4, 4], [4, 6]] },
-    record: { glyph: "\ued47", title: "Запись экрана", sizes: BUTTON_SMALL },
-    screenshot: { glyph: "\uf201", title: "Снимок экрана", sizes: BUTTON_SMALL }
+    hotspot: { glyph: "\ued1b", title: "Hotspot", sizes: BUTTON_SMALL },
+    dnd: { glyph: "\uf684", title: "Do Not Disturb", sizes: BUTTON_SMALL },
+    mic: { glyph: "\ueaf0", title: "Microphone", sizes: BUTTON_SMALL },
+    volume: { glyph: "\ueb51", title: "Volume", sizes: [[1, 2], [1, 1], [2, 1], [4, 1], [1, 3], [2, 2]] },
+    brightness: { glyph: "\uD800\uDD08", title: "Brightness", sizes: [[1, 2], [1, 1], [2, 1], [4, 1], [1, 3], [2, 2]] },
+    media: { glyph: "\ueafc", title: "Music", sizes: [[2, 2], [1, 1], [2, 1], [4, 1], [4, 2], [4, 4], [4, 6]] },
+    record: { glyph: "\ued47", title: "Screen Recording", sizes: BUTTON_SMALL },
+    screenshot: { glyph: "\uf201", title: "Screenshot", sizes: BUTTON_SMALL }
 };
 
 // Stable order (Repeater model: delegates are never recreated, cards

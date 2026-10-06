@@ -3,6 +3,7 @@ import Quickshell.Services.Mpris
 import "../../../components"
 import "../../player"
 import "MediaLayout.js" as MediaLayout
+import "../../../config"
 
 // Now playing, one layout that MORPHS between footprints (MediaLayout.js):
 //   1x1  cover fills the circle (dimmed) + play
@@ -138,7 +139,7 @@ Item {
 
             Text {
                 width: parent.width
-                text: root.hasPlayer && (root.players?.trackTitle ?? "") !== "" ? root.players.trackTitle : "Ничего не играет"
+                text: root.hasPlayer && (root.players?.trackTitle ?? "") !== "" ? root.players.trackTitle : I18n.tr("Not Playing")
                 color: "#F0F4FB"
                 font.pixelSize: root.lay.titleSize
                 font.weight: Font.Bold

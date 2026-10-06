@@ -4,6 +4,7 @@ import Quickshell.Io
 import Quickshell.Widgets
 import "../../components"
 import "../notifications/center"
+import "../../config"
 
 // Incoming LocalSend transfer (pShell IncomingRequest port): sender + files
 // (or the text of a clipboard send), destination (cfg.downloadDir, one-off
@@ -79,14 +80,14 @@ Item {
                 anchors.rightMargin: 8
                 anchors.verticalCenter: parent.verticalCenter
                 Text {
-                    text: root.isText ? "Входящее сообщение" : "Входящие файлы"
+                    text: root.isText ? I18n.tr("Incoming message") : I18n.tr("Incoming files")
                     color: root.theme.islandFg
                     font.pixelSize: root.theme.fontSizeClock
                     font.weight: Font.DemiBold
                 }
                 Text {
                     width: parent.width
-                    text: "от " + (root.req?.alias ?? "")
+                    text: I18n.tr("from %1").arg(root.req?.alias ?? "")
                     color: root.theme.subtleFg
                     font.pixelSize: root.theme.fontSizeBody
                     elide: Text.ElideRight
@@ -192,7 +193,7 @@ Item {
                 Text {
                     anchors.top: track.bottom
                     anchors.topMargin: 6
-                    text: "Получение… " + Math.round(root.localSend.progress * 100) + "%"
+                    text: I18n.tr("Receiving… %1%").arg(Math.round(root.localSend.progress * 100))
                     color: root.theme.subtleFg
                     font.pixelSize: root.theme.fontSizeBody
                 }
@@ -233,12 +234,12 @@ Item {
 
             Pill {
                 anchors.verticalCenter: parent.verticalCenter
-                label: root.isText ? "Закрыть" : "Отклонить"
+                label: root.isText ? I18n.tr("Close") : I18n.tr("Decline")
                 onClicked: root.localSend.reject()
             }
             Pill {
                 anchors.verticalCenter: parent.verticalCenter
-                label: root.isText ? "Скопировать" : "Принять"
+                label: root.isText ? I18n.tr("Copy") : I18n.tr("Accept")
                 color: root.theme.cardBlue
                 onClicked: root.localSend.accept(root.targetDir)
             }

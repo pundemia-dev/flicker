@@ -1,9 +1,10 @@
 import QtQuick
 import "../../components"
+import "../../config"
 
 // Polkit prompt as an island module (services/Polkit is the agent). Layout:
-// lock disc + title / message, the pkexec command on its own monospace
-// plate, identity (tap to cycle when polkit offers several admins), password
+// lock disc + title, a card with the polkit message (big, bold) and the
+// action id (small), identity (tap to cycle when polkit offers several admins), password
 // pill, status line (wrong password / PAM info such as a fingerprint
 // prompt), Отмена / Подтвердить. Success swaps the lock for a green tick
 // before Island closes the module (`polkit.successHoldMs`).
@@ -48,6 +49,8 @@ Item {
         y: root.cfg.padding
         width: root.width - root.cfg.padding * 2
         spacing: root.cfg.gap
+        // Rows below a status line that appears / collapses slide instead of jumping.
+        move: Transition { Spring { properties: "y" } }
 
         // ── Header ──
         Item {
@@ -82,58 +85,57 @@ Item {
                 }
             }
 
-            Column {
+            Text {
                 id: headText
                 anchors.left: disc.right
                 anchors.leftMargin: root.cfg.gap
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
-                spacing: 2
+                text: root.success ? I18n.tr("Access granted") : (root.req?.title ?? "")
+                color: root.theme.islandFg
+                font.family: root.theme.fontFamily
+                font.pixelSize: root.cfg.titleSize
+                font.weight: Font.DemiBold
+                elide: Text.ElideRight
+            }
+        }
+
+        // ── Request card: the polkit message big + bold, the action id small ──
+        Rectangle {
+            width: parent.width
+            height: cardText.implicitHeight + root.cfg.cardPadding * 2
+            radius: root.cfg.buttonHeight / 2
+            color: root.theme.cardBg
+
+            Column {
+                id: cardText
+                x: root.cfg.cardPadding
+                y: root.cfg.cardPadding
+                width: parent.width - root.cfg.cardPadding * 2
+                spacing: root.cfg.gap / 2
 
                 Text {
                     width: parent.width
-                    text: root.success ? "Доступ разрешён" : (root.req?.title ?? "")
+                    text: root.req?.message ?? ""
                     color: root.theme.islandFg
                     font.family: root.theme.fontFamily
-                    font.pixelSize: root.cfg.titleSize
-                    font.weight: Font.DemiBold
-                    elide: Text.ElideRight
-                }
-                Text {
-                    width: parent.width
-                    text: root.req?.message ?? ""
-                    color: root.theme.subtleFg
-                    font.family: root.theme.fontFamily
-                    font.pixelSize: root.cfg.fontSize
+                    font.pixelSize: root.cfg.messageSize
+                    font.weight: Font.Bold
                     wrapMode: Text.Wrap
                     maximumLineCount: root.cfg.messageLines
                     elide: Text.ElideRight
                     textFormat: Text.PlainText
                 }
-            }
-        }
-
-        // ── pkexec command ──
-        Rectangle {
-            visible: (root.req?.command ?? "") !== ""
-            width: parent.width
-            height: cmdText.implicitHeight + root.cfg.gap * 1.5
-            radius: Math.min(height / 2, root.cfg.fieldHeight / 2)
-            color: root.theme.cardBg
-
-            Text {
-                id: cmdText
-                anchors.verticalCenter: parent.verticalCenter
-                x: parent.radius
-                width: parent.width - parent.radius * 2
-                text: root.req?.command ?? ""
-                color: root.theme.islandFg
-                font.family: root.cfg.monoFamily
-                font.pixelSize: root.cfg.fontSize
-                wrapMode: Text.WrapAnywhere
-                maximumLineCount: root.cfg.commandLines
-                elide: Text.ElideRight
-                textFormat: Text.PlainText
+                Text {
+                    visible: text !== ""
+                    width: parent.width
+                    text: root.req?.actionId ?? ""
+                    color: root.theme.subtleFg
+                    font.family: root.theme.fontFamily
+                    font.pixelSize: root.cfg.detailSize
+                    elide: Text.ElideMiddle
+                    textFormat: Text.PlainText
+                }
             }
         }
 
@@ -189,28 +191,55 @@ Item {
             theme: root.theme
             cfg: root.cfg
             placeholder: root.polkit.prompt !== "" && !/^пароль$|^password$/i.test(root.polkit.prompt)
-                ? root.polkit.prompt : "Пароль"
+                ? root.polkit.prompt : I18n.tr("Password")
             plainText: root.polkit.responseVisible
             busy: root.busy
-            error: root.polkit.failCount > 0 && root.polkit.phase === "input"
+            locked: root.polkit.locked
+            lockPrefix: root.polkit.lockPrefix
+            lockValue: root.polkit.lockValue
+            error: root.polkit.failCount > 0 && root.polkit.phase === "input" && !root.polkit.locked
             onAccepted: root.confirm()
             onEscaped: root.polkit.cancel()
             Component.onCompleted: focusField()
         }
 
         // ── Status ──
-        Text {
-            readonly property string msg: root.polkit.supplementary !== "" ? root.polkit.supplementary
-                : root.polkit.failCount > 0 && !root.busy ? "Неверный пароль, попробуйте ещё раз" : ""
-            readonly property bool isError: root.polkit.supplementary !== "" ? root.polkit.supplementaryIsError : true
-            visible: msg !== ""
+        // Blur-fades in; on the way out it keeps the last text and its
+        // height until the fade is done, then collapses (one layout change,
+        // the island springs to it — no per-frame height).
+        Item {
+            id: status
+            // The faillock message lives inside the password field instead.
+            readonly property string msg: root.polkit.locked ? ""
+                : root.polkit.supplementary !== "" && !root.polkit.supplementaryIsLock ? root.polkit.supplementary
+                : root.polkit.failCount > 0 && !root.busy ? I18n.tr("Wrong password, try again") : ""
+            readonly property bool isError: root.polkit.supplementary !== "" && !root.polkit.supplementaryIsLock
+                ? root.polkit.supplementaryIsError : true
+            property string heldMsg: ""
+            property bool heldError: true
+            onMsgChanged: if (msg !== "") { heldMsg = msg; heldError = isError; }
+            onIsErrorChanged: if (msg !== "") heldError = isError
+
+            visible: msg !== "" || statusFade.p > 0.02
             width: parent.width
-            text: msg
-            color: isError ? root.theme.accentRed : root.theme.subtleFg
-            font.family: root.theme.fontFamily
-            font.pixelSize: root.cfg.fontSize
-            wrapMode: Text.Wrap
-            horizontalAlignment: Text.AlignHCenter
+            height: statusText.implicitHeight
+
+            FadeBlur {
+                id: statusFade
+                anchors.fill: parent
+                blurMax: root.cfg.textBlurMax
+                shown: status.msg !== ""
+                Text {
+                    id: statusText
+                    width: parent.width
+                    text: status.heldMsg
+                    color: status.heldError ? root.theme.accentRed : root.theme.subtleFg
+                    font.family: root.theme.fontFamily
+                    font.pixelSize: root.cfg.fontSize
+                    wrapMode: Text.Wrap
+                    horizontalAlignment: Text.AlignHCenter
+                }
+            }
         }
 
         // ── Actions ──
@@ -221,16 +250,16 @@ Item {
             PolkitButton {
                 theme: root.theme
                 cfg: root.cfg
-                label: "Отмена"
+                label: I18n.tr("Cancel")
                 enabled: !root.success
                 onClicked: root.polkit.cancel()
             }
             PolkitButton {
                 theme: root.theme
                 cfg: root.cfg
-                label: "Подтвердить"
+                label: I18n.tr("Confirm")
                 base: root.theme.qsBlue
-                enabled: !root.busy && field.text.length > 0
+                enabled: !root.busy && !root.polkit.locked && field.text.length > 0
                 onClicked: root.confirm()
             }
         }
