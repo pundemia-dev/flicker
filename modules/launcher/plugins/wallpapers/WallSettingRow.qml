@@ -22,14 +22,17 @@ Item {
     signal activated
 
     readonly property real inset: root.c.settingsRowInset ?? 12
-    readonly property real icon: root.c.settingsIconSize ?? 24
+    // Icon tile size matched to the row's parity so it centres on whole
+    // pixels (34 in a 45 px row left 5 / 6 px: the tile sat 1 px low).
+    readonly property real iconBase: root.c.settingsIconSize ?? 24
+    readonly property real icon: root.iconBase + ((Math.round(root.height) - root.iconBase) % 2 === 0 ? 0 : 1)
     readonly property bool isReset: root.row.kind === "reset"
 
     // Icon tile.
     Rectangle {
         id: tile
         x: Math.round(root.inset)
-        y: Math.round((root.height - root.icon) / 2)
+        y: Math.floor((root.height - root.icon) / 2)
         width: root.icon
         height: root.icon
         radius: root.icon * 0.28
@@ -45,9 +48,12 @@ Item {
             topColor: root.theme.wallSettingsIconRimTop
             bottomColor: root.theme.wallSettingsIconRimBottom
         }
+        // CurveRendering: vector-antialiased glyph — NativeRendering hinted
+        // the icon font into blocky strokes at this size.
         Text {
-            x: Math.round((tile.width - implicitWidth) / 2)
-            y: Math.round((tile.height - implicitHeight) / 2)
+            x: Math.floor((tile.width - implicitWidth) / 2)
+            y: Math.floor((tile.height - implicitHeight) / 2)
+            renderType: Text.CurveRendering
             text: root.row.glyph ?? ""
             font.family: root.theme.iconFamily
             font.pixelSize: root.icon * 0.62
