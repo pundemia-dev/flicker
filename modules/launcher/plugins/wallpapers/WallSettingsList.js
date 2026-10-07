@@ -6,17 +6,19 @@
 //   choice  — options [{ value, label, arg? }]: label may hold "%1" = arg
 //   reset   — clears every override (back to config.json)
 // Order = reading order of the two-column grid (left column first).
+const EFFECTS = [
+    { value: "island", label: "From the island" },
+    { value: "fade", label: "Fade" },
+    { value: "wipe", label: "Wipe" },
+    { value: "slide", label: "Slide" },
+    { value: "wave", label: "Wave" },
+    { value: "grow", label: "Grow" },
+    { value: "outer", label: "Shrink" },
+    { value: "random", label: "Random" }
+];
+
 const ROWS = [
-    { key: "effect", label: "Transition", kind: "choice", options: [
-            { value: "island", label: "From the island" },
-            { value: "fade", label: "Fade" },
-            { value: "wipe", label: "Wipe" },
-            { value: "slide", label: "Slide" },
-            { value: "wave", label: "Wave" },
-            { value: "grow", label: "Grow" },
-            { value: "outer", label: "Shrink" },
-            { value: "random", label: "Random" }
-        ] },
+    { key: "effect", label: "Transition", kind: "choice", options: EFFECTS },
     { key: "durationMs", label: "Transition length", kind: "choice", options: [
             { value: 400, label: "%1 s", arg: "0.4" },
             { value: 700, label: "%1 s", arg: "0.7" },
@@ -25,6 +27,15 @@ const ROWS = [
             { value: 2500, label: "%1 s", arg: "2.5" }
         ] },
     { key: "livePreview", label: "Live preview", kind: "bool" },
+    { key: "previewEffect", label: "Preview transition", kind: "choice",
+        options: [{ value: "same", label: "As when applying" }].concat(EFFECTS) },
+    { key: "previewDurationMs", label: "Preview length", kind: "choice", options: [
+            { value: 150, label: "%1 s", arg: "0.15" },
+            { value: 300, label: "%1 s", arg: "0.3" },
+            { value: 500, label: "%1 s", arg: "0.5" },
+            { value: 800, label: "%1 s", arg: "0.8" },
+            { value: 1200, label: "%1 s", arg: "1.2" }
+        ] },
     { key: "theme", label: "Colour scheme (wallr)", kind: "choice", options: [
             { value: "", label: "From wallr config" },
             { value: "none", label: "Off" },

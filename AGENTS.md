@@ -391,6 +391,9 @@ Not a git repo. No tests, no linter, no formatter.
   config.json is NEVER rewritten by the shell (JsonAdapter would dump every default);
   `resetSettings()` drops the overrides. Readers use the merged cfg (plugin `c`, services,
   QS slideshow card). Verified with wtype: change → override saved, reset → `{}`.
+  The live preview uses `previewEffect` ("same" = the apply `effect`, default) for
+  `previewDurationMs`: with a fade preview the picture is ALREADY on screen at Enter, so the
+  apply transition (picture → itself) was invisible and the effect setting "did nothing" (user).
   Verified via IPC + log only (centre on current wallpaper, thumbs, video init); visuals
   and keys NOT checked — the user checks visuals themselves (asked: no screenshots).
 - Polkit agent (Oct 2026, refs: DMS PolkitService, end-4 ii, caelestia): `services/Polkit.qml`

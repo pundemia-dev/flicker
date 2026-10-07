@@ -4,7 +4,7 @@ import "WallrArgs.js" as WallrArgs
 
 // Live preview of the carousel selection on this output (cfg.livePreview):
 // once the carousel rests for previewDelayMs the centre card goes onto the
-// desktop (short fade, no theming). Leaving without applying (Esc, closing
+// desktop (previewEffect — by default the apply effect —, no theming). Leaving without applying (Esc, closing
 // the launcher, another plugin) puts `original` back — detached, because
 // that also runs from the plugin's onDestruction.
 Item {
@@ -35,11 +35,16 @@ Item {
         timer.stop();
     }
 
+    // Preview (and restore) transition: previewEffect, "same" = the
+    // apply effect (cfg.effect); length previewDurationMs. No theming.
     function opts(): var {
+        const e = root.c.previewEffect ?? "same";
         return {
             output: root.host?.screen ?? "",
-            effect: "fade",
+            effect: e === "same" ? (root.c.effect ?? "island") : e,
             durationMs: root.c.previewDurationMs ?? 300,
+            originX: root.host?.originX ?? 0.5,
+            originY: root.host?.originY ?? 0.03,
             theme: "none"
         };
     }

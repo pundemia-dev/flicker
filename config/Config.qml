@@ -586,6 +586,9 @@ Singleton {
                             livePreview: true,
                             previewDelayMs: 120,
                             previewDurationMs: 300,
+                            // Preview transition: "same" = `effect`, or any
+                            // effect name.
+                            previewEffect: "same",
                             effect: "island",
                             durationMs: 1000,
                             mode: "fill",
