@@ -6,13 +6,24 @@
 //   choice  — options [{ value, label, arg? }]: label may hold "%1" = arg
 //   reset   — clears every override (back to config.json)
 // Order = reading order of the two-column grid (left column first).
+// wallr 0.6 effects: fade, wipe, slide, wave, grow, outer + its aliases
+// (simple = linear crossfade, left/right/top/bottom = slide from that edge,
+// center = grow from the centre, any = grow from a random point, random =
+// a random effect); "island" = grow from the bar (ours).
 const EFFECTS = [
     { value: "island", label: "From the island" },
     { value: "fade", label: "Fade" },
+    { value: "simple", label: "Crossfade" },
     { value: "wipe", label: "Wipe" },
-    { value: "slide", label: "Slide" },
     { value: "wave", label: "Wave" },
+    { value: "slide", label: "Slide" },
+    { value: "left", label: "Slide from the left" },
+    { value: "right", label: "Slide from the right" },
+    { value: "top", label: "Slide from the top" },
+    { value: "bottom", label: "Slide from the bottom" },
     { value: "grow", label: "Grow" },
+    { value: "center", label: "Grow from the centre" },
+    { value: "any", label: "Grow from a random point" },
     { value: "outer", label: "Shrink" },
     { value: "random", label: "Random" }
 ];
