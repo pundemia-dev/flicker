@@ -1423,6 +1423,7 @@ PanelWindow {
                         polkit: root.polkit,
                         prompter: root.prompter,
                         quickAction: root.runQuickAction,
+                        wallpaper: root.wallpaper,
                         // Launcher plugins: output + bar centre (normalized,
                         // y from the top) — the wallpaper "island" effect
                         // grows from there.

@@ -21,7 +21,7 @@ Item {
         return ({
             wifi: wifiComp, bluetooth: btComp, hotspot: hotspotComp, dnd: dndComp, mic: micComp,
             volume: volumeComp, brightness: brightnessComp, media: mediaComp,
-            record: recordComp, screenshot: screenshotComp
+            record: recordComp, screenshot: screenshotComp, slideshow: slideshowComp
         })[id] ?? null;
     }
 
@@ -94,6 +94,20 @@ Item {
                 else
                     root.services.quickAction("record");
             }
+        }
+    }
+    // Wallpaper slideshow (services/WallpaperSlideshow) over all wallpapers;
+    // Ctrl+S in the launcher carousel starts it over a filtered view.
+    Component {
+        id: slideshowComp
+        ButtonCard {
+            readonly property var show: root.services.wallpaper?.slideshow ?? null
+            glyph: "\uebc9"
+            title: I18n.tr("Slideshow")
+            accent: root.theme?.qsGreen ?? "#38C65A"
+            on: show?.active ?? false
+            status: on ? I18n.tr("Every %1").arg(I18n.tr("%1 min").arg(Math.max(1, Math.round((root.services.config?.launcher?.wallpapers?.slideshowIntervalSec ?? 900) / 60)))) : I18n.tr("Off")
+            activate: () => show?.toggle(null)
         }
     }
     Component {

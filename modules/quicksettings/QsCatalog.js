@@ -22,7 +22,8 @@ const CARDS = {
     brightness: { glyph: "\uD800\uDD08", title: "Brightness", sizes: [[1, 2], [1, 1], [2, 1], [4, 1], [1, 3], [2, 2]] },
     media: { glyph: "\ueafc", title: "Music", sizes: [[2, 2], [1, 1], [2, 1], [4, 1], [4, 2], [4, 4], [4, 6]] },
     record: { glyph: "\ued47", title: "Screen Recording", sizes: BUTTON_SMALL },
-    screenshot: { glyph: "\uf201", title: "Screenshot", sizes: BUTTON_SMALL }
+    screenshot: { glyph: "\uf201", title: "Screenshot", sizes: BUTTON_SMALL },
+    slideshow: { glyph: "\uebc9", title: "Slideshow", sizes: BUTTON_SMALL }
 };
 
 // Stable order (Repeater model: delegates are never recreated, cards
@@ -32,7 +33,7 @@ const IDS = Object.keys(CARDS);
 // W W M M   W = wifi 2x1, B = bluetooth 2x1, M = media 2x2
 // B B M M   D = dnd, m = mic, H = hotspot, R = record (1x1)
 // D m V L   V = volume 1x2, L = brightness 1x2
-// H R V L   screenshot starts hidden (edit footer → add)
+// H R V L   screenshot, slideshow start hidden (edit footer → add)
 const DEFAULT_LAYOUT = [
     { id: "wifi", x: 0, y: 0, w: 2, h: 1 },
     { id: "bluetooth", x: 0, y: 1, w: 2, h: 1 },
