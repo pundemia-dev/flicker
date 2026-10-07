@@ -166,6 +166,7 @@ const PAGES = [
                 ] },
             { key: "pauseOnFullscreen", glyph: "\ued45", tint: "qsGreen", label: "Pause video in fullscreen", kind: "bool" },
             { key: "pauseOnBattery", glyph: "\uea34", tint: "accentYellow", label: "Pause video on battery", kind: "bool" },
+            { key: "semanticIndexHidden", glyph: "\uf6d7", tint: "qsIndigo", label: "Index hidden for search", kind: "bool" },
             { key: "", glyph: "\ufafd", tint: "accentRed", label: "Reset to config", kind: "reset" }
         ]
     }

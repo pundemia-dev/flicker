@@ -680,6 +680,9 @@ Singleton {
                             semanticThreads: 6,
                             semanticIdleSec: 300,
                             semanticOnBattery: false,
+                            // Hidden files in the search index too (after the
+                            // visible ones).
+                            semanticIndexHidden: true,
                             semanticTop: 150,
                             semanticDebounceMs: 350,
                             dupesMaxAgeMin: 10,

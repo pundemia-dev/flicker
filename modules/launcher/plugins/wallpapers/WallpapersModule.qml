@@ -398,9 +398,17 @@ LauncherPlugin {
     function toggleHidden(): void {
         WallActions.toggleHidden(root);
     }
-    // Ctrl+S: slideshow over the current view (or stop it).
+    // Ctrl+S: slideshow over the current view (or stop it). A "? " / "~ "
+    // view is ranked asynchronously by the model, so its result is frozen
+    // into a path list the slideshow can re-resolve on its own.
     function toggleSlideshow(): void {
-        root.wallpaper?.slideshow.toggle({
+        const ranked = root.filter.filter === "semantic" || root.filter.filter === "similar";
+        root.wallpaper?.slideshow.toggle(ranked ? {
+            filter: "paths",
+            query: "",
+            paths: root.entries.map(e => e.path),
+            visibility: root.visibility
+        } : {
             filter: root.filter.filter,
             query: root.filter.query,
             visibility: root.visibility

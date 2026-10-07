@@ -27,6 +27,14 @@ var VISIBILITY = ["normal", "include", "only"];
 function apply(files, f, ctx) {
     const vis = ctx.visibility || "normal";
     let list = vis === "include" ? files : files.filter(e => e.hidden === (vis === "only"));
+    if (f.filter === "paths") {
+        // A frozen result list (a slideshow started from a "? " / "~ "
+        // view): those files, in that order.
+        const byPath = {};
+        for (const e of list)
+            byPath[e.path] = e;
+        return (f.paths || []).map(p => byPath[p]).filter(e => !!e);
+    }
     if (f.filter === "semantic" || f.filter === "similar") {
         // Ranked by the model's score, best first; the query text is the
         // description / file name, not a fuzzy filter.

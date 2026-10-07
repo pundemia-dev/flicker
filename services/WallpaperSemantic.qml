@@ -10,7 +10,8 @@ import "../modules/launcher/plugins/wallpapers/WallEntry.js" as WallEntry
 // semanticIdleSec; lines sent while it is down wait in `outbox` and go out
 // on start. Indexing runs in its own thread inside the server (niced,
 // ~3 s per thumbnail on the user's CPU) over the carousel thumbnails:
-// `indexAll()` after the thumbnail warm-up goes idle, never on battery
+// `indexAll()` after the thumbnail warm-up goes idle (visible files first,
+// hidden after or skipped — semanticIndexHidden), never on battery
 // (semanticOnBattery) — a running index stops when the power goes.
 // query(text, cb) / similar(key, cb) call cb({ key: score }).
 Scope {
@@ -81,12 +82,17 @@ Scope {
         id: scanProc
         stdout: StdioCollector {
             onStreamFinished: {
-                const items = WallEntry.lines(this.text).map(l => WallEntry.make(l.path, l.mtimeText, l.sizeText))
-                    .map(e => [e.key, root.cacheDir + "/" + e.key + ".jpg"]);
-                if (!items.length)
+                const all = WallEntry.lines(this.text).map(l => WallEntry.make(l.path, l.mtimeText, l.sizeText));
+                if (!all.length)
                     return;
-                root.send({ cmd: "forget", keep: items.map(i => i[0]) });
-                root.send({ cmd: "index", items: items });
+                // Visible pictures first, hidden ones after (the user's folder
+                // is mostly hidden files: ~3900 of ~4900) — or not at all
+                // (semanticIndexHidden). Vectors of every existing file are
+                // kept either way; only vanished files are forgotten.
+                const withHidden = root.cfg.semanticIndexHidden ?? true;
+                const order = all.filter(e => !e.hidden).concat(withHidden ? all.filter(e => e.hidden) : []);
+                root.send({ cmd: "forget", keep: all.map(e => e.key) });
+                root.send({ cmd: "index", items: order.map(e => [e.key, root.cacheDir + "/" + e.key + ".jpg"]) });
                 root.indexing = true;
             }
         }

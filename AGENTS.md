@@ -397,6 +397,12 @@ Not a git repo. No tests, no linter, no formatter.
   "Indexing n / m". Text encoder input is fixed 1×32 (padded); its attention pooling ignores
   the mask — queries are encoded one at a time. Verified: standalone protocol test, Russian
   queries on named thumbnails ("кот" → 3 cats, "машина" → 3 cars), live "? кот" + Ctrl+F.
+  Hidden files are indexed too (same vector hidden/unhidden — the key ignores the dot), visible
+  ones FIRST (the folder is ~3900 hidden of ~4900: ~3 h for everything), or skipped with
+  `semanticIndexHidden: false` (panel: General); the hidden-view mode filters BEFORE ranking.
+  Ctrl+S in a "? " / "~ " view freezes the ranked list into spec `{filter: "paths", paths}`
+  (`WallFilter` "paths" keeps that order) — the slideshow re-resolves synchronously and could
+  not wait for the model.
   qsBlue/cardBlue spring to a new accent per channel (`components/
   SpringColor.qml`: r/g/b/a on Springs, clamped). Settings panel = Ctrl+I in the carousel:
   `WallBody` blur-fades carousel ↔ `WallSettings` (two-column grid of `WallSettingsList.ROWS`:

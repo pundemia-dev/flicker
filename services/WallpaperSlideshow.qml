@@ -74,7 +74,7 @@ Scope {
     function pick(text: string): void {
         const files = WallEntry.sort(WallEntry.lines(text).map(l => WallEntry.make(l.path, l.mtimeText, l.sizeText)), root.cfg.sort ?? "name");
         const s = root.spec ?? {};
-        let pool = WallFilter.apply(files, { filter: s.filter ?? "", query: s.query ?? "" }, {
+        let pool = WallFilter.apply(files, { filter: s.filter ?? "", query: s.query ?? "", paths: s.paths ?? [] }, {
             favourites: root.wallpaper.favouriteSet,
             history: root.wallpaper.history,
             visibility: s.visibility ?? "normal"
