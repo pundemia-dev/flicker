@@ -20,7 +20,32 @@ Item {
     required property var service
     property bool playing: false
     property bool favourite: false
+    // Born in place (a renamed card, a ghost): no rise-in.
+    property bool instant: false
+    // Ghost of a removed card: dissolves (blur + fade + shrink) as gone → 1.
+    property bool leaving: false
     signal clicked
+
+    // FLIP offset (cards): the carousel adds it to d; a rebuild that moved
+    // this card sets it to old − new and it springs back to 0.
+    property real shift: 0
+    Behavior on shift {
+        id: shiftBehavior
+        Spring {
+            stiffness: root.c.closeStiffness ?? 4
+            damp: root.c.closeDamping ?? 0.5
+            eps: 0.002
+        }
+    }
+    function jumpShift(v: real): void {
+        shiftBehavior.enabled = false;
+        root.shift = v;
+        shiftBehavior.enabled = true;
+        root.shift = 0;
+    }
+
+    property real gone: 0
+    Behavior on gone { Spring { stiffness: root.c.leaveStiffness ?? 3; damp: root.c.leaveDamping ?? 0.6; eps: 0.005 } }
 
     readonly property real near: M.near(root.d)
     readonly property real halfWidth: (parent?.width ?? 0) / 2
@@ -33,95 +58,113 @@ Item {
 
     // Newcomers (search results, the window growing) rise in.
     property real appear: 0
-    Behavior on appear { Spring { stiffness: 4; damp: 0.5; eps: 0.005 } }
-    Component.onCompleted: appear = 1
-    opacity: root.appear * M.edgeOpacity(root.c, root.d, root.halfWidth)
-    scale: 0.9 + 0.1 * root.appear
+    Behavior on appear {
+        id: appearBehavior
+        Spring { stiffness: 4; damp: 0.5; eps: 0.005 }
+    }
+    Component.onCompleted: {
+        if (root.instant || root.leaving) {
+            appearBehavior.enabled = false;
+            root.appear = 1;
+            appearBehavior.enabled = true;
+        } else {
+            root.appear = 1;
+        }
+        if (root.leaving)
+            root.gone = 1;
+    }
+    opacity: root.appear * (1 - root.gone) * M.edgeOpacity(root.c, root.d, root.halfWidth)
+    scale: (0.9 + 0.1 * root.appear) * (1 - (root.c.leaveShrink ?? 0.15) * root.gone)
 
-    RoundedClip {
+    BlurSurface {
         anchors.fill: parent
-        radius: root.c.cardRadius
+        amount: root.gone
 
-        Rectangle {
+        RoundedClip {
             anchors.fill: parent
-            color: root.theme.cardBg
-        }
-
-        Item {
-            id: art
-            width: M.artWidth(root.c)
-            height: root.c.cardHeight
-            x: (root.width - width) / 2 + M.artShift(root.c, root.d)
-            y: (root.height - height) / 2
-
-            Image {
-                id: thumb
-                anchors.fill: parent
-                source: root.service.thumbUrl(root.entry)
-                fillMode: Image.PreserveAspectCrop
-                asynchronous: true
-                cache: true
-                sourceSize.height: root.c.thumbHeight
-                opacity: status === Image.Ready ? 1 : 0
-                Behavior on opacity { Spring { eps: 0.01 } }
-            }
-
-            Loader {
-                id: live
-                anchors.fill: parent
-                active: root.playing && root.entry.type !== "image"
-                sourceComponent: root.entry.type === "gif" ? gifComp : videoComp
-                opacity: live.item?.ready ? 1 : 0
-                Behavior on opacity { Spring { eps: 0.01 } }
-            }
-        }
-
-        // Caption on the centre card only.
-        Rectangle {
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.bottom: parent.bottom
-            height: parent.height * 0.45
-            opacity: 1 - root.near
-            gradient: Gradient {
-                GradientStop { position: 0; color: "transparent" }
-                GradientStop { position: 1; color: root.theme.wallCaptionShade }
-            }
-        }
-        Row {
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.bottom: parent.bottom
-            anchors.margins: root.lc.itemPadding
-            spacing: 8
-            opacity: 1 - root.near
+            radius: root.c.cardRadius
 
             Rectangle {
-                visible: root.entry.type !== "image"
-                anchors.verticalCenter: parent.verticalCenter
-                width: badge.implicitWidth + 12
-                height: badge.implicitHeight + 4
-                radius: height / 2
-                color: root.theme.wallBadge
-                Text {
-                    id: badge
-                    anchors.centerIn: parent
-                    text: root.entry.type === "gif" ? "GIF" : I18n.tr("VIDEO")
-                    color: root.theme.islandFg
-                    font.family: root.theme.fontFamily
-                    font.pixelSize: root.lc.subFontSize - 3
-                    font.weight: Font.DemiBold
+                anchors.fill: parent
+                color: root.theme.cardBg
+            }
+
+            Item {
+                id: art
+                width: M.artWidth(root.c)
+                height: root.c.cardHeight
+                x: (root.width - width) / 2 + M.artShift(root.c, root.d)
+                y: (root.height - height) / 2
+
+                Image {
+                    id: thumb
+                    anchors.fill: parent
+                    source: root.service.thumbUrl(root.entry)
+                    fillMode: Image.PreserveAspectCrop
+                    asynchronous: true
+                    cache: true
+                    sourceSize.height: root.c.thumbHeight
+                    opacity: status === Image.Ready ? 1 : 0
+                    Behavior on opacity { Spring { eps: 0.01 } }
+                }
+
+                Loader {
+                    id: live
+                    anchors.fill: parent
+                    active: root.playing && root.entry.type !== "image"
+                    sourceComponent: root.entry.type === "gif" ? gifComp : videoComp
+                    opacity: live.item?.ready ? 1 : 0
+                    Behavior on opacity { Spring { eps: 0.01 } }
                 }
             }
-            Text {
-                anchors.verticalCenter: parent.verticalCenter
-                width: parent.width - (root.entry.type !== "image" ? badge.implicitWidth + 20 : 0)
-                text: root.entry.name
-                elide: Text.ElideRight
-                color: root.theme.islandFg
-                font.family: root.theme.fontFamily
-                font.pixelSize: root.lc.subFontSize
-                font.weight: Font.DemiBold
+
+            // Caption on the centre card only.
+            Rectangle {
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
+                height: parent.height * 0.45
+                opacity: 1 - root.near
+                gradient: Gradient {
+                    GradientStop { position: 0; color: "transparent" }
+                    GradientStop { position: 1; color: root.theme.wallCaptionShade }
+                }
+            }
+            Row {
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
+                anchors.margins: root.lc.itemPadding
+                spacing: 8
+                opacity: 1 - root.near
+
+                Rectangle {
+                    visible: root.entry.type !== "image"
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: badge.implicitWidth + 12
+                    height: badge.implicitHeight + 4
+                    radius: height / 2
+                    color: root.theme.wallBadge
+                    Text {
+                        id: badge
+                        anchors.centerIn: parent
+                        text: root.entry.type === "gif" ? "GIF" : I18n.tr("VIDEO")
+                        color: root.theme.islandFg
+                        font.family: root.theme.fontFamily
+                        font.pixelSize: root.lc.subFontSize - 3
+                        font.weight: Font.DemiBold
+                    }
+                }
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: parent.width - (root.entry.type !== "image" ? badge.implicitWidth + 20 : 0)
+                    text: root.entry.name
+                    elide: Text.ElideRight
+                    color: root.theme.islandFg
+                    font.family: root.theme.fontFamily
+                    font.pixelSize: root.lc.subFontSize
+                    font.weight: Font.DemiBold
+                }
             }
         }
     }

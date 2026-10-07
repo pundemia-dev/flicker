@@ -31,15 +31,51 @@ Item {
         }
     }
 
+    // Ghosts of removed cards: dissolve where they were (below the rest,
+    // which close the gap over them).
+    Repeater {
+        model: root.plugin.leavingModel
+
+        WallCard {
+            required property var modelData
+            z: -1
+            entry: modelData.entry
+            d: modelData.d
+            c: root.c
+            lc: root.lc
+            theme: root.theme
+            service: root.service
+            leaving: true
+            favourite: root.plugin.wallpaper?.favouriteSet[modelData.entry.path] ?? false
+            enabled: false
+        }
+    }
+
     Repeater {
         model: windowModel
 
         WallCard {
+            id: card
             required property var modelData
             readonly property int idx: root.plugin.indexOf[modelData.path] ?? 0
 
+            Component.onCompleted: {
+                const v = root.plugin.flip[modelData.path];
+                if (v !== undefined)
+                    card.jumpShift(v);
+            }
+            Connections {
+                target: root.plugin
+                function onFlipNonceChanged(): void {
+                    const v = root.plugin.flip[card.modelData.path];
+                    if (v !== undefined)
+                        card.jumpShift(v);
+                }
+            }
+
             entry: modelData
-            d: idx - root.plugin.pos
+            instant: !!root.plugin.flipInstant[modelData.path]
+            d: idx - root.plugin.pos + shift
             c: root.c
             lc: root.lc
             theme: root.theme

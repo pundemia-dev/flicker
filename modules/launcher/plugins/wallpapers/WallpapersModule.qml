@@ -1,4 +1,5 @@
 import QtQuick
+import Quickshell
 import "../../api"
 import "../../../../components"
 import "../../../../config"
@@ -6,6 +7,7 @@ import "WallFilter.js" as WallFilter
 import "CarouselMath.js" as CarouselMath
 import "WallKeys.js" as WallKeys
 import "WallActions.js" as WallActions
+import "WallFlip.js" as WallFlip
 
 // Wallpaper carousel (pShell Wallpaper Engine look, backend wallr). The
 // plugin owns the state — filtered `entries`, `selected`, the animated
@@ -131,26 +133,109 @@ LauncherPlugin {
     // current wallpaper before anything was picked).
     property string focusPath: ""
 
+    // Removal motion (WallFlip): cards that survive a same-query rebuild
+    // spring from where they were (`flip`, read by WallCard via flipNonce),
+    // vanished ones dissolve as ghosts (`leaving`, WallCarousel).
+    property var flip: ({})
+    property var flipInstant: ({})
+    property int flipNonce: 0
+    // Last scroll direction (+1 forward / -1 back): a removed centre card is
+    // replaced from that side.
+    property int lastDir: 1
+    // newPath -> oldPath of a hide/unhide in flight (same card, new name).
+    property var renames: ({})
+    // Paths of the files the last rebuild saw (WallFilter.refine).
+    property var prevFiles: ({})
+
+    ScriptModel {
+        id: leavingList
+    }
+    readonly property alias leavingModel: leavingList
+
+    Timer {
+        id: leaveTimer
+        interval: root.c.leaveMs ?? 450
+        onTriggered: leavingList.values = []
+    }
+
     // keep: path to centre ("" = the current selection); sameList: the
-    // files/favourites changed under an unchanged query — a vanished
-    // selection then keeps its slot instead of jumping to the start.
+    // files/favourites changed under an unchanged query — the rest closes
+    // the gap (FLIP) instead of everything re-rising, and a vanished
+    // selection is replaced from the side last scrolled towards.
     function rebuild(keep: string, sameList: bool): void {
-        const list = WallFilter.apply(wallService.files, root.filter, {
+        const ctx = {
             favourites: root.wallpaper?.favouriteSet ?? {},
             history: root.wallpaper?.history ?? [],
             visibility: root.visibility
-        });
+        };
+        // Same query + a fuzzy search: refine the current order (a re-search
+        // of ~3500 names is ~0.1-0.3 s in QV4 — a hitch on every hide).
+        const files = wallService.files;
+        let list = sameList && root.filter.query && root.filter.filter !== "history"
+            ? WallFilter.refine(root.entries, files, root.prevFiles, root.filter, ctx, root.renames) : null;
+        if (!list)
+            list = WallFilter.apply(files, root.filter, ctx);
+        const seen = {};
+        for (const e of files)
+            seen[e.path] = true;
+        root.prevFiles = seen;
         const idx = {};
         for (let i = 0; i < list.length; i++)
             idx[list[i].path] = i;
-        const path = keep || (root.current?.path ?? root.focusPath);
-        const fallback = sameList ? Math.max(0, Math.min(root.selected, list.length - 1)) : 0;
+        const cur = root.current?.path ?? "";
+        let renamedCur = "";
+        for (const n in root.renames)
+            if (root.renames[n] === cur)
+                renamedCur = n;
+        const path = keep || (renamedCur && idx[renamedCur] !== undefined ? renamedCur : (cur || root.focusPath));
+        const last = Math.max(0, list.length - 1);
+        const fallback = sameList ? Math.max(0, Math.min(root.lastDir < 0 ? root.selected - 1 : root.selected, last)) : 0;
+        const target = idx[path] ?? fallback;
+        if (sameList && root.entries.length) {
+            const m = WallFlip.compute({
+                oldIdx: root.indexOf,
+                oldPos: root.pos,
+                idx: idx,
+                target: target,
+                list: list,
+                oldList: root.entries,
+                reach: CarouselMath.reach(root.c, root.bodyWidth / 2),
+                renames: root.renames
+            });
+            // Before the entries change: delegates created by the swap read
+            // flip/flipInstant in onCompleted.
+            root.flip = m.flip;
+            root.flipInstant = m.instant;
+            root.flipNonce++;
+            if (m.leaving.length) {
+                leavingList.values = leavingList.values.concat(m.leaving);
+                leaveTimer.restart();
+            }
+        } else {
+            root.flip = {};
+            root.flipInstant = {};
+        }
+        root.renames = {};
         root.entries = list;
         root.indexOf = idx;
         // Filtering re-indexes everything: jump (no flight across the list),
         // the cards rise in on their own.
-        root.quietSnap(idx[path] ?? fallback);
+        root.quietSnap(target);
+        if (sameList) {
+            root.playReady = false;
+            playTimer.restart();
+            preview.rest();
+        }
         root.wantThumbs();
+        // The flip belongs to THIS rebuild only: cards created later (the
+        // window sliding while scrolling) must not pick up a stale offset
+        // and fly in from their old slot.
+        Qt.callLater(root.clearFlip);
+    }
+
+    function clearFlip(): void {
+        root.flip = {};
+        root.flipInstant = {};
     }
 
     // Centre a path, clearing the search if it hides it.
@@ -182,6 +267,7 @@ LauncherPlugin {
         const now = Date.now();
         const quick = now - root.lastStepAt < (root.c.speedWindowMs ?? 280);
         root.lastStepAt = now;
+        root.lastDir = n > 0 ? 1 : -1;
         const top = Math.max(0, (root.c.speeds ?? []).length - 1);
         root.speedLevel = Math.min(top, fast || Math.abs(n) > 1 ? 2 : (quick ? Math.max(1, root.speedLevel) : 0));
         const i = Math.max(0, Math.min(root.entries.length - 1, root.selected + n));

@@ -327,7 +327,22 @@ Not a git repo. No tests, no linter, no formatter.
   (Ctrl+A/E ends, Ctrl+R random card, Ctrl+Shift+A/D fav, Ctrl+H hidden view normal→include→only (pill on top, eye-off badge on
   hidden cards), Ctrl+Shift+H hide/unhide, Ctrl+[/] history —
   Ctrl combos also match xkb keycodes so they work on the ru layout), WallFilter.js (prefixes
-  v/g/i/f/h), WallActions.js, WallPreview.qml. NOT done: slideshow, settings UI, fill-blur. Verified via IPC + log only (centre on current wallpaper, thumbs, video init); visuals
+  v/g/i/f/h), WallActions.js, WallPreview.qml. Removal motion (WallFlip.js, any same-query
+  rebuild: hide, delete, unfavourite under "f "): survivors FLIP (`WallCard.shift` = old−new d,
+  springs to 0 on `close*`; set via `flipNonce`, newcomers read `flip` in onCompleted — so it is
+  cleared right after the rebuild (Qt.callLater; a stale flip made cards entering the window
+  later fly in from their old slot) and
+  is assigned BEFORE `entries`), gone cards dissolve as ghosts (`leavingModel`, BlurSurface +
+  fade + `leaveShrink` on `leave*`), a removed centre is replaced from `lastDir`'s side;
+  hide/unhide in the "include" view keeps the card (`renames` → same slot). Every survivor is
+  `instant` (no rise-in): the Repeater RECREATES moved delegates — they blanked for ~1 s.
+  fuzzysort ranks through a heap: EQUAL scores come out in an input-dependent order (node:
+  abs-1, abs-3, abs-2), so with a query a removal reshuffled the ties far from the gap —
+  WallFilter.rank buckets the hits by `_score` (no `score` field here) in list order — LINEAR:
+  a comparator sort with Map lookups took 1.3 s for 3300 hits in QV4 (first letter 1.6 s →
+  0.33 s, mostly fuzzysort itself). Same-query rebuilds (hide/delete/rescan) don't re-search:
+  `WallFilter.refine` filters the current order (`prevFiles` = paths the last rebuild saw; a
+  file not among them → full search). NOT done: slideshow, settings UI, fill-blur. Verified via IPC + log only (centre on current wallpaper, thumbs, video init); visuals
   and keys NOT checked — the user checks visuals themselves (asked: no screenshots).
 - Polkit agent (Oct 2026, refs: DMS PolkitService, end-4 ii, caelestia): `services/Polkit.qml`
   (Quickshell `PolkitAgent` in a Loader, `Config.polkit.enabled`; ONE agent per session —

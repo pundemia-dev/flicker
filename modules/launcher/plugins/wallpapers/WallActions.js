@@ -51,8 +51,12 @@ function toggleHidden(p) {
     if (!e || !p.wallpaper)
         return;
     const to = p.wallpaper.setHidden(e.path, !e.hidden);
-    if (to !== e.path)
-        p.fileService.renameFile(e.path, to);
+    if (to === e.path)
+        return;
+    const r = {};
+    r[to] = e.path;
+    p.renames = r;
+    p.fileService.renameFile(e.path, to);
 }
 
 // Ctrl+[ (dir +1, older) / Ctrl+] (-1, newer): walk the history from the

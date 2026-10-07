@@ -568,6 +568,15 @@ Singleton {
                             touchpadAccelMax: 3,
                             touchpadHoldMs: 150,
                             flyMax: 30,
+                            // Removal (hide/delete): survivors close the gap
+                            // on close*, the gone card dissolves (blur, fade,
+                            // leaveShrink) on leave*, ghost kept leaveMs.
+                            closeStiffness: 4,
+                            closeDamping: 0.5,
+                            leaveStiffness: 3,
+                            leaveDamping: 0.6,
+                            leaveShrink: 0.15,
+                            leaveMs: 600,
                             playDelayMs: 60,
                             settleEps: 0.05,
                             livePreview: true,
