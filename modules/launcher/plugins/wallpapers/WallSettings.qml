@@ -18,6 +18,7 @@ Item {
     required property var theme
     required property var c
     required property var lc
+    readonly property real fontSize: root.c.settingsFontSize ?? 17
 
     readonly property var wallpaper: root.plugin.wallpaper
     readonly property var base: Config.data.launcher?.wallpapers ?? ({})
@@ -79,7 +80,7 @@ Item {
                         anchors.verticalCenter: parent.verticalCenter
                         text: Rows.PAGES[parent.parent.index].glyph ?? ""
                         font.family: root.theme.iconFamily
-                        font.pixelSize: root.lc.subFontSize
+                        font.pixelSize: root.fontSize
                         color: parent.parent.current ? root.theme.islandFg : root.theme.cardDim
                     }
                     Text {
@@ -87,7 +88,7 @@ Item {
                         text: I18n.tr(Rows.PAGES[parent.parent.index].title)
                         color: parent.parent.current ? root.theme.islandFg : root.theme.cardDim
                         font.family: root.theme.fontFamily
-                        font.pixelSize: root.lc.subFontSize - 1
+                        font.pixelSize: root.fontSize - 1
                         font.weight: Font.DemiBold
                     }
                 }

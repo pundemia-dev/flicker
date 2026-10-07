@@ -14,6 +14,7 @@ Item {
     required property var theme
     required property var c
     required property var lc
+    readonly property real fontSize: root.c.settingsFontSize ?? 17
     property var value: null
     property string valueText: ""
     property bool changed: false
@@ -52,7 +53,7 @@ Item {
         elide: Text.ElideRight
         color: root.isReset ? root.theme.accentRed : root.theme.islandFg
         font.family: root.theme.fontFamily
-        font.pixelSize: root.lc.subFontSize
+        font.pixelSize: root.fontSize
     }
 
     Item {
@@ -87,14 +88,14 @@ Item {
                 text: root.valueText
                 color: root.theme.subtleFg
                 font.family: root.theme.fontFamily
-                font.pixelSize: root.lc.subFontSize
+                font.pixelSize: root.fontSize
             }
             Text {
                 anchors.verticalCenter: parent.verticalCenter
                 text: "" // tabler selector
                 color: root.theme.cardDim
                 font.family: root.theme.iconFamily
-                font.pixelSize: root.lc.subFontSize
+                font.pixelSize: root.fontSize
             }
         }
 
