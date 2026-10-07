@@ -81,6 +81,6 @@ function estimate(c, pluginId) {
 // Tallest the launcher can get (layer surface reserve while it is open).
 // Plugin bodies (the wallpaper carousel) count too.
 function maxHeight(c) {
-    const body = Math.max(maxListHeight(c), c.wallpapers ? c.wallpapers.cardHeight : 0);
+    const body = Math.max(maxListHeight(c), c.wallpapers ? Math.max(c.wallpapers.cardHeight, c.wallpapers.settingsHeight || 0) : 0);
     return c.padding * 2 + c.inputHeight + c.gap + body;
 }

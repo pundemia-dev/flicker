@@ -1,7 +1,8 @@
 .pragma library
 
-// Settings panel rows (WallSettings): key into launcher.wallpapers, label
-// and value labels are English I18n keys (translated at the display site).
+// Settings panel rows (WallSettings): key into launcher.wallpapers, tabler
+// glyph + tint (a Theme colour name) of the row's icon tile, label and
+// value labels as English I18n keys (translated at the display site).
 //   bool    — on / off
 //   choice  — options [{ value, label, arg? }]: label may hold "%1" = arg
 //   reset   — clears every override (back to config.json)
@@ -42,16 +43,17 @@ const OPACITY = [
 const PAGES = [
     {
         title: "Transitions",
+        glyph: "\uf2b4",
         rows: [
-            { key: "effect", label: "Transition", kind: "choice", options: EFFECTS },
-            { key: "durationMs", label: "Transition length", kind: "choice", options: [
+            { key: "effect", glyph: "\uf2b4", tint: "qsBlue", label: "Transition", kind: "choice", options: EFFECTS },
+            { key: "durationMs", glyph: "\uea70", tint: "qsOrange", label: "Transition length", kind: "choice", options: [
                     { value: 400, label: "%1 s", arg: "0.4" },
                     { value: 700, label: "%1 s", arg: "0.7" },
                     { value: 1000, label: "%1 s", arg: "1" },
                     { value: 1500, label: "%1 s", arg: "1.5" },
                     { value: 2500, label: "%1 s", arg: "2.5" }
                 ] },
-            { key: "effectEasing", label: "Curve", kind: "choice", options: [
+            { key: "effectEasing", glyph: "\uef1d", tint: "qsIndigo", label: "Curve", kind: "choice", options: [
                     { value: "", label: "Default" },
                     { value: "bezier", label: "Smooth (bezier)" },
                     { value: "linear", label: "Linear" },
@@ -59,7 +61,7 @@ const PAGES = [
                     { value: "ease_out", label: "Ease out" },
                     { value: "ease_in_out", label: "Ease in and out" }
                 ] },
-            { key: "effectOrigin", label: "Circle origin", kind: "choice", options: [
+            { key: "effectOrigin", glyph: "\uf02a", tint: "qsGreen", label: "Circle origin", kind: "choice", options: [
                     { value: "", label: "Default" },
                     { value: "center", label: "Centre" },
                     { value: "top_left", label: "Top left" },
@@ -71,7 +73,7 @@ const PAGES = [
                     { value: "bottom", label: "Bottom" },
                     { value: "bottom_right", label: "Bottom right" }
                 ] },
-            { key: "effectAngle", label: "Wipe angle", kind: "choice", options: [
+            { key: "effectAngle", glyph: "\uef20", tint: "qsOrange", label: "Wipe angle", kind: "choice", options: [
                     { value: "", label: "Default" },
                     { value: 0, label: "%1°", arg: "0" },
                     { value: 45, label: "%1°", arg: "45" },
@@ -82,7 +84,7 @@ const PAGES = [
                     { value: 270, label: "%1°", arg: "270" },
                     { value: 315, label: "%1°", arg: "315" }
                 ] },
-            { key: "effectDirection", label: "Wipe / slide direction", kind: "choice", options: [
+            { key: "effectDirection", glyph: "\uf22f", tint: "qsBlue", label: "Wipe / slide direction", kind: "choice", options: [
                     { value: "", label: "Default" },
                     { value: "1,0", label: "→" },
                     { value: "-1,0", label: "←" },
@@ -93,7 +95,7 @@ const PAGES = [
                     { value: "1,-1", label: "↗" },
                     { value: "-1,-1", label: "↖" }
                 ] },
-            { key: "wipeSoftness", label: "Wipe edge softness", kind: "choice", options: [
+            { key: "wipeSoftness", glyph: "\uef8c", tint: "qsIndigo", label: "Wipe edge softness", kind: "choice", options: [
                     { value: "", label: "Default" },
                     { value: 0.002, label: "Razor" },
                     { value: 0.01, label: "Sharp" },
@@ -101,7 +103,7 @@ const PAGES = [
                     { value: 0.12, label: "Softer" },
                     { value: 0.25, label: "Softest" }
                 ] },
-            { key: "waveFrequency", label: "Wave frequency", kind: "choice", options: [
+            { key: "waveFrequency", glyph: "\uecd4", tint: "qsGreen", label: "Wave frequency", kind: "choice", options: [
                     { value: "", label: "Default" },
                     { value: 1, label: "%1 Hz", arg: "1" },
                     { value: 2, label: "%1 Hz", arg: "2" },
@@ -109,7 +111,7 @@ const PAGES = [
                     { value: 8, label: "%1 Hz", arg: "8" },
                     { value: 16, label: "%1 Hz", arg: "16" }
                 ] },
-            { key: "waveAmplitude", label: "Wave height", kind: "choice", options: [
+            { key: "waveAmplitude", glyph: "\ueb5b", tint: "qsGreen", label: "Wave height", kind: "choice", options: [
                     { value: "", label: "Default" },
                     { value: 0.01, label: "%1", arg: "0.01" },
                     { value: 0.02, label: "%1", arg: "0.02" },
@@ -117,34 +119,35 @@ const PAGES = [
                     { value: 0.1, label: "%1", arg: "0.1" },
                     { value: 0.2, label: "%1", arg: "0.2" }
                 ] },
-            { key: "fadeFrom", label: "Fade start opacity", kind: "choice", options: OPACITY },
-            { key: "fadeTo", label: "Fade end opacity", kind: "choice", options: OPACITY },
-            { key: "previewEffect", label: "Preview transition", kind: "choice",
+            { key: "fadeFrom", glyph: "\uee3f", tint: "accentYellow", label: "Fade start opacity", kind: "choice", options: OPACITY },
+            { key: "fadeTo", glyph: "\uec4e", tint: "accentYellow", label: "Fade end opacity", kind: "choice", options: OPACITY },
+            { key: "previewEffect", glyph: "\uea9a", tint: "qsBlue", label: "Preview transition", kind: "choice",
                 options: [{ value: "same", label: "As when applying" }].concat(EFFECTS) },
-            { key: "previewDurationMs", label: "Preview length", kind: "choice", options: [
+            { key: "previewDurationMs", glyph: "\uf549", tint: "qsOrange", label: "Preview length", kind: "choice", options: [
                     { value: 150, label: "%1 s", arg: "0.15" },
                     { value: 300, label: "%1 s", arg: "0.3" },
                     { value: 500, label: "%1 s", arg: "0.5" },
                     { value: 800, label: "%1 s", arg: "0.8" },
                     { value: 1200, label: "%1 s", arg: "1.2" }
                 ] },
-            { key: "", label: "Reset to config", kind: "reset" }
+            { key: "", glyph: "\ufafd", tint: "accentRed", label: "Reset to config", kind: "reset" }
         ]
     },
     {
         title: "General",
+        glyph: "\uea03",
         rows: [
-            { key: "livePreview", label: "Live preview", kind: "bool" },
-            { key: "theme", label: "Colour scheme (wallr)", kind: "choice", options: [
+            { key: "livePreview", glyph: "\uee88", tint: "qsBlue", label: "Live preview", kind: "bool" },
+            { key: "theme", glyph: "\ueb01", tint: "qsIndigo", label: "Colour scheme (wallr)", kind: "choice", options: [
                     { value: "", label: "From wallr config" },
                     { value: "none", label: "Off" },
                     { value: "matugen", label: "matugen" },
                     { value: "wallust", label: "wallust" },
                     { value: "pywal", label: "pywal" }
                 ] },
-            { key: "accentFromWallpaper", label: "Accent from wallpaper", kind: "bool" },
-            { key: "fillBlur", label: "Blurred fill for odd sizes", kind: "bool" },
-            { key: "slideshowIntervalSec", label: "Slideshow interval", kind: "choice", options: [
+            { key: "accentFromWallpaper", glyph: "\ueb61", tint: "qsOrange", label: "Accent from wallpaper", kind: "bool" },
+            { key: "fillBlur", glyph: "\ueb0a", tint: "qsGreen", label: "Blurred fill for odd sizes", kind: "bool" },
+            { key: "slideshowIntervalSec", glyph: "\uebc9", tint: "qsBlue", label: "Slideshow interval", kind: "choice", options: [
                     { value: 60, label: "%1 min", arg: "1" },
                     { value: 300, label: "%1 min", arg: "5" },
                     { value: 600, label: "%1 min", arg: "10" },
@@ -153,17 +156,17 @@ const PAGES = [
                     { value: 3600, label: "%1 h", arg: "1" },
                     { value: 10800, label: "%1 h", arg: "3" }
                 ] },
-            { key: "slideshowOrder", label: "Slideshow order", kind: "choice", options: [
+            { key: "slideshowOrder", glyph: "\uf000", tint: "qsIndigo", label: "Slideshow order", kind: "choice", options: [
                     { value: "random", label: "Random" },
                     { value: "sequential", label: "In order" }
                 ] },
-            { key: "randomFrom", label: "Random picks from", kind: "choice", options: [
+            { key: "randomFrom", glyph: "\uf08f", tint: "qsOrange", label: "Random picks from", kind: "choice", options: [
                     { value: "all", label: "All" },
                     { value: "favourites", label: "Favourites" }
                 ] },
-            { key: "pauseOnFullscreen", label: "Pause video in fullscreen", kind: "bool" },
-            { key: "pauseOnBattery", label: "Pause video on battery", kind: "bool" },
-            { key: "", label: "Reset to config", kind: "reset" }
+            { key: "pauseOnFullscreen", glyph: "\ued45", tint: "qsGreen", label: "Pause video in fullscreen", kind: "bool" },
+            { key: "pauseOnBattery", glyph: "\uea34", tint: "accentYellow", label: "Pause video on battery", kind: "bool" },
+            { key: "", glyph: "\ufafd", tint: "accentRed", label: "Reset to config", kind: "reset" }
         ]
     }
 ];

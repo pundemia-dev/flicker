@@ -2,10 +2,12 @@ import QtQuick
 import "../../../../components"
 import "../../../../config"
 
-// One row of the wallpaper settings panel: label left, value right —
-// bool = a small switch on the accent, choice = ‹ value ›, reset = red
-// label only. A dot before the label marks a value changed from
-// config.json. A click = `activated` (the panel steps the value).
+// One row of the wallpaper settings panel (iOS Settings look): a tinted
+// rounded-square icon tile, the label, and on the right the value —
+// choice = text + selector glyph, bool = a switch, reset = a red label
+// only. A dot before the value marks a setting changed from config.json.
+// A click = `activated` (the panel steps the value). The hairline under
+// the row (`separator`) starts after the icon, like an iOS inset list.
 Item {
     id: root
     required property var row
@@ -15,27 +17,40 @@ Item {
     property var value: null
     property string valueText: ""
     property bool changed: false
+    property bool separator: true
     signal activated
 
+    readonly property real inset: root.c.settingsRowInset ?? 12
+    readonly property real icon: root.c.settingsIconSize ?? 24
+    readonly property bool isReset: root.row.kind === "reset"
+
+    // Icon tile.
     Rectangle {
+        id: tile
+        x: root.inset
         anchors.verticalCenter: parent.verticalCenter
-        x: -width - 3
-        width: 5
-        height: 5
-        radius: 2.5
-        color: root.theme.qsBlue
-        opacity: root.changed ? 1 : 0
-        Behavior on opacity { Spring { eps: 0.01 } }
+        width: root.icon
+        height: root.icon
+        radius: root.icon * 0.28
+        color: root.theme[root.row.tint] ?? root.theme.qsBlue
+        Text {
+            anchors.centerIn: parent
+            text: root.row.glyph ?? ""
+            font.family: root.theme.iconFamily
+            font.pixelSize: root.icon * 0.62
+            color: root.theme.islandFg
+        }
     }
 
     Text {
         anchors.verticalCenter: parent.verticalCenter
-        anchors.left: parent.left
+        anchors.left: tile.right
+        anchors.leftMargin: root.inset * 0.8
         anchors.right: valueBox.left
         anchors.rightMargin: 8
         text: I18n.tr(root.row.label)
         elide: Text.ElideRight
-        color: root.row.kind === "reset" ? root.theme.accentRed : root.theme.islandFg
+        color: root.isReset ? root.theme.accentRed : root.theme.islandFg
         font.family: root.theme.fontFamily
         font.pixelSize: root.lc.subFontSize
     }
@@ -43,22 +58,60 @@ Item {
     Item {
         id: valueBox
         anchors.right: parent.right
+        anchors.rightMargin: root.inset
         anchors.verticalCenter: parent.verticalCenter
-        width: root.row.kind === "bool" ? sw.width : (root.row.kind === "choice" ? choice.implicitWidth : 0)
+        width: root.row.kind === "bool" ? sw.width : (root.row.kind === "choice" ? choiceRow.implicitWidth : 0)
         height: parent.height
 
+        // Changed-from-config dot, just left of the value.
+        Rectangle {
+            anchors.verticalCenter: parent.verticalCenter
+            anchors.right: parent.left
+            anchors.rightMargin: 6
+            width: 5
+            height: 5
+            radius: 2.5
+            color: root.theme.qsBlue
+            opacity: root.changed ? 1 : 0
+            Behavior on opacity { Spring { eps: 0.01 } }
+        }
+
+        Row {
+            id: choiceRow
+            visible: root.row.kind === "choice"
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: 4
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                text: root.valueText
+                color: root.theme.subtleFg
+                font.family: root.theme.fontFamily
+                font.pixelSize: root.lc.subFontSize
+            }
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                text: "" // tabler selector
+                color: root.theme.cardDim
+                font.family: root.theme.iconFamily
+                font.pixelSize: root.lc.subFontSize
+            }
+        }
+
+        // iOS-style switch: track tint springs, the knob slides.
         Rectangle {
             id: sw
             visible: root.row.kind === "bool"
             readonly property bool on: !!root.value
             anchors.verticalCenter: parent.verticalCenter
-            width: (root.c.settingsSwitchHeight ?? 20) * 1.75
-            height: root.c.settingsSwitchHeight ?? 20
+            anchors.right: parent.right
+            height: root.c.settingsSwitchHeight ?? 22
+            width: height * 1.7
             radius: height / 2
             color: swColor.value
             SpringColor {
                 id: swColor
-                target: sw.on ? root.theme.qsBlue : root.theme.cardTrack
+                target: sw.on ? root.theme.qsGreen : root.theme.cardTrack
                 stiffness: 5
                 damping: 0.6
             }
@@ -69,19 +122,19 @@ Item {
                 y: 2
                 x: sw.on ? parent.width - width - 2 : 2
                 color: root.theme.islandFg
-                Behavior on x { Spring {} }
+                Behavior on x { Spring { stiffness: 6; damp: 0.5 } }
             }
         }
-        Text {
-            id: choice
-            visible: root.row.kind === "choice"
-            anchors.verticalCenter: parent.verticalCenter
-            anchors.right: parent.right
-            text: "‹  " + root.valueText + "  ›"
-            color: root.theme.subtleFg
-            font.family: root.theme.fontFamily
-            font.pixelSize: root.lc.subFontSize
-        }
+    }
+
+    // Inset hairline.
+    Rectangle {
+        visible: root.separator
+        anchors.bottom: parent.bottom
+        x: tile.x + tile.width + root.inset * 0.8
+        width: parent.width - x
+        height: root.lc.dividerWidth ?? 1
+        color: root.theme.launcherDivider
     }
 
     MouseArea {

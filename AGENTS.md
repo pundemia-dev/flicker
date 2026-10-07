@@ -395,7 +395,12 @@ Not a git repo. No tests, no linter, no formatter.
   `previewDurationMs`: with a fade preview the picture is ALREADY on screen at Enter, so the
   apply transition (picture → itself) was invisible and the effect setting "did nothing" (user).
   Panel = two tabs (`WallSettingsList.PAGES`: Transitions | General, PgUp/PgDn or a click,
-  pages blur-fade), rows = `WallSettingRow`. Every wallr effect + alias, and every effect
+  pages blur-fade), rows = `WallSettingRow`. Look (Oct 2026, iOS Settings): segmented control
+  (thumb springs), rows in two grouped `cardBg` cards with inset hairlines, tinted icon tiles
+  (row `glyph` + `tint` = a Theme colour name), value + selector glyph / iOS switch (qsGreen),
+  focus = `Theme.wallSettingsFocus` highlight springing inside the cards; the body grows to
+  `settingsHeight` while open (the carousel inside stays at `cardHeight`; `LauncherMetrics
+  .maxHeight` counts both). Every wallr effect + alias, and every effect
   parameter (`effectEasing/Origin/Angle/Direction`, `wipeSoftness`, `waveFrequency/Amplitude`,
   `fadeFrom/To`; "" = flag left out → wallr default) via `WallrArgs.params(cfg)` for apply AND
   preview; wallr accepts all flags with any effect (checked against a missing file). Testing

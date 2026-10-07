@@ -549,10 +549,15 @@ Singleton {
                             badgeSize: 26,
                             badgeInset: 8,
                             // Settings panel (Ctrl+I in the carousel).
+                            settingsHeight: 320,
                             settingsPadding: 10,
-                            settingsColumnGap: 24,
-                            settingsSwitchHeight: 20,
-                            settingsTabHeight: 24,
+                            settingsColumnGap: 14,
+                            settingsCardRadius: 16,
+                            settingsRowInset: 12,
+                            settingsIconSize: 24,
+                            settingsSwitchHeight: 22,
+                            settingsTabHeight: 30,
+                            settingsSegmentWidth: 150,
                             edgeFadeWidth: 120,
                             parallax: 60,
                             speeds: [

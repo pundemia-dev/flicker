@@ -16,8 +16,11 @@ Item {
         anchors.fill: parent
         shown: !root.plugin.settingsOpen
 
+        // Fixed at the card height: the body grows for the settings panel
+        // while this fades out — the cards must not drift with it.
         WallCarousel {
-            anchors.fill: parent
+            width: parent.width
+            height: root.c.cardHeight ?? 230
             plugin: root.plugin
             service: root.service
             theme: root.theme
