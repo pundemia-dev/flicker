@@ -552,6 +552,7 @@ Singleton {
                             settingsPadding: 10,
                             settingsColumnGap: 24,
                             settingsSwitchHeight: 20,
+                            settingsTabHeight: 24,
                             edgeFadeWidth: 120,
                             parallax: 60,
                             speeds: [
@@ -591,6 +592,22 @@ Singleton {
                             previewEffect: "same",
                             effect: "island",
                             durationMs: 1000,
+                            // wallr effect tuning, "" = wallr's default (flag
+                            // left out): easing linear|ease_in|ease_out|
+                            // ease_in_out|bezier, origin preset (grow/outer/
+                            // wave; "island" uses the bar), wipe angle (deg),
+                            // wipe/slide direction "x,y", wipe softness
+                            // 0.002-0.25, wave frequency (Hz) + amplitude,
+                            // fade opacity from/to.
+                            effectEasing: "",
+                            effectOrigin: "",
+                            effectAngle: "",
+                            effectDirection: "",
+                            wipeSoftness: "",
+                            waveFrequency: "",
+                            waveAmplitude: "",
+                            fadeFrom: "",
+                            fadeTo: "",
                             mode: "fill",
                             // Adaptive fill-blur (scripts/wallpapers/setwall.sh,
                             // mode "fill" only): a still image whose aspect is

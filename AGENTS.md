@@ -394,6 +394,13 @@ Not a git repo. No tests, no linter, no formatter.
   The live preview uses `previewEffect` ("same" = the apply `effect`, default) for
   `previewDurationMs`: with a fade preview the picture is ALREADY on screen at Enter, so the
   apply transition (picture → itself) was invisible and the effect setting "did nothing" (user).
+  Panel = two tabs (`WallSettingsList.PAGES`: Transitions | General, PgUp/PgDn or a click,
+  pages blur-fade), rows = `WallSettingRow`. Every wallr effect + alias, and every effect
+  parameter (`effectEasing/Origin/Angle/Direction`, `wipeSoftness`, `waveFrequency/Amplitude`,
+  `fadeFrom/To`; "" = flag left out → wallr default) via `WallrArgs.params(cfg)` for apply AND
+  preview; wallr accepts all flags with any effect (checked against a missing file). Testing
+  the panel: NEVER press "Reset to config" — it wiped the user's own overrides once (restored
+  by hand from the printed state).
   Verified via IPC + log only (centre on current wallpaper, thumbs, video init); visuals
   and keys NOT checked — the user checks visuals themselves (asked: no screenshots).
 - Polkit agent (Oct 2026, refs: DMS PolkitService, end-4 ii, caelestia): `services/Polkit.qml`

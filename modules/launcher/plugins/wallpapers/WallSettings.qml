@@ -3,13 +3,13 @@ import "../../../../components"
 import "../../../../config"
 import "WallSettingsList.js" as Rows
 
-// Settings panel of the wallpaper carousel (Ctrl+I): the rows of
-// WallSettingsList in a two-column grid inside the carousel's own body.
+// Settings panel of the wallpaper carousel (Ctrl+I): tabs on top
+// (WallSettingsList.PAGES, PgUp/PgDn or a click) and the page's rows in a
+// two-column grid below (WallSettingRow); pages swap with the blur-fade.
 // Values are services/Wallpaper.cfg (config.json + overrides); a change
-// goes to Wallpaper.setSetting (persisted as an override, config.json is
-// never rewritten). Keys come through WallKeys while `plugin.settingsOpen`
-// (arrows move the focus plate, ←/→/Enter change); a click changes a row.
-// A dot marks a value that differs from config.json.
+// goes through plugin.changeSetting (persisted as an override, config.json
+// is never rewritten). Keys come through WallKeys while
+// `plugin.settingsOpen`; a click changes a row.
 Item {
     id: root
     required property var plugin
@@ -19,19 +19,9 @@ Item {
 
     readonly property var wallpaper: root.plugin.wallpaper
     readonly property var base: Config.data.launcher?.wallpapers ?? ({})
-    readonly property int columns: 2
-    readonly property int rowsPerColumn: Math.ceil(Rows.ROWS.length / root.columns)
     readonly property real pad: root.c.settingsPadding ?? 10
     readonly property real gap: root.c.settingsColumnGap ?? 24
-    readonly property real cellW: (root.width - root.pad * 2 - root.gap * (root.columns - 1)) / root.columns
-    readonly property real cellH: (root.height - root.pad * 2) / root.rowsPerColumn
-
-    function cellX(i: int): real {
-        return root.pad + Math.floor(i / root.rowsPerColumn) * (root.cellW + root.gap);
-    }
-    function cellY(i: int): real {
-        return root.pad + (i % root.rowsPerColumn) * root.cellH;
-    }
+    readonly property real tabH: root.c.settingsTabHeight ?? 24
 
     function valueOf(row: var): var {
         return root.wallpaper?.cfg[row.key];
@@ -43,115 +33,97 @@ Item {
             return v ? I18n.tr("On") : I18n.tr("Off");
         if (row.kind !== "choice")
             return "";
-        const o = row.options[Rows.optionIndex(row, v)];
+        const o = row.options[Rows.optionIndex(row, v ?? "")];
         const t = I18n.tr(o.label);
         return o.arg !== undefined ? t.arg(o.arg) : t;
     }
 
+    // Tabs.
+    Row {
+        x: root.pad
+        y: root.pad / 2
+        height: root.tabH
+        spacing: root.gap
 
-    // Focus plate: springs between the cells.
-    Rectangle {
-        readonly property int i: root.plugin.settingsFocus
-        x: root.cellX(i) - root.pad / 2
-        y: root.cellY(i)
-        width: root.cellW + root.pad
-        height: root.cellH
-        radius: Math.min(height / 2, root.lc.itemRadius ?? 20)
-        color: root.theme.cardBg
-        Behavior on x { Spring { stiffness: root.lc.motionStiffness ?? 5; damp: root.lc.motionDamping ?? 0.45 } }
-        Behavior on y { Spring { stiffness: root.lc.motionStiffness ?? 5; damp: root.lc.motionDamping ?? 0.45 } }
+        Repeater {
+            model: Rows.PAGES.length
+
+            Text {
+                required property int index
+                readonly property bool current: index === root.plugin.settingsPage
+                height: root.tabH
+                verticalAlignment: Text.AlignVCenter
+                text: I18n.tr(Rows.PAGES[index].title)
+                color: current ? root.theme.qsBlue : root.theme.cardDim
+                font.family: root.theme.fontFamily
+                font.pixelSize: root.lc.subFontSize
+                font.weight: current ? Font.DemiBold : Font.Normal
+
+                MouseArea {
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root.plugin.setSettingsPage(parent.index)
+                }
+            }
+        }
     }
 
     Repeater {
-        model: Rows.ROWS.length
+        model: Rows.PAGES.length
 
-        Item {
-            id: cell
+        FadeBlur {
+            id: page
             required property int index
-            readonly property var row: Rows.ROWS[index]
-            readonly property bool changed: cell.row.kind !== "reset"
-                && root.wallpaper?.overrides[cell.row.key] !== undefined
-                && root.wallpaper?.overrides[cell.row.key] !== root.base[cell.row.key]
-            x: root.cellX(index)
-            y: root.cellY(index)
-            width: root.cellW
-            height: root.cellH
+            readonly property var rows: Rows.PAGES[index].rows
+            readonly property int perColumn: Math.ceil(page.rows.length / 2)
+            readonly property real cellW: (width - root.pad * 2 - root.gap) / 2
+            readonly property real cellH: (height - root.pad / 2) / page.perColumn
+            y: root.pad / 2 + root.tabH
+            width: root.width
+            height: root.height - y
+            shown: index === root.plugin.settingsPage
 
-            // Changed-from-config dot.
+            function cellX(i: int): real {
+                return root.pad + Math.floor(i / page.perColumn) * (page.cellW + root.gap);
+            }
+            function cellY(i: int): real {
+                return (i % page.perColumn) * page.cellH;
+            }
+
+            // Focus plate: springs between the cells.
             Rectangle {
-                anchors.verticalCenter: parent.verticalCenter
-                x: -width - 3
-                width: 5
-                height: 5
-                radius: 2.5
-                color: root.theme.qsBlue
-                opacity: cell.changed ? 1 : 0
-                Behavior on opacity { Spring { eps: 0.01 } }
+                readonly property int i: Math.min(root.plugin.settingsFocus, page.rows.length - 1)
+                x: page.cellX(i) - root.pad / 2
+                y: page.cellY(i)
+                width: page.cellW + root.pad
+                height: page.cellH
+                radius: Math.min(height / 2, root.lc.itemRadius ?? 20)
+                color: root.theme.cardBg
+                Behavior on x { Spring { stiffness: root.lc.motionStiffness ?? 5; damp: root.lc.motionDamping ?? 0.45 } }
+                Behavior on y { Spring { stiffness: root.lc.motionStiffness ?? 5; damp: root.lc.motionDamping ?? 0.45 } }
             }
 
-            Text {
-                anchors.verticalCenter: parent.verticalCenter
-                anchors.left: parent.left
-                anchors.right: value.left
-                anchors.rightMargin: 8
-                text: I18n.tr(cell.row.label)
-                elide: Text.ElideRight
-                color: cell.row.kind === "reset" ? root.theme.accentRed : root.theme.islandFg
-                font.family: root.theme.fontFamily
-                font.pixelSize: root.lc.subFontSize
-            }
+            Repeater {
+                model: page.rows.length
 
-            // bool: a small switch on the accent; choice: ‹ value ›.
-            Item {
-                id: value
-                anchors.right: parent.right
-                anchors.verticalCenter: parent.verticalCenter
-                width: cell.row.kind === "bool" ? sw.width : (cell.row.kind === "choice" ? choice.implicitWidth : 0)
-                height: parent.height
-
-                Rectangle {
-                    id: sw
-                    visible: cell.row.kind === "bool"
-                    readonly property bool on: !!root.valueOf(cell.row)
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: (root.c.settingsSwitchHeight ?? 20) * 1.75
-                    height: root.c.settingsSwitchHeight ?? 20
-                    radius: height / 2
-                    color: swColor.value
-                    SpringColor {
-                        id: swColor
-                        target: sw.on ? root.theme.qsBlue : root.theme.cardTrack
-                        stiffness: 5
-                        damping: 0.6
+                WallSettingRow {
+                    required property int index
+                    row: page.rows[index]
+                    x: page.cellX(index)
+                    y: page.cellY(index)
+                    width: page.cellW
+                    height: page.cellH
+                    theme: root.theme
+                    c: root.c
+                    lc: root.lc
+                    value: root.valueOf(row)
+                    valueText: root.valueText(row)
+                    changed: row.kind !== "reset" && root.wallpaper?.overrides[row.key] !== undefined
+                        && root.wallpaper?.overrides[row.key] !== root.base[row.key]
+                    onActivated: {
+                        root.plugin.settingsFocus = index;
+                        root.plugin.changeSetting(index, 1);
                     }
-                    Rectangle {
-                        width: parent.height - 4
-                        height: width
-                        radius: width / 2
-                        y: 2
-                        x: sw.on ? parent.width - width - 2 : 2
-                        color: root.theme.islandFg
-                        Behavior on x { Spring {} }
-                    }
-                }
-                Text {
-                    id: choice
-                    visible: cell.row.kind === "choice"
-                    anchors.verticalCenter: parent.verticalCenter
-                    anchors.right: parent.right
-                    text: "‹  " + root.valueText(cell.row) + "  ›"
-                    color: root.theme.subtleFg
-                    font.family: root.theme.fontFamily
-                    font.pixelSize: root.lc.subFontSize
-                }
-            }
-
-            MouseArea {
-                anchors.fill: parent
-                cursorShape: Qt.PointingHandCursor
-                onClicked: {
-                    root.plugin.settingsFocus = cell.index;
-                    root.plugin.changeSetting(cell.index, 1);
                 }
             }
         }

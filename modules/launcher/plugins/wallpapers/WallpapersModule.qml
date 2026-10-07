@@ -410,18 +410,26 @@ LauncherPlugin {
 
     // Settings panel (WallSettings) in place of the carousel: Ctrl+I.
     property bool settingsOpen: false
+    property int settingsPage: 0
     property int settingsFocus: 0
+    readonly property var settingsRows: WallSettingsList.PAGES[root.settingsPage]?.rows ?? []
 
-    // Change settings row i (dir +1 next value / -1 previous; "reset" =
-    // back to config.json).
+    function setSettingsPage(i: int): void {
+        const n = WallSettingsList.PAGES.length;
+        root.settingsPage = (i + n) % n;
+        root.settingsFocus = Math.min(root.settingsFocus, root.settingsRows.length - 1);
+    }
+
+    // Change row i of the current page (dir +1 next value / -1 previous;
+    // "reset" = back to config.json).
     function changeSetting(i: int, dir: int): void {
-        const row = WallSettingsList.ROWS[i];
+        const row = root.settingsRows[i];
         if (!row || !root.wallpaper)
             return;
         if (row.kind === "reset")
             root.wallpaper.resetSettings();
         else
-            root.wallpaper.setSetting(row.key, WallSettingsList.step(row, root.wallpaper.cfg[row.key], dir));
+            root.wallpaper.setSetting(row.key, WallSettingsList.step(row, root.wallpaper.cfg[row.key] ?? "", dir));
     }
 
     Component {

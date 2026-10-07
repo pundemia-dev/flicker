@@ -14,6 +14,22 @@ function set(path, opts, mode) {
     else
         a.push("-e", effect);
     a.push("-d", Math.round(opts.durationMs ?? 1000) + "ms");
+    // Effect tuning (params(cfg)); "" / null = wallr's own default.
+    const p = opts.params || {};
+    const flag = (name, v) => {
+        if (v !== undefined && v !== null && v !== "")
+            a.push(name, String(v));
+    };
+    if (effect !== "island")
+        flag("-o", p.origin);
+    flag("-a", p.angle);
+    flag("--direction", p.direction);
+    flag("--easing", p.easing);
+    flag("--from", p.from);
+    flag("--to", p.to);
+    flag("--frequency", p.frequency);
+    flag("--amplitude", p.amplitude);
+    flag("--softness", p.softness);
     if (mode)
         a.push("--mode", mode);
     const theme = opts.theme || "";
@@ -22,4 +38,22 @@ function set(path, opts, mode) {
     else if (theme.length)
         a.push("-t", theme);
     return a;
+}
+
+// Effect tuning from the merged config (launcher.wallpapers + settings
+// panel overrides): origin (grow/outer/wave), angle (wipe), direction
+// (wipe/slide), easing (all), from/to (fade opacity), frequency/amplitude
+// (wave), softness (wipe edge).
+function params(cfg) {
+    return {
+        origin: cfg.effectOrigin,
+        angle: cfg.effectAngle,
+        direction: cfg.effectDirection,
+        easing: cfg.effectEasing,
+        from: cfg.fadeFrom,
+        to: cfg.fadeTo,
+        frequency: cfg.waveFrequency,
+        amplitude: cfg.waveAmplitude,
+        softness: cfg.wipeSoftness
+    };
 }

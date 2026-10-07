@@ -1,7 +1,5 @@
 .pragma library
 
-.import "WallSettingsList.js" as Rows
-
 // Carousel key map (p = WallpapersModule). Returns true when handled.
 //   ←/→ (↑/↓, Tab)        step;  Shift = pageStep cards
 //   PgUp/PgDn             pageStep cards
@@ -13,8 +11,9 @@
 //   Ctrl+[ / Ctrl+]       back / forward through the wallpaper history
 //   Ctrl+S                slideshow over the current view on / off
 //   Ctrl+Delete           move the file to the trash
-//   Ctrl+I                settings panel on / off (there: arrows move,
-//                         ←/→ / Enter / Space change, Esc closes it)
+//   Ctrl+I                settings panel on / off (there: ↑/↓ move,
+//                         ←/→ / Enter / Space change, PgUp/PgDn page,
+//                         Esc closes it)
 // Ctrl combos also match by key position (xkb keycode = evdev + 8): with a
 // non-Latin layout active (ru) Ctrl+A arrives as a Cyrillic keysym.
 const SCAN = { a: 38, e: 26, d: 40, h: 43, r: 27, s: 39, i: 31, bracketLeft: 34, bracketRight: 35 };
@@ -23,10 +22,11 @@ function is(e, name, key) {
     return e.key === key || e.nativeScanCode === SCAN[name];
 }
 
-// Settings panel: a column-major grid of Rows.ROWS (two columns).
+// Settings panel: the current page's rows in a column-major two-column
+// grid (Up/Down/Tab walk them), Left/Right/Enter/Space change the focused
+// row, PgUp/PgDn switch the page, Esc closes the panel.
 function settingsKey(p, e) {
-    const n = Rows.ROWS.length;
-    const per = Math.ceil(n / 2);
+    const n = p.settingsRows.length;
     const f = p.settingsFocus;
     switch (e.key) {
     case Qt.Key_Escape:
@@ -50,9 +50,10 @@ function settingsKey(p, e) {
         p.changeSetting(f, 1);
         return true;
     case Qt.Key_PageUp:
+        p.setSettingsPage(p.settingsPage - 1);
+        return true;
     case Qt.Key_PageDown:
-        // Jump between the columns.
-        p.settingsFocus = Math.min(n - 1, f < per ? f + per : f - per);
+        p.setSettingsPage(p.settingsPage + 1);
         return true;
     }
     return false;

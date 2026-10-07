@@ -254,7 +254,8 @@ Scope {
             output: output,
             effect: root.cfg.effect ?? "island",
             durationMs: root.cfg.durationMs ?? 1000,
-            theme: root.cfg.theme ?? ""
+            theme: root.cfg.theme ?? "",
+            params: WallrArgs.params(root.cfg)
         }, root.originFor(output));
     }
 

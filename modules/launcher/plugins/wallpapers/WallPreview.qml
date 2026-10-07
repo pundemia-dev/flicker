@@ -45,7 +45,8 @@ Item {
             durationMs: root.c.previewDurationMs ?? 300,
             originX: root.host?.originX ?? 0.5,
             originY: root.host?.originY ?? 0.03,
-            theme: "none"
+            theme: "none",
+            params: WallrArgs.params(root.c)
         };
     }
 
