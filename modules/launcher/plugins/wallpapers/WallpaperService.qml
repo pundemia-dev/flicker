@@ -191,9 +191,10 @@ Item {
 
     // Current wallpaper of an output (wallr's own state file).
     function readCurrent(output: string, done: var): void {
-        const p = Quickshell.env("HOME") + "/.cache/wallr/last_wallpaper/" + output;
+        // scripts/wallpapers/current.sh maps a fill-blur composite back to
+        // the original file.
         currentProc.done = done;
-        currentProc.command = ["cat", p];
+        currentProc.command = [root.scripts + "current.sh", output];
         currentProc.running = true;
     }
     Process {

@@ -370,7 +370,14 @@ Not a git repo. No tests, no linter, no formatter.
   Caption line `detail` = "n of m · W×H · size"; a group left with one visible member drops out.
   Process stdin one-shot: `stdinEnabled: true`, write() in onStarted, then `stdinEnabled = false`
   = EOF. Quick Settings card `slideshow` (QsCatalog, hidden by default — add it from the edit
-  footer; `services.wallpaper` in the module services map). NOT done: settings UI, fill-blur.
+  footer; `services.wallpaper` in the module services map). Every wallr set (apply, random,
+  slideshow, live preview + restore) goes through `Wallpaper.setOn` → `scripts/wallpapers/
+  setwall.sh`, one call per output (pixel size): adaptive fill-blur (walltool idea) — a still
+  image whose aspect ratio is off by more than `fillBlurThreshold` is composed whole over a
+  blurred (blur at 1/8 size: ~1 s for 3500×5000), darkened copy at the output's size, cached in
+  `<thumbCache>/fill/<md5>.jpg` + `.src` (original path); `scripts/wallpapers/current.sh` maps
+  wallr's last_wallpaper back through `.src` so the carousel still centres on the original.
+  NOT done: settings UI.
   Verified via IPC + log only (centre on current wallpaper, thumbs, video init); visuals
   and keys NOT checked — the user checks visuals themselves (asked: no screenshots).
 - Polkit agent (Oct 2026, refs: DMS PolkitService, end-4 ii, caelestia): `services/Polkit.qml`

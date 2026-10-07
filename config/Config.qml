@@ -585,6 +585,15 @@ Singleton {
                             effect: "island",
                             durationMs: 1000,
                             mode: "fill",
+                            // Adaptive fill-blur (scripts/wallpapers/setwall.sh,
+                            // mode "fill" only): a still image whose aspect is
+                            // off by more than fillBlurThreshold (min ratio) is
+                            // shown whole over a blurred (sigma), darkened (dim)
+                            // copy of itself. Composites cached per output size.
+                            fillBlur: true,
+                            fillBlurThreshold: 0.8,
+                            fillBlurSigma: 8,
+                            fillBlurDim: 0.25,
                             theme: "",
                             // services/Wallpaper: history length, what
                             // `island wallpaperRandom` picks from (all |

@@ -44,8 +44,14 @@ Item {
         };
     }
 
+    // Through the shell service (fill-blur composites, same as a real set);
+    // plain wallr when there is none. The service outlives the plugin, so
+    // the restore from onDestruction still works.
     function set(path: string): void {
-        Quickshell.execDetached(WallrArgs.set(path, root.opts(), root.c.mode ?? ""));
+        if (root.host?.wallpaper)
+            root.host.wallpaper.setOn(path, root.opts());
+        else
+            Quickshell.execDetached(WallrArgs.set(path, root.opts(), root.c.mode ?? ""));
     }
 
     function restore(): void {

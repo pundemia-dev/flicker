@@ -94,6 +94,8 @@ Scope {
         onIdle: dupesItem.refresh()
     }
 
+    readonly property string thumbCacheDir: warmup.cacheDir
+
     // Visual duplicate groups (services/WallpaperDupes) for the "d " view.
     readonly property alias dupes: dupesItem
     WallpaperDupes {
@@ -136,8 +138,29 @@ Scope {
 
     // opts: see WallrArgs.set (output "" = all outputs).
     function apply(path: string, opts: var): void {
-        Quickshell.execDetached(WallrArgs.set(path, opts, root.cfg.mode ?? ""));
+        root.setOn(path, opts);
         root.pushHistory(path);
+    }
+
+    // Every wallr set goes through scripts/wallpapers/setwall.sh, one per
+    // output (pixel size differs): adaptive fill-blur for still images whose
+    // aspect is far from the output's (fillBlur*, only with mode "fill").
+    // No history: the live preview and its restore use this directly.
+    function setOn(path: string, opts: var): void {
+        const outs = opts.output ? [opts.output] : Quickshell.screens.map(s => s.name);
+        const fill = (root.cfg.fillBlur ?? true) && (root.cfg.mode ?? "fill") === "fill";
+        for (const name of outs) {
+            const s = Quickshell.screens.find(x => x.name === name);
+            const o = Object.assign({}, opts, { output: name });
+            if (opts.effect === "island" && !opts.output)
+                Object.assign(o, root.originFor(name));
+            const rest = WallrArgs.set(path, o, root.cfg.mode ?? "").slice(3);
+            const dpr = s?.devicePixelRatio ?? 1;
+            Quickshell.execDetached([root.scripts + "setwall.sh", path,
+                String(Math.round((s?.width ?? 0) * dpr)), String(Math.round((s?.height ?? 0) * dpr)),
+                String(fill ? (root.cfg.fillBlurThreshold ?? 0.8) : 0), String(root.cfg.fillBlurSigma ?? 8),
+                String(root.cfg.fillBlurDim ?? 0.25), root.thumbCacheDir, "--"].concat(rest));
+        }
     }
 
     // Configured effect/duration/theme for a real (non-preview) set.
