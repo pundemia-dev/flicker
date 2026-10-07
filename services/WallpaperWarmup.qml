@@ -28,6 +28,10 @@ Scope {
     }
 
     readonly property bool allowed: (root.cfg.warmup ?? true) && (!root.discharging || (root.cfg.warmupOnBattery ?? false))
+    // Every thumbnail exists (after a scan / the last batch): the duplicate
+    // finder can run over a complete set.
+    signal idle
+
     // Flat [key, path, key, path, ...] still to make.
     property var queue: []
     property bool started: false
@@ -88,8 +92,12 @@ Scope {
     }
 
     function pump(): void {
-        if (!root.allowed || batch.running || !root.queue.length)
+        if (!root.allowed || batch.running)
             return;
+        if (!root.queue.length) {
+            root.idle();
+            return;
+        }
         const n = Math.max(1, root.cfg.warmupBatch ?? 40) * 2;
         const args = root.queue.slice(0, n);
         root.queue = root.queue.slice(n);

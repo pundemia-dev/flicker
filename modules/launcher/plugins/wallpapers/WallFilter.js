@@ -3,11 +3,12 @@
 
 // Carousel search: an optional one-letter prefix + fuzzy text.
 //   "v " videos, "g " GIFs, "i " images, "f " favourites, "h " history
-//   (newest first); the rest is fuzzy matched on the file name.
-const PREFIXES = { v: "video", g: "gif", i: "image", f: "fav", h: "history" };
+//   (newest first), "d " visual duplicates (group by group, biggest
+//   first); the rest is fuzzy matched on the file name.
+const PREFIXES = { v: "video", g: "gif", i: "image", f: "fav", h: "history", d: "dupes" };
 
 function parse(q) {
-    const m = /^([vgifh])(?:\s+|$)(.*)$/.exec(q || "");
+    const m = /^([vgifhd])(?:\s+|$)(.*)$/.exec(q || "");
     return {
         filter: m ? PREFIXES[m[1]] : "",
         query: (m ? m[2] : q || "").trim()
@@ -19,12 +20,26 @@ function parse(q) {
 var VISIBILITY = ["normal", "include", "only"];
 
 // files: service entries (sorted); ctx: { favourites: {path: true},
-// history: [path, ...], visibility }. Returns the visible entries.
+// history: [path, ...], visibility, dupes: [[{ path }, ...], ...] }.
+// Returns the visible entries.
 function apply(files, f, ctx) {
     const vis = ctx.visibility || "normal";
     let list = vis === "include" ? files : files.filter(e => e.hidden === (vis === "only"));
     if (f.filter === "fav") {
         list = list.filter(e => ctx.favourites[e.path]);
+    } else if (f.filter === "dupes") {
+        // Groups stay together; a group left with one visible member (the
+        // rest hidden / trashed) is resolved and drops out.
+        const byPath = {};
+        for (const e of list)
+            byPath[e.path] = e;
+        let out = [];
+        for (const g of ctx.dupes || []) {
+            const members = g.map(d => byPath[d.path]).filter(e => !!e);
+            if (members.length > 1)
+                out = out.concat(members);
+        }
+        list = out;
     } else if (f.filter === "history") {
         const byPath = {};
         for (const e of list)

@@ -44,6 +44,10 @@ LauncherPlugin {
     // that did not land where the carousel assumed → re-read the folder.
     Connections {
         target: root.wallpaper
+        function onTrashDone(path: string, ok: bool): void {
+            if (!ok)
+                wallService.rescan();
+        }
         function onHideDone(from: string, to: string, ok: bool): void {
             if (!ok || !root.indexOf[to] && !wallService.files.some(e => e.path === to))
                 wallService.rescan();
@@ -131,7 +135,18 @@ LauncherPlugin {
 
     function handleInput(q: string): void {
         root.filter = WallFilter.parse(q);
+        if (root.filter.filter === "dupes")
+            root.wallpaper?.dupes.ensure();
         rebuild("", false);
+    }
+
+    // The duplicate groups arrived / were refreshed while the view is open.
+    Connections {
+        target: root.wallpaper?.dupes ?? null
+        function onGroupsChanged(): void {
+            if (root.filter.filter === "dupes")
+                root.rebuild("", true);
+        }
     }
 
     // Path to keep in the centre across a rebuild (the selection, or the
@@ -171,12 +186,13 @@ LauncherPlugin {
         const ctx = {
             favourites: root.wallpaper?.favouriteSet ?? {},
             history: root.wallpaper?.history ?? [],
-            visibility: root.visibility
+            visibility: root.visibility,
+            dupes: root.wallpaper?.dupes.groups ?? []
         };
         // Same query + a fuzzy search: refine the current order (a re-search
         // of ~3500 names is ~0.1-0.3 s in QV4 — a hitch on every hide).
         const files = wallService.files;
-        let list = sameList && root.filter.query && root.filter.filter !== "history"
+        let list = sameList && root.filter.query && root.filter.filter !== "history" && root.filter.filter !== "dupes"
             ? WallFilter.refine(root.entries, files, root.prevFiles, root.filter, ctx, root.renames) : null;
         if (!list)
             list = WallFilter.apply(files, root.filter, ctx);
@@ -308,6 +324,9 @@ LauncherPlugin {
 
     function apply(entry: var, allOutputs: bool): void {
         WallActions.apply(root, entry, allOutputs);
+    }
+    function trashCurrent(): void {
+        WallActions.trashCurrent(root);
     }
     function toggleHidden(): void {
         WallActions.toggleHidden(root);

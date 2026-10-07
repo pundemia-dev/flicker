@@ -80,6 +80,12 @@ Item {
         root.loaded = true;
     }
 
+    // A file trashed by us: out of the list now (the next signature poll
+    // confirms it).
+    function dropFile(path: string): void {
+        root.files = root.files.filter(e => e.path !== path);
+    }
+
     // A file renamed by us (hide/unhide): show the new name now instead of
     // waiting for the next signature poll (which then confirms it).
     function renameFile(from: string, to: string): void {

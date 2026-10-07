@@ -20,6 +20,8 @@ Item {
     required property var service
     property bool playing: false
     property bool favourite: false
+    // Second caption line ("" = none): duplicate details.
+    property string detail: ""
     // Born in place (a renamed card, a ghost): no rise-in.
     property bool instant: false
     // Ghost of a removed card: dissolves (blur + fade + shrink) as gone → 1.
@@ -130,40 +132,55 @@ Item {
                     GradientStop { position: 1; color: root.theme.wallCaptionShade }
                 }
             }
-            Row {
+            Column {
                 anchors.left: parent.left
                 anchors.right: parent.right
                 anchors.bottom: parent.bottom
                 anchors.margins: root.lc.itemPadding
-                spacing: 8
+                spacing: 2
                 opacity: 1 - root.near
 
-                Rectangle {
-                    visible: root.entry.type !== "image"
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: badge.implicitWidth + 12
-                    height: badge.implicitHeight + 4
-                    radius: height / 2
-                    color: root.theme.wallBadge
+                Row {
+                    width: parent.width
+                    spacing: 8
+
+                    Rectangle {
+                        visible: root.entry.type !== "image"
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: badge.implicitWidth + 12
+                        height: badge.implicitHeight + 4
+                        radius: height / 2
+                        color: root.theme.wallBadge
+                        Text {
+                            id: badge
+                            anchors.centerIn: parent
+                            text: root.entry.type === "gif" ? "GIF" : I18n.tr("VIDEO")
+                            color: root.theme.islandFg
+                            font.family: root.theme.fontFamily
+                            font.pixelSize: root.lc.subFontSize - 3
+                            font.weight: Font.DemiBold
+                        }
+                    }
                     Text {
-                        id: badge
-                        anchors.centerIn: parent
-                        text: root.entry.type === "gif" ? "GIF" : I18n.tr("VIDEO")
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: parent.width - (root.entry.type !== "image" ? badge.implicitWidth + 20 : 0)
+                        text: root.entry.name
+                        elide: Text.ElideRight
                         color: root.theme.islandFg
                         font.family: root.theme.fontFamily
-                        font.pixelSize: root.lc.subFontSize - 3
+                        font.pixelSize: root.lc.subFontSize
                         font.weight: Font.DemiBold
                     }
                 }
+                // "d " view: place in the group · resolution · size.
                 Text {
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: parent.width - (root.entry.type !== "image" ? badge.implicitWidth + 20 : 0)
-                    text: root.entry.name
+                    width: parent.width
+                    visible: root.detail.length > 0
+                    text: root.detail
                     elide: Text.ElideRight
-                    color: root.theme.islandFg
+                    color: root.theme.subtleFg
                     font.family: root.theme.fontFamily
-                    font.pixelSize: root.lc.subFontSize
-                    font.weight: Font.DemiBold
+                    font.pixelSize: root.lc.subFontSize - 2
                 }
             }
         }

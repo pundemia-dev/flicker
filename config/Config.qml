@@ -612,6 +612,20 @@ Singleton {
                             warmupBatch: 40,
                             warmupJobs: 1,
                             warmupOnBattery: false,
+                            // "d " view (services/WallpaperDupes + scripts/
+                            // wallpapers/dupes.py): refresh when older than
+                            // dupesMaxAgeMin; match = dHash within
+                            // dupesHashDistance bits, then a 16x16 RGB check
+                            // (every channel <= dupesMaxPixel, mean <=
+                            // dupesMaxMean, contrast-normalised mean <=
+                            // dupesMaxZ; near-flat images, luminance std <
+                            // dupesFlatStd, must match almost exactly).
+                            dupesMaxAgeMin: 10,
+                            dupesHashDistance: 10,
+                            dupesMaxPixel: 48,
+                            dupesMaxMean: 8,
+                            dupesMaxZ: 0.2,
+                            dupesFlatStd: 3,
                             thumbHeight: 460,
                             thumbJobs: 3,
                             thumbBatch: 9,

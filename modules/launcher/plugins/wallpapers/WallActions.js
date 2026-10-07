@@ -59,6 +59,16 @@ function toggleHidden(p) {
     p.fileService.renameFile(e.path, to);
 }
 
+// Ctrl+Delete: the centre file to the trash; the card dissolves and the
+// rest close the gap (same path as a hide in the normal view).
+function trashCurrent(p) {
+    const e = p.current;
+    if (!e || !p.wallpaper)
+        return;
+    p.wallpaper.trash(e.path);
+    p.fileService.dropFile(e.path);
+}
+
 // Ctrl+[ (dir +1, older) / Ctrl+] (-1, newer): walk the history from the
 // centre card, skipping files that are gone.
 function historyStep(p, dir) {

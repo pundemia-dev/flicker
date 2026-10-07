@@ -70,25 +70,36 @@ Scope {
             version: 1,
             favourites: root.favourites,
             history: root.history,
-            slideshow: { active: slideshow.active, spec: slideshow.spec }
+            slideshow: { active: slideshowItem.active, spec: slideshowItem.spec }
         }, null, 2));
     }
 
     // Slideshow (services/WallpaperSlideshow): carousel Ctrl+S, IPC
     // wallpaperSlideshow / wallpaperNext.
-    readonly property alias slideshow: slideshow
+    readonly property alias slideshow: slideshowItem
     WallpaperSlideshow {
-        id: slideshow
+        id: slideshowItem
         wallpaper: root
         cfg: root.cfg
         discharging: root.discharging
         onEdited: root.save()
     }
 
-    // Background thumbnails for the carousel (services/WallpaperWarmup).
+    // Background thumbnails for the carousel (services/WallpaperWarmup);
+    // once they are all there the duplicate groups are refreshed.
     WallpaperWarmup {
+        id: warmup
         cfg: root.cfg
         discharging: root.discharging
+        onIdle: dupesItem.refresh()
+    }
+
+    // Visual duplicate groups (services/WallpaperDupes) for the "d " view.
+    readonly property alias dupes: dupesItem
+    WallpaperDupes {
+        id: dupesItem
+        cfg: root.cfg
+        cacheDir: warmup.cacheDir
     }
 
     FileView {
@@ -102,7 +113,7 @@ Scope {
                 root.favourites = (s.favourites ?? []).filter(p => typeof p === "string");
                 root.history = (s.history ?? []).filter(p => typeof p === "string");
                 if (s.slideshow?.active)
-                    Qt.callLater(() => slideshow.start(s.slideshow.spec));
+                    Qt.callLater(() => slideshowItem.start(s.slideshow.spec));
             } catch (e) {
                 console.warn("Wallpaper: bad state file, starting empty:", e);
             }
@@ -217,6 +228,42 @@ Scope {
     }
 
     property var hideQueue: []
+
+    // Ctrl+Delete in the carousel: the file goes to the trash (`gio trash`,
+    // restorable from the desktop trash), out of favourites/history.
+    signal trashDone(string path, bool ok)
+
+    function trash(path: string): void {
+        if (!path)
+            return;
+        root.favourites = root.favourites.filter(p => p !== path);
+        root.history = root.history.filter(p => p !== path);
+        root.save();
+        root.trashQueue = root.trashQueue.concat([path]);
+        Qt.callLater(root.pumpTrash);
+    }
+
+    property var trashQueue: []
+
+    function pumpTrash(): void {
+        if (trashProc.running || !root.trashQueue.length)
+            return;
+        trashProc.path = root.trashQueue[0];
+        root.trashQueue = root.trashQueue.slice(1);
+        trashProc.command = ["gio", "trash", "--", trashProc.path];
+        trashProc.running = true;
+    }
+
+    Process {
+        id: trashProc
+        property string path: ""
+        onExited: (code, status) => {
+            if (code !== 0)
+                console.warn("[wallpaper] trash failed:", trashProc.path, code);
+            root.trashDone(trashProc.path, code === 0);
+            Qt.callLater(root.pumpTrash);
+        }
+    }
 
     function pumpHide(): void {
         if (hideProc.running || !root.hideQueue.length)

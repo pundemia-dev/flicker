@@ -356,7 +356,19 @@ Not a git repo. No tests, no linter, no formatter.
   `warmupDelaySec` after start + every `warmupRescanMin`, missing thumbs in batches through
   thumbs.sh (`warmupJobs`, nice), off on battery. `WallEntry.js` = the ONE entry/key builder
   (carousel, slideshow, warm-up must hash identically). Status pills (WallPill) on the carousel
-  top: hidden view, slideshow. NOT done: settings UI, fill-blur, trash. Verified via IPC + log only (centre on current wallpaper, thumbs, video init); visuals
+  top: hidden view, slideshow, duplicate search. Ctrl+Delete = `gio trash` (service queue,
+  `trashDone`; the card dissolves like a hide). "d " view = visual duplicates:
+  `services/WallpaperDupes.qml` runs `scripts/wallpapers/dupes.py` (system python3 + Pillow) on
+  the carousel THUMBNAILS: dHash candidates (8×8-bit bands) verified on a 16×16 RGB miniature
+  (per-channel / mean diff + contrast-normalised luminance ≤ `dupesMaxZ`; near-flat images must
+  match exactly) and grouped around a representative (no A~B~C chaining). Calibrated on the
+  user's folder: dHash + union-find alone gave groups of 228/117 dark/minimal wallpapers; real
+  duplicates (incl. 7680×4320 vs 1920×1080) sit at z ≤ 0.13, distinct dark ones ≥ 0.26 → 79
+  groups / 165 files. Fingerprints cached in `<thumbCache>/dhash.json` (~2 s warm, ~15 s cold);
+  refreshed when the warm-up goes idle and on opening the view if older than `dupesMaxAgeMin`.
+  Caption line `detail` = "n of m · W×H · size"; a group left with one visible member drops out.
+  Process stdin one-shot: `stdinEnabled: true`, write() in onStarted, then `stdinEnabled = false`
+  = EOF. NOT done: settings UI, fill-blur. Verified via IPC + log only (centre on current wallpaper, thumbs, video init); visuals
   and keys NOT checked — the user checks visuals themselves (asked: no screenshots).
 - Polkit agent (Oct 2026, refs: DMS PolkitService, end-4 ii, caelestia): `services/Polkit.qml`
   (Quickshell `PolkitAgent` in a Loader, `Config.polkit.enabled`; ONE agent per session —

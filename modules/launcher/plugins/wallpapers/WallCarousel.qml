@@ -19,6 +19,19 @@ Item {
     clip: true
 
     readonly property int centre: Math.round(root.plugin.pos)
+
+    // "d " view caption line: place in the group, resolution, file size.
+    function dupeDetail(path: string): string {
+        const d = root.plugin.wallpaper?.dupes.info[path];
+        if (!d)
+            return "";
+        const parts = [I18n.tr("%1 of %2").arg(d.index).arg(d.count)];
+        if (d.w > 0)
+            parts.push(d.w + "×" + d.h);
+        if (d.bytes > 0)
+            parts.push(d.bytes >= 1048576 ? I18n.tr("%1 MB").arg((d.bytes / 1048576).toFixed(1)) : I18n.tr("%1 KB").arg(Math.round(d.bytes / 1024)));
+        return parts.join(" · ");
+    }
     readonly property int reach: M.reach(root.c, root.width / 2)
 
     ScriptModel {
@@ -82,6 +95,7 @@ Item {
             service: root.service
             playing: root.plugin.playing && idx === root.plugin.selected
             favourite: root.plugin.wallpaper?.favouriteSet[modelData.path] ?? false
+            detail: root.plugin.filter.filter === "dupes" ? root.dupeDetail(modelData.path) : ""
             onClicked: {
                 if (idx === root.plugin.selected)
                     root.plugin.apply(modelData, false);
@@ -107,6 +121,14 @@ Item {
             shown: root.plugin.visibility !== "normal"
             glyph: root.plugin.visibility === "only" ? "\uecf0" : "\uea9a" // tabler eye-off / eye
             text: root.plugin.visibility === "only" ? I18n.tr("Hidden only") : I18n.tr("With hidden")
+        }
+        WallPill {
+            theme: root.theme
+            c: root.c
+            lc: root.lc
+            shown: root.plugin.filter.filter === "dupes" && (root.plugin.wallpaper?.dupes.busy ?? false)
+            glyph: "\ueb1c" // tabler search
+            text: I18n.tr("Looking for duplicates…")
         }
         WallPill {
             theme: root.theme
