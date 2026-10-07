@@ -24,6 +24,10 @@ Not a git repo. No tests, no linter, no formatter.
   mismatched radii!) and IPC routing between them is ambiguous. Before starting
   one, check BOTH forms: `pgrep -af "quickshell|qs -c"`. Kill yours immediately
   after (`kill <PID>`, literal PID — `pkill -f`/subshell kills are blocked).
+- Real pointer input: `python3 temp/vmouse.py <dx dy>... click sleep <s>` = uinput virtual
+  mouse (/dev/uinput is user-writable via ACL here), clicks/moves land through the compositor
+  like a real mouse. Move in SMALL steps (`-40 0` ×20): one large relative jump barely moves
+  the cursor. Cursor position: debugState `capture.square` while capture is open.
 - Visual check: `grim /tmp/shot.png`, crop top-center. grim is fast here now (Oct 2026:
   ~60ms `-t ppm`, ~125ms png); earlier sessions saw ~1.9s — if so, raise
   `timings.osdAutoCloseMs` when screenshotting short-lived states.
@@ -36,7 +40,9 @@ Not a git repo. No tests, no linter, no formatter.
   (instant, no overlay), record (toggle), recordPause, recordControls, dashboard, player, lock, close, minimal, island, osd, debugState,
   volumeUp/Down/Mute, micMute, brightnessUp/Down, playPause, nextTrack, prevTrack, playerSeek <s>),
   `lock` (activate/isLocked — deliberately NO unlock/toggle over IPC; unlocking needs PAM),
-  `dictation` (start/stop/toggle/cancel/status).
+  `dictation` (start/stop/toggle/cancel/status),
+  `prompter` (open <path>, clipboard, text <s>, show/close/toggle, pause, mode voice|auto|manual,
+  move <n words>, next/prev (block), status).
 
 ## Architecture wiring (non-obvious)
 
@@ -295,7 +301,8 @@ Not a git repo. No tests, no linter, no formatter.
   GIF/video play in the centre card `playDelayMs` after it rests (AnimatedImage / MediaPlayer+
   VideoOutput, muted, looped). Thumbs on demand (`thumbAhead` around the selection) via
   `scripts/wallpapers/thumbs.sh` (ffmpeg, `thumbJobs` parallel) → `~/.cache/pillShell/wallpapers/
-  <md5(path|mtime|size)>.jpg`; scan `scripts/wallpapers/scan.sh` (dot files/dirs skipped), rescan
+  <md5(path|mtime|size)>.jpg`; scan `scripts/wallpapers/scan.sh` (dot DIRS skipped; dot FILES = hidden wallpapers, listed with
+  `hidden: true` — the user's folder has ~1350; thumb key ignores the dot), rescan
   only when the dir-mtime signature changes (poll `rescanMs` while active). Live preview (fade,
   `--no-theme`) after `previewDelayMs`; Esc/close/other plugin restores the original read from
   `~/.cache/wallr/last_wallpaper/<output>` (execDetached from onDestruction). Enter = this output,
@@ -311,8 +318,16 @@ Not a git repo. No tests, no linter, no formatter.
   Trap hit: `service: service` in the carousel Component = self-reference (renamed `wallService`).
   Edits to `plugins/wallpapers/*` did NOT hot-reload the live instance (only files the scanner
   saw are watched) — force it with a real edit of e.g. `PluginRegistry.qml`.
-  NOT done yet: fullscreen/battery video pause, `island wallpaperRandom`, settings, favourites/
-  history. Verified via IPC + log only (centre on current wallpaper, thumbs, video init); visuals
+  Shell-wide `services/Wallpaper.qml` (Shell → Island → `launcherHost.wallpaper`, IslandIpc):
+  favourites + history (paths, newest first) in `Quickshell.statePath("wallpapers.json")`,
+  `apply()` (every real set → history; `noteCurrent` seeds it with wallr's current on open),
+  `random(output)` (`island wallpaperRandom`, `randomFrom` all|favourites, never the current),
+  `setHidden()` (mv "name" <-> ".name"; random skips hidden), video pause `wallr ipc pause/resume -m <out>` per screen on
+  fullscreen (`pauseOnFullscreen`) / battery (`pauseOnBattery`). Plugin split: WallKeys.js
+  (Ctrl+A/E ends, Ctrl+R random card, Ctrl+Shift+A/D fav, Ctrl+H hidden view normal→include→only (pill on top, eye-off badge on
+  hidden cards), Ctrl+Shift+H hide/unhide, Ctrl+[/] history —
+  Ctrl combos also match xkb keycodes so they work on the ru layout), WallFilter.js (prefixes
+  v/g/i/f/h), WallActions.js, WallPreview.qml. NOT done: slideshow, settings UI, fill-blur. Verified via IPC + log only (centre on current wallpaper, thumbs, video init); visuals
   and keys NOT checked — the user checks visuals themselves (asked: no screenshots).
 - Polkit agent (Oct 2026, refs: DMS PolkitService, end-4 ii, caelestia): `services/Polkit.qml`
   (Quickshell `PolkitAgent` in a Loader, `Config.polkit.enabled`; ONE agent per session —
@@ -337,6 +352,36 @@ Not a git repo. No tests, no linter, no formatter.
   `grabToImage` frames) — verified crossfades + 4→3 roll that way.
   Verified live with `pkexec /usr/bin/true` + wtype: render, wrong password → error, Esc →
   "Request dismissed". Success path NOT tested (needs the real password).
+- Teleprompter (Oct 2026, user: in the island, hiding from screencasts DROPPED): service
+  `services/Prompter.qml` (Shell → Island `prompter`, IPC `prompter`) + module `modules/prompter/`
+  (`PrompterModule` + `PrompterBlock` per markdown block) + launcher plugin `!prompt`
+  (`plugins/prompter/`: files under `prompter.dir`, newest first, + "from clipboard").
+  `PrompterParse.js` = md subset → blocks of styled pieces + flat word list; notes ([brackets],
+  <!-- -->, > quotes) and code are NOT spoken (excluded from alignment, drawn blue-italic).
+  Each block = read-only RichText `TextEdit` (`enabled: false` → press-transparent;
+  `positionToRectangle` gives the cursor word's line → scroll spring puts it on `readLine`);
+  only the block holding the cursor rebuilds its HTML (`localCursor` clamp). Rich-text CSS gets
+  OPAQUE colours (Theme `prompter*`). Body = frost path with `Theme.prompterBody` (dark glass,
+  `Island.frostTint` latched per module; "prompter" in `effects.frostModules`).
+  Voice: `Dictation.startFor("prompter", lang)` — `sink` "prompter" = no wtype, no Refine/LLM, no
+  layout restarts, dictation indicator hidden, the dictation key (`toggle`) ignored meanwhile;
+  lang = script alphabet (`detectLang`) unless `prompter.language`. `PrompterAlign.js` = local
+  Smith-Waterman of the last 8 heard words (finals + live partial) vs the spoken script: fuzzy
+  words (Levenshtein + ru stem bonus), short words weigh little, gap / trailing-unmatched costs;
+  local window (−8/+60, distance-penalized, forward-only except a strong re-read) → after 3
+  unmatched heard words a WHOLE-script search (≥3 matched, unique by `uniqueMargin`, throttled
+  `globalThrottleMs`) = off-topic / skipped-section recovery; 6 unmatched = `lost` ("searching").
+  Node harness (clean / ASR noise / off-topic / skip / restart, 4000-word perf ≈11 ms in node):
+  load the .js with `.pragma library` stripped. Island: the prompter is a SESSION — a module
+  opened over it (launcher, QS) returns to it on close (`prompterHere`), OSD is suppressed while
+  it shows, flow cards queue (moduleOpen), moduleIdle never closes it; closing it (swipe up, Esc)
+  = `prompter.close()` (mic off, position saved). Position per file + last file in
+  `statePath("prompter.json")`; the file is watched, an edit re-locates the cursor by its last
+  read words. Verified live (Oct 2026): render, manual move, and the user reading the demo aloud
+  — tracked to the end incl. ASR errors ("покурим"/"поговорим"). NOT tested: auto mode, keys,
+  wheel, footer pills, launcher plugin, clipboard, multi-output hand-over. Known: viewport edges
+  are a hard clip (no soft fade on the translucent body — MultiEffect masks are binary).
+
 - MPRIS multi-player: `services/Players.qml` picks `active` dms-style (prefer a playing
   player, remember the last playing one, a paused player beats registered-idle ones at
   cold start). Plain `players[0]` picks early-registrants like Telegram (registers
@@ -484,6 +529,15 @@ Not a git repo. No tests, no linter, no formatter.
   exact boolean difference. The player module has no volume row yet. Dev preview window:
   `quickshell -p dev/volume-icon/shell.qml` (all variants + looping animations; watches the
   icon files itself — `components` there is a symlink quickshell's watcher ignores).
+- `components/VelocityDeform.qml` (Oct 2026) = pShell BlobRect velocity deform in pure QML:
+  `transform: VelocityDeform { item: <self> }` — the item's scene-centre velocity stretches it
+  along the motion / compresses across (area-preserving, cap `deform.maxStretch`, attenuated by
+  size like pShell Liquid.deformSizeScale), 2×2 matrix on an under-damped spring (Euler
+  sub-steps ≤ 1/240 s); FrameAnimation runs only while moving/settling (woken by x/y changes).
+  Tunables `Config.data.deform` (pShell Liquid values). Used by the capture ColorPanel crawl
+  + grow-out-of-the-live-chip on open (pShell: `growT` 0→1 on a Spring, box lerps chip rect →
+  panel incl. pill→panel radius, content scaled to the width + fades in, bg opaque at once,
+  close fades) and the OcrPanel glide (verified on the colour panel with temp/vmouse.py frames).
 - `components/RollingText.qml` = Apple numericText-style per-character drum
   roll (only changed chars roll, slots matched from the RIGHT via Row
   RightToLeft, auto direction: value up → roll UP, down → roll DOWN (user-corrected), Spring
@@ -497,6 +551,12 @@ Not a git repo. No tests, no linter, no formatter.
 - QML property names cannot start with an upper-case letter (`property var L` →
   "Property names cannot begin with an upper case letter", the whole Shell fails to load
   — and the user's live instance hot-reloads into that).
+- Canvas `loadImage(url)` of an image ALREADY in the pixmap cache (an Image elsewhere loaded
+  it) completes synchronously and NEVER emits `imageLoaded`; `getContext()` before `available`
+  only warns + returns null. Ready = `available && isImageLoaded(url)`, checked after
+  loadImage, on imageLoaded and on availableChanged (ColorLoupe: Tab from shot → colour left
+  the sampler dead, clicks never opened the colour panel; direct `captureMode color` raced
+  the backdrop load and worked).
 - Canvas `shadow*` (`shadowColor`/`shadowBlur`/offsets) do NOTHING in Qt:
   the Context2D properties exist (assignments don't throw) but render no
   shadow (verified Sep 2026). Build glows from layered translucent strokes
@@ -719,7 +779,10 @@ Simplified / not implemented yet (see pillShell.md for the intended behaviour):
   (tesseract on the pure grab crop, langs chips, re-crop on frame release), AudioChooser
   (record pending), EditorComposite (offscreen 1:1 physical composite → grabToImage →
   `out-<screen>.png` → deliver)); `color/ColorLoupe` + `ColorPanel` (pipette: 1×1 Canvas
-  sampling, loupe = binary MultiEffect circle mask under a 2px ring, HSL sliders, formats,
+  sampling, loupe = ShaderEffectSource `sourceRect` (span = size/zoom px of a hidden 1:1 grab
+  Image, opacity 0 — an INVISIBLE ShaderEffectSource never renders, fillItem Shape drew nothing)
+  filling a CurveRenderer circle; the old zoom-sized Image (physW×zoom ≈ 20k px) in a clip/
+  MultiEffect-masked layer rendered NOTHING, loupe looked empty (fixed Oct 2026) — under a 2px ring, HSL sliders, formats,
   recent colours — memories are session-only on CaptureActions, never written to config);
   `window/WindowPicker` (rects from `compositor.windowRects(screen)`; click → selection
   preset for the editor). Window geometry: driftwm `position` = window CENTRE in canvas

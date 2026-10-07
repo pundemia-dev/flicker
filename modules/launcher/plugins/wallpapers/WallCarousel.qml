@@ -1,5 +1,6 @@
 import QtQuick
 import Quickshell
+import "../../../../components"
 import "../../../../config"
 import "CarouselMath.js" as M
 
@@ -44,11 +45,50 @@ Item {
             theme: root.theme
             service: root.service
             playing: root.plugin.playing && idx === root.plugin.selected
+            favourite: root.plugin.wallpaper?.favouriteSet[modelData.path] ?? false
             onClicked: {
                 if (idx === root.plugin.selected)
                     root.plugin.apply(modelData, false);
                 else
                     root.plugin.select(idx);
+            }
+        }
+    }
+
+    // Hidden-files view (Ctrl+H): a pill over the carousel top while it is
+    // not the normal view.
+    FadeBlur {
+        z: 1001
+        anchors.top: parent.top
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.topMargin: root.c.badgeInset ?? 8
+        width: modeRow.implicitWidth + (root.c.badgeSize ?? 26)
+        height: root.c.badgeSize ?? 26
+        shown: root.plugin.visibility !== "normal"
+
+        Rectangle {
+            anchors.fill: parent
+            radius: height / 2
+            color: root.theme.wallCaptionShade
+        }
+        Row {
+            id: modeRow
+            anchors.centerIn: parent
+            spacing: 6
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                text: root.plugin.visibility === "only" ? "\uecf0" : "\uea9a" // tabler eye-off / eye
+                font.family: root.theme.iconFamily
+                font.pixelSize: (root.c.badgeSize ?? 26) * 0.58
+                color: root.theme.islandFg
+            }
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                text: root.plugin.visibility === "only" ? I18n.tr("Hidden only") : I18n.tr("With hidden")
+                font.family: root.theme.fontFamily
+                font.pixelSize: root.lc.subFontSize - 2
+                font.weight: Font.DemiBold
+                color: root.theme.islandFg
             }
         }
     }
@@ -68,11 +108,21 @@ Item {
     // through) gets wheel events along BOTH axes — WheelHandler only sees
     // its `orientation`, which dropped pure horizontal swipes. Mouse wheel
     // = vertical only (120 per card), touchpad = horizontal only
-    // (touchpadStep per card). Qt on Wayland reports the touchpad as a Mouse
+    // (touchpadStep per card, accelerated — touchpadGain). Qt on Wayland reports the touchpad as a Mouse
     // device; finger scrolling is recognised by a scroll phase or a pixel
     // delta, and anything within touchpadHoldMs of such an event belongs to
     // the same gesture (slow motion rounds pixelDelta to 0).
     property real touchpadAt: 0
+
+    // Touchpad acceleration: events come at a steady rate, so the per-event
+    // delta is the finger speed. Up to touchpadAccelFrom it counts 1:1 (slow,
+    // precise), past it the gain grows by touchpadAccel per accelFrom of
+    // extra speed, capped at touchpadAccelMax.
+    function touchpadGain(dx: real): real {
+        const from = Math.max(1, root.c.touchpadAccelFrom ?? 30);
+        const extra = Math.max(0, Math.abs(dx) - from) / from;
+        return Math.min(root.c.touchpadAccelMax ?? 3, 1 + (root.c.touchpadAccel ?? 1) * extra);
+    }
     MouseArea {
         anchors.fill: parent
         z: 1000 // above the cards (z up to 100); presses fall through
@@ -84,7 +134,7 @@ Item {
                 root.touchpadAt = now;
             const touchpad = now - root.touchpadAt < (root.c.touchpadHoldMs ?? 150);
             if (touchpad)
-                root.plugin.wheel(wheel.angleDelta.x, root.c.touchpadStep ?? 120);
+                root.plugin.wheel(wheel.angleDelta.x * root.touchpadGain(wheel.angleDelta.x), root.c.touchpadStep ?? 200);
             else
                 root.plugin.wheel(wheel.angleDelta.y, 120);
         }

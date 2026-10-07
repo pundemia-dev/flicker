@@ -9,6 +9,7 @@ import "../modules/stash"
 import "../modules/osd"
 import "../modules/player"
 import "../modules/polkit"
+import "../modules/prompter"
 
 Item {
     id: root
@@ -69,6 +70,8 @@ Item {
                 return hotspotActionsComp;
             if (root.moduleName === "polkit")
                 return polkitComp;
+            if (root.moduleName === "prompter")
+                return prompterComp;
             return null;
         }
     }
@@ -182,6 +185,15 @@ Item {
             polkit: root.services.polkit
             theme: root.services.theme
             cfg: root.services.config.polkit
+            onCloseRequested: root.closeRequested()
+        }
+    }
+    Component {
+        id: prompterComp
+        PrompterModule {
+            prompter: root.services.prompter
+            theme: root.services.theme
+            cfg: root.services.config.prompter
             onCloseRequested: root.closeRequested()
         }
     }

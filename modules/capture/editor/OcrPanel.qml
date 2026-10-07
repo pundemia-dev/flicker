@@ -112,12 +112,17 @@ Item {
     Behavior on opacity { NumberAnimation { duration: root.cfg.fadeInMs } }
 
     Rectangle {
+        id: panelBox
         x: root.place.x
         y: root.place.y
         width: root.panelW
         height: root.panelH
         radius: root.cfg.panelRadius
         color: root.theme.islandBg
+        // Liquid stretch while it glides (pShell blob deform), content included.
+        transform: VelocityDeform {
+            item: panelBox
+        }
         // Glide only on relocation while open (frame moved/resized); the
         // opening position is taken as is.
         Behavior on x { enabled: root.open; Spring {} }

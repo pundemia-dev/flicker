@@ -170,7 +170,7 @@ Singleton {
                     disableCompositorBlur: false,
                     islandOpacity: 1.0,
                     frost: true,
-                    frostModules: ["quicksettings", "notifications:center"],
+                    frostModules: ["quicksettings", "notifications:center", "prompter"],
                     frostSpring: 3,
                     frostDamping: 0.5,
                     frostLayerOpacity: 0.5,
@@ -454,6 +454,20 @@ Singleton {
                     stretchStiffness: 5,
                     stretchDamping: 0.3
                 })
+            // Liquid stretch of moving panels (components/VelocityDeform.qml,
+            // port of pShell BlobRect): stretch along the motion = speed (px/s)
+            // × scale, capped at maxStretch, × size attenuation
+            // full / (full + (max(w, h) − full) · sizeStrength), floored at sizeFloor;
+            // settles on a spring (stiffness/damping, explicit Euler sub-steps).
+            property var deform: ({
+                    scale: 0.0004,
+                    maxStretch: 0.35,
+                    stiffness: 200,
+                    damping: 16,
+                    sizeFull: 250,
+                    sizeStrength: 7.0,
+                    sizeFloor: 0.0
+                })
             // Launcher (modules/launcher, pShell port): island size derived in
             // LauncherMetrics.js (radius = padding + inputHeight / 2, concentric
             // with the search pill). "!" in the search field picks a plugin;
@@ -531,6 +545,9 @@ Singleton {
                             cardHeights: [1, 0.92, 0.85],
                             cardSpacing: 10,
                             cardRadius: 18,
+                            // Favourite star (top-right of a card).
+                            badgeSize: 26,
+                            badgeInset: 8,
                             edgeFadeWidth: 120,
                             parallax: 60,
                             speeds: [
@@ -541,8 +558,14 @@ Singleton {
                             speedWindowMs: 280,
                             pageStep: 5,
                             // Touchpad horizontal swipe per card (angle-delta
-                            // units; a mouse wheel notch = 120).
-                            touchpadStep: 120,
+                            // units; a mouse wheel notch = 120), slow swipes
+                            // 1:1; faster than touchpadAccelFrom per event
+                            // accelerate (+touchpadAccel per accelFrom, up to
+                            // touchpadAccelMax).
+                            touchpadStep: 200,
+                            touchpadAccelFrom: 30,
+                            touchpadAccel: 1,
+                            touchpadAccelMax: 3,
                             touchpadHoldMs: 150,
                             flyMax: 30,
                             playDelayMs: 60,
@@ -554,6 +577,14 @@ Singleton {
                             durationMs: 1000,
                             mode: "fill",
                             theme: "",
+                            // services/Wallpaper: history length, what
+                            // `island wallpaperRandom` picks from (all |
+                            // favourites), video pause on a fullscreen window
+                            // / on battery.
+                            historyLimit: 100,
+                            randomFrom: "all",
+                            pauseOnFullscreen: true,
+                            pauseOnBattery: false,
                             thumbHeight: 460,
                             thumbJobs: 3,
                             thumbBatch: 9,
@@ -596,6 +627,36 @@ Singleton {
                     shakeSpring: 6,
                     shakeDamping: 0.12,
                     successHoldMs: 700
+                })
+            // Teleprompter (services/Prompter + modules/prompter). Island
+            // width x height, radius; text px (headings scale by level),
+            // reading line at readLine of the viewport height. mode voice |
+            // auto | manual; voice language "auto" = by the script's
+            // alphabet. align = PrompterAlign overrides (see its DEF).
+            property var prompter: ({
+                    dir: "~/Documents/prompter",
+                    mode: "voice",
+                    language: "auto",
+                    width: 760,
+                    height: 300,
+                    radius: 32,
+                    padding: 26,
+                    footerHeight: 26,
+                    fontSize: 28,
+                    headingScale: [1.45, 1.25, 1.1],
+                    noteScale: 0.78,
+                    codeScale: 0.72,
+                    lineHeight: 1.18,
+                    blockGap: 14,
+                    readLine: 0.34,
+                    markerWidth: 3,
+                    scrollSpring: 2.4,
+                    scrollDamping: 0.42,
+                    wheelWords: 4,
+                    wpm: 130,
+                    heardKeep: 40,
+                    globalThrottleMs: 300,
+                    align: ({})
                 })
             // Per-module island sizes (island.moduleWidth/Height = fallback).
             // "notifications" splits by payload mode: notifications:flow/center.

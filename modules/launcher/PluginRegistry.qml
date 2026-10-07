@@ -2,13 +2,14 @@ import QtQuick
 import "plugins/apps"
 import "plugins/clipboard"
 import "plugins/wallpapers"
+import "plugins/prompter"
 
 // Launcher plugins (pShell PluginRegistry semantics without folder
 // scanning: Quickshell's scanner misses imports of dynamically loaded
 // files, so plugins are listed explicitly — one line per plugin folder).
 // `active` = not in config.launcher.disabled, ordered by
 // config.launcher.order, then the manifest `order` hint, then title;
-// active[0] is the default plugin (plain typing).
+// active[0] is the default plugin (plain typing): one line per folder.
 QtObject {
     id: root
     property var order: []
@@ -17,7 +18,8 @@ QtObject {
     readonly property list<QtObject> all: [
         AppsManifest {},
         ClipboardManifest {},
-        WallpapersManifest {}
+        WallpapersManifest {},
+        PrompterManifest {}
     ]
 
     readonly property var active: {

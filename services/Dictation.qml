@@ -34,6 +34,13 @@ Item {
     property int stopTimeoutMs: Config.data.dictation.stopTimeoutMs ?? 7000
 
     property bool active: false
+    // Who consumes the text: "type" (wtype + Refine, the normal dictation)
+    // or "prompter" (services/Prompter follows partials/finals; nothing is
+    // typed, no Refine/LLM, no layout restarts, language pinned by the
+    // caller). Set per session by start() / startFor().
+    readonly property string sink: root._sink
+    property string _sink: "type"
+    property string _langOverride: ""
     // idle | switching | streaming | finalizing | refining
     // switching = backend (re)starting, model not loaded yet (grey wave);
     // leaves it on backend ready or on first audio, whichever comes first.
@@ -190,6 +197,8 @@ Item {
     }
 
     function _effectiveLang(): string {
+        if (root._langOverride.length > 0)
+            return root._langOverride;
         if (root.followLayout) {
             const l = root.keyboardLayout?.lang ?? "";
             if (l.length > 0)
@@ -200,7 +209,7 @@ Item {
 
     function _onLayoutSwitched(lang: string): void {
         const l = lang ?? "";
-        if (!root.followLayout || !root.active || root._legacyActive || root._finishing)
+        if (!root.followLayout || !root.active || root._legacyActive || root._finishing || root._sink !== "type")
             return;
         if (l.length === 0 || l === root._sessionLang)
             return;
@@ -230,8 +239,16 @@ Item {
     }
 
     function start(): void {
+        root.startFor("type", "");
+    }
+
+    // Session for a given consumer (see `sink`); lang "" = the usual
+    // layout/config language.
+    function startFor(sinkName: string, lang: string): void {
         if (root.active)
             return;
+        root._sink = (sinkName ?? "").length > 0 ? sinkName : "type";
+        root._langOverride = lang ?? "";
         // A killed backend dies asynchronously: starting while the old
         // process still runs would overwrite _runSid and route its late
         // exit into the new session (bogus "stream exit 137"). Refuse;
@@ -256,10 +273,11 @@ Item {
             root._restarting = false;
             root._restartLang = "";
             root._sessionLang = root._effectiveLang();
-            refine.ensureModel();
+            if (root._sink === "type")
+                refine.ensureModel();
             typer.reset();
             typer.typeDelayMs = Config.data.dictation.typeDelayMs ?? 0;
-            typer.typeEnabled = root.typeEnabled;
+            typer.typeEnabled = root.typeEnabled && root._sink === "type";
             root.phase = "streaming";
             root.active = true;
             root._streamAlive = false;
@@ -298,10 +316,11 @@ Item {
         root._sessionLang = (lang ?? "").length > 0 ? lang : "auto";
         // Load the refine model first: it warms in parallel while the
         // backend connects (no-op when externally managed or running).
-        refine.ensureModel();
+        if (root._sink === "type")
+            refine.ensureModel();
         typer.reset();
         typer.typeDelayMs = Config.data.dictation.typeDelayMs ?? 0;
-        typer.typeEnabled = root.typeEnabled;
+        typer.typeEnabled = root.typeEnabled && root._sink === "type";
         const sc = (root.streamCommand ?? "").trim();
         const cmd = (sc.length === 0 || sc === "stub") ? root._stub : sc;
         const session = `${root._runtimeDir}/pillShell-dictation-${Date.now()}.jsonl`;
@@ -377,13 +396,18 @@ Item {
         stream.sessionFile = "";
     }
 
+    // The dictation key never touches a session another consumer owns
+    // (the prompter listens through the same backend).
     function toggle(): void {
+        if (root.active && root._sink !== "type")
+            return;
         root.active ? root.stop() : root.start();
     }
 
     function status(): string {
         return JSON.stringify({
             active: root.active,
+            sink: root._sink,
             phase: root.phase,
             lang: root._sessionLang,
             live: root.liveText,
@@ -450,6 +474,15 @@ Item {
             return;
         }
         root.segmentFinal(t, lang);
+        // Prompter: plain transcript, no Refine / typing.
+        if (root._sink !== "type") {
+            root._committed = root._committed.length > 0 ? `${root._committed} ${t}` : t;
+            root.lastTranscript = t;
+            root._retype();
+            root.transcribed(t);
+            root._maybeFinish();
+            return;
+        }
         // Preview the final form (corrections+rules applied, like the commit
         // will) instead of flashing raw fillers that vanish a moment later.
         const shown = refine._applyRules(refine._applyCorrections(t));

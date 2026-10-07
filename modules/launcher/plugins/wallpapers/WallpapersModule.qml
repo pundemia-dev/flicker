@@ -1,44 +1,60 @@
 import QtQuick
-import Quickshell
 import "../../api"
 import "../../../../components"
 import "../../../../config"
-import "../../fuzzysort.js" as Fuzzy
-import "WallrArgs.js" as WallrArgs
+import "WallFilter.js" as WallFilter
 import "CarouselMath.js" as CarouselMath
+import "WallKeys.js" as WallKeys
+import "WallActions.js" as WallActions
 
 // Wallpaper carousel (pShell Wallpaper Engine look, backend wallr). The
 // plugin owns the state — filtered `entries`, `selected`, the animated
 // centre `pos` — and WallCarousel only draws it, so the body can be rebuilt
-// by the host at any time.
-//   ←/→ (↑/↓, Tab) step, Shift+arrows / PgUp/PgDn jump pageStep, Home/End;
-//   wheel steps. Pace picks the spring (cfg.speeds): a single step, quick
-//   steps within speedWindowMs, auto-repeat / jumps.
-//   Query prefixes: "v " videos, "g " GIFs, "i " images; the rest is fuzzy
-//   matched on the file name.
+// by the host at any time. Favourites/history/apply live in the shell-wide
+// services/Wallpaper (host.wallpaper); keys in WallKeys.js.
+//   Pace picks the spring (cfg.speeds): a single step, quick steps within
+//   speedWindowMs, auto-repeat / jumps. Search: WallFilter (v/g/i/f/h).
 //   Enter = this island's output, Alt+Enter = every output (cfg.effect;
-//   "island" grows the new wallpaper out of the bar).
-//   Live preview (cfg.livePreview): once the carousel rests, the centre
-//   card goes onto this output (fade, no theming); leaving without Enter
-//   (Esc, closing, another plugin) puts the original back.
+//   "island" grows the new wallpaper out of the bar). Live preview:
+//   WallPreview.
 LauncherPlugin {
     id: root
 
     readonly property var c: root.cfg?.wallpapers ?? ({})
+    readonly property var wallpaper: root.host?.wallpaper ?? null
 
     bodyComponent: carouselComp
     bodyWidth: CarouselMath.bodyWidth(root.c)
     bodyHeight: root.c.cardHeight ?? 230
 
+    // Exposed for WallActions.js.
+    readonly property alias fileService: wallService
+    readonly property alias previewer: preview
+
     WallpaperService {
         id: wallService
         cfg: root.c
         watching: root.isActive
-        onFilesChanged: root.rebuild()
+        onFilesChanged: root.rebuild("", true)
     }
 
-    property string query: ""
-    property string typeFilter: ""
+    // Favourites / history filters follow the service live.
+    Connections {
+        target: root.wallpaper
+        function onFavouritesChanged(): void {
+            if (root.filter.filter === "fav")
+                root.rebuild("", true);
+        }
+        function onHistoryChanged(): void {
+            if (root.filter.filter === "history")
+                root.rebuild("", true);
+        }
+    }
+
+    property var filter: ({ filter: "", query: "" })
+    // Hidden files: normal | include | only (Ctrl+H cycles, session only).
+    property string visibility: "normal"
+    onVisibilityChanged: root.rebuild("", false)
     property var entries: []
     // path -> index in entries (reassigned on rebuild: delegates bind it).
     property var indexOf: ({})
@@ -75,95 +91,87 @@ LauncherPlugin {
         posBehavior.enabled = true;
     }
 
-    // ---- input ----
+    function quietSnap(i: int): void {
+        root.quietCentre = true;
+        root.snapTo(i);
+        root.quietCentre = false;
+    }
+
+    // ---- activation / search ----
 
     function onActivated(initialQuery: string): void {
-        root.applied = false;
-        root.previewed = "";
-        root.original = "";
+        preview.reset();
         root.focusPath = "";
         if (root.host?.screen)
             wallService.readCurrent(root.host.screen, path => {
-                root.original = path;
+                preview.original = path;
+                root.wallpaper?.noteCurrent(path);
                 if (!root.focusPath && path) {
                     root.focusPath = path;
                     const i = root.indexOf[path];
-                    if (i !== undefined) {
-                        root.quietCentre = true;
-                        root.snapTo(i);
-                        root.quietCentre = false;
-                    }
+                    if (i !== undefined)
+                        root.quietSnap(i);
                 }
             });
         handleInput(initialQuery ?? "");
     }
 
     function onDeactivated(): void {
-        root.restoreOriginal();
+        preview.restore();
     }
 
-    Component.onDestruction: root.restoreOriginal()
+    Component.onDestruction: preview.restore()
 
     function handleInput(q: string): void {
-        const m = /^([vgi])(?:\s+|$)(.*)$/.exec(q ?? "");
-        root.typeFilter = m ? ({ v: "video", g: "gif", i: "image" })[m[1]] : "";
-        root.query = (m ? m[2] : q ?? "").trim();
-        rebuild();
+        root.filter = WallFilter.parse(q);
+        rebuild("", false);
     }
 
     // Path to keep in the centre across a rebuild (the selection, or the
     // current wallpaper before anything was picked).
     property string focusPath: ""
 
-    function rebuild(): void {
-        let list = wallService.files;
-        if (root.typeFilter)
-            list = list.filter(e => e.type === root.typeFilter);
-        if (root.query)
-            list = Fuzzy.go(root.query, list, { key: "name" }).map(r => r.obj);
+    // keep: path to centre ("" = the current selection); sameList: the
+    // files/favourites changed under an unchanged query — a vanished
+    // selection then keeps its slot instead of jumping to the start.
+    function rebuild(keep: string, sameList: bool): void {
+        const list = WallFilter.apply(wallService.files, root.filter, {
+            favourites: root.wallpaper?.favouriteSet ?? {},
+            history: root.wallpaper?.history ?? [],
+            visibility: root.visibility
+        });
         const idx = {};
         for (let i = 0; i < list.length; i++)
             idx[list[i].path] = i;
-        const keep = root.current?.path ?? root.focusPath;
+        const path = keep || (root.current?.path ?? root.focusPath);
+        const fallback = sameList ? Math.max(0, Math.min(root.selected, list.length - 1)) : 0;
         root.entries = list;
         root.indexOf = idx;
         // Filtering re-indexes everything: jump (no flight across the list),
         // the cards rise in on their own.
-        root.quietCentre = true;
-        root.snapTo(idx[keep] ?? 0);
-        root.quietCentre = false;
+        root.quietSnap(idx[path] ?? fallback);
         root.wantThumbs();
     }
 
-    function handleKey(e: var): bool {
-        const shift = (e.modifiers & Qt.ShiftModifier) !== 0;
-        const page = root.c.pageStep ?? 5;
-        switch (e.key) {
-        case Qt.Key_Left:
-        case Qt.Key_Up:
-        case Qt.Key_Backtab:
-            root.step(shift ? -page : -1, e.isAutoRepeat);
-            return true;
-        case Qt.Key_Right:
-        case Qt.Key_Down:
-        case Qt.Key_Tab:
-            root.step(shift ? page : 1, e.isAutoRepeat);
-            return true;
-        case Qt.Key_PageUp:
-            root.step(-page, true);
-            return true;
-        case Qt.Key_PageDown:
-            root.step(page, true);
-            return true;
-        case Qt.Key_Home:
-            root.step(-root.selected, true);
-            return true;
-        case Qt.Key_End:
-            root.step(root.entries.length - 1 - root.selected, true);
-            return true;
+    // Centre a path, clearing the search if it hides it.
+    function focusOn(path: string): void {
+        if (root.indexOf[path] !== undefined) {
+            root.select(root.indexOf[path]);
+            return;
         }
-        return false;
+        if (root.filter.filter || root.filter.query) {
+            root.requestSetInput("");
+            root.filter = WallFilter.parse("");
+        }
+        root.focusPath = path;
+        root.rebuild(path, false);
     }
+
+    function handleKey(e: var): bool {
+        return WallKeys.handle(root, e);
+    }
+
+    // ---- motion ----
 
     property real lastStepAt: 0
 
@@ -193,29 +201,35 @@ LauncherPlugin {
         root.step(i - root.selected, Math.abs(i - root.selected) > 1);
     }
 
-    // Wheel / touchpad: one card per `unit` of angle delta (a mouse notch
-    // = 120; touchpads deliver small deltas that accumulate).
+    // Wheel / touchpad (WallActions.wheel accumulates into wheelAcc).
     property real wheelAcc: 0
     function wheel(delta: real, unit: real): void {
-        // Touchpads interleave zero-delta events (the other axis): skip
-        // them, they must not count as a direction change.
-        if (delta === 0)
-            return;
-        if (root.wheelAcc !== 0 && Math.sign(delta) !== Math.sign(root.wheelAcc))
-            root.wheelAcc = 0; // direction change: no leftover from the last swipe
-        root.wheelAcc += delta;
-        while (Math.abs(root.wheelAcc) >= unit) {
-            // Positive = wheel up / content pulled right = previous card.
-            const back = root.wheelAcc > 0;
-            root.wheelAcc += back ? -unit : unit;
-            root.step(back ? -1 : 1, false);
-        }
+        WallActions.wheel(root, delta, unit);
     }
+
+    // ---- actions (WallActions.js) ----
 
     function handleExecute(query: string, isAlt: bool): bool {
         if (root.current)
             root.apply(root.current, isAlt);
         return true;
+    }
+
+    function apply(entry: var, allOutputs: bool): void {
+        WallActions.apply(root, entry, allOutputs);
+    }
+    function toggleHidden(): void {
+        WallActions.toggleHidden(root);
+    }
+    function cycleVisibility(): void {
+        const v = WallFilter.VISIBILITY;
+        root.visibility = v[(v.indexOf(root.visibility) + 1) % v.length];
+    }
+    function historyStep(dir: int): void {
+        WallActions.historyStep(root, dir);
+    }
+    function randomCard(): void {
+        WallActions.randomCard(root);
     }
 
     // ---- thumbnails: the cards around the centre, nearest first ----
@@ -241,14 +255,14 @@ LauncherPlugin {
     readonly property bool playing: root.settled && root.playReady
     onSelectedChanged: {
         root.playReady = false;
-        previewTimer.stop();
+        preview.cancel();
     }
     onSettledChanged: {
         root.playReady = false;
         if (root.settled) {
             root.speedLevel = 0;
             playTimer.restart();
-            previewTimer.restart();
+            preview.rest();
         }
     }
     Timer {
@@ -257,55 +271,12 @@ LauncherPlugin {
         onTriggered: root.playReady = root.settled
     }
 
-    property bool applied: false
-    property string original: ""
-    // Path last put on the desktop by the preview ("" = untouched).
-    property string previewed: ""
-
-    Timer {
-        id: previewTimer
-        interval: root.c.previewDelayMs ?? 500
-        onTriggered: {
-            const e = root.current;
-            if (!(root.c.livePreview ?? false) || !root.isActive || !e || !root.host?.screen)
-                return;
-            if (e.path === (root.previewed || root.original))
-                return;
-            root.previewed = e.path;
-            wallService.set(e.path, root.previewOpts());
-        }
-    }
-
-    function previewOpts(): var {
-        return {
-            output: root.host?.screen ?? "",
-            effect: "fade",
-            durationMs: root.c.previewDurationMs ?? 300,
-            theme: "none"
-        };
-    }
-
-    function restoreOriginal(): void {
-        if (root.applied || !root.previewed || !root.original)
-            return;
-        // Detached + no service call: this also runs from onDestruction.
-        if (root.previewed !== root.original)
-            Quickshell.execDetached(WallrArgs.set(root.original, root.previewOpts(), root.c.mode ?? ""));
-        root.previewed = "";
-    }
-
-    function apply(entry: var, allOutputs: bool): void {
-        root.applied = true;
-        previewTimer.stop();
-        wallService.set(entry.path, {
-            output: allOutputs ? "" : (root.host?.screen ?? ""),
-            effect: root.c.effect ?? "island",
-            durationMs: root.c.durationMs ?? 1000,
-            originX: root.host?.originX ?? 0.5,
-            originY: root.host?.originY ?? 0.03,
-            theme: root.c.theme ?? ""
-        });
-        root.requestClose(true);
+    WallPreview {
+        id: preview
+        c: root.c
+        host: root.host
+        active: root.isActive
+        target: root.current?.path ?? ""
     }
 
     Component {

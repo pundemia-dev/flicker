@@ -16,6 +16,7 @@ Scope {
     required property var lock
     required property var capture
     required property var recorder
+    required property var wallpaper
 
     readonly property var island: root.registry.forOutput(root.compositor?.focusedOutput ?? "")
 
@@ -23,8 +24,10 @@ Scope {
         target: "island"
         function launcher(): void { root.island?.openLauncher(""); }
         // Launcher straight into a plugin (id from modules/launcher/plugins:
-        // apps, clipboard); again while it is open closes it.
+        // apps, clipboard, wallpapers); again while it is open closes it.
         function launcherPlugin(id: string): void { root.island?.openLauncher(id); }
+        // Random wallpaper on the focused output (config randomFrom).
+        function wallpaperRandom(): void { root.wallpaper.random(root.island?.targetScreen?.name ?? ""); }
         function quicksettings(): void { root.island?.openQuickSettings(); }
         // Quick Settings straight into edit mode (= long press on a card).
         function quicksettingsEdit(): void {

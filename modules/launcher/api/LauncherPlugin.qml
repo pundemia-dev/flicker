@@ -20,7 +20,7 @@ Item {
     property var cfg: null
     // Island context (LauncherModule.host): { screen: output name,
     // originX/originY: bar centre on that screen, normalized 0..1,
-    // haptics: services/Haptics }.
+    // haptics: services/Haptics, wallpaper: services/Wallpaper }.
     property var host: null
 
     property bool isActive: false

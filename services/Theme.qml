@@ -50,6 +50,18 @@ QtObject {
     // Frosted button surface, straight on the blur (the tint is knocked
     // out under it): #1C1C1C at 0.435 = fit of the samples (wall·0.565+12).
     readonly property color frostButton: "#6F1C1C1C"
+    // Teleprompter body over the compositor blur (frost path with this
+    // tint instead of frostBody): dark glass, white text stays readable
+    // over bright windows. Read words / notes / reading-line marker. Text
+    // colours stay OPAQUE: they go into rich-text CSS (no alpha there).
+    readonly property color prompterBody: "#990B0B0D"
+    readonly property color prompterRead: "#6F7279"
+    readonly property color prompterCurrent: "#FFFFFF"
+    readonly property color prompterAhead: "#ECEDF1"
+    readonly property color prompterNote: "#8FA3D6"
+    readonly property color prompterNoteRead: "#4E5872"
+    readonly property color prompterMarker: "#A8C1FF"
+    readonly property string monoFamily: "monospace"
     // QS edit mode: card rim blinks clear -> darker than the card surface
     // (the frosted button #6F1C1C1C) and back (fade).
     readonly property color qsEditRim: "#00000000"

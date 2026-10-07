@@ -19,6 +19,7 @@ Item {
     required property var theme
     required property var service
     property bool playing: false
+    property bool favourite: false
     signal clicked
 
     readonly property real near: M.near(root.d)
@@ -122,6 +123,50 @@ Item {
                 font.pixelSize: root.lc.subFontSize
                 font.weight: Font.DemiBold
             }
+        }
+    }
+
+    // Hidden file (".name"): an eye-off mark in the top-left corner.
+    Rectangle {
+        anchors.top: parent.top
+        anchors.left: parent.left
+        anchors.margins: root.c.badgeInset ?? 8
+        width: root.c.badgeSize ?? 26
+        height: width
+        radius: width / 2
+        color: root.theme.wallCaptionShade
+        opacity: root.entry.hidden ? 1 : 0
+        scale: root.entry.hidden ? 1 : 0.6
+        Behavior on opacity { Spring { eps: 0.01 } }
+        Behavior on scale { Spring { stiffness: 5; damp: 0.35; eps: 0.005 } }
+        Text {
+            anchors.centerIn: parent
+            text: "\uecf0" // tabler eye-off
+            font.family: root.theme.iconFamily
+            font.pixelSize: parent.width * 0.58
+            color: root.theme.islandFg
+        }
+    }
+
+    // Favourite mark: a star on a dark disc in the top-right corner, pops in.
+    Rectangle {
+        anchors.top: parent.top
+        anchors.right: parent.right
+        anchors.margins: root.c.badgeInset ?? 8
+        width: root.c.badgeSize ?? 26
+        height: width
+        radius: width / 2
+        color: root.theme.wallCaptionShade
+        opacity: root.favourite ? 1 : 0
+        scale: root.favourite ? 1 : 0.6
+        Behavior on opacity { Spring { eps: 0.01 } }
+        Behavior on scale { Spring { stiffness: 5; damp: 0.35; eps: 0.005 } }
+        Text {
+            anchors.centerIn: parent
+            text: "\uf6a6" // tabler star-filled
+            font.family: root.theme.iconFamily
+            font.pixelSize: parent.width * 0.58
+            color: root.theme.accentYellow
         }
     }
 

@@ -24,6 +24,15 @@ Item {
     property string fmt: "hex"
     property real panelX: 0
     property real panelY: 0
+    // Grow out of the loupe's live chip on open (pShell): 0 = chip rect,
+    // 1 = settled panel; the background morphs its real geometry, the
+    // content rides it scaled to the width and fades in.
+    property real growT: 1
+    property var fromRect: ({ x: 0, y: 0, w: 1, h: 1 })
+    readonly property real vx: root.fromRect.x + (root.panelX - root.fromRect.x) * root.growT
+    readonly property real vy: root.fromRect.y + (root.panelY - root.fromRect.y) * root.growT
+    readonly property real vw: Math.max(1, root.fromRect.w + (root.panelW - root.fromRect.w) * root.growT)
+    readonly property real vh: Math.max(1, root.fromRect.h + (root.panelH - root.fromRect.h) * root.growT)
 
     readonly property color cur: Qt.hsla(root.hue, root.sat, root.lig, 1)
     readonly property int rC: Math.round(root.cur.r * 255)
@@ -59,11 +68,15 @@ Item {
             root.fmt = root.initialFmt();
             // Toward the screen centre, a follow radius away from the pick.
             const p = root.placeOnRadius(cx, cy, root.width / 2 - cx, root.height / 2 - cy);
-            posX.enabled = posY.enabled = false;
+            // Background opaque at once (pShell blob); only closing fades.
+            posX.enabled = posY.enabled = grow.enabled = fade.enabled = false;
             root.panelX = p.x;
             root.panelY = p.y;
-            posX.enabled = posY.enabled = true;
+            root.fromRect = root.picker.chipRect();
+            root.growT = 0;
             root.open = true;
+            posX.enabled = posY.enabled = grow.enabled = fade.enabled = true;
+            root.growT = 1;
         } else {
             root.maybeCrawl(cx, cy);
         }
@@ -117,25 +130,41 @@ Item {
 
     Behavior on panelX { id: posX; Spring {} }
     Behavior on panelY { id: posY; Spring {} }
+    Behavior on growT { id: grow; Spring { eps: 0.002 } }
 
     visible: opacity > 0.01
     opacity: root.open ? 1 : 0
-    Behavior on opacity { NumberAnimation { duration: root.cfg.fadeInMs } }
+    Behavior on opacity { id: fade; NumberAnimation { duration: root.cfg.fadeInMs } }
 
     Rectangle {
-        x: root.panelX
-        y: root.panelY
-        width: root.panelW
-        height: root.panelH
-        radius: root.cfg.panelRadius
+        id: panelBox
+        x: root.vx
+        y: root.vy
+        width: root.vw
+        height: root.vh
+        // Chip pill → panel corners.
+        radius: root.fromRect.h / 2 + (root.cfg.panelRadius - root.fromRect.h / 2) * Math.min(1, root.growT)
         color: root.theme.islandBg
+        // The width-scaled content is taller than the growing box early on.
+        clip: root.growT < 0.999
+        // Liquid stretch while it grows / crawls (pShell blob deform),
+        // content included; attenuated by the settled size.
+        transform: VelocityDeform {
+            item: panelBox
+            sizeW: root.panelW
+            sizeH: root.panelH
+        }
 
         HoverHandler { id: panelHover }
         MouseArea { anchors.fill: parent } // no picks through the panel
 
         Column {
             id: col
-            anchors.centerIn: parent
+            x: root.cfg.panelPad * scale
+            y: root.cfg.panelPad * scale
+            scale: root.vw / root.panelW
+            transformOrigin: Item.TopLeft
+            opacity: Math.min(1, root.growT * 2)
             width: root.panelW - root.cfg.panelPad * 2
             spacing: root.gap * 1.5
 

@@ -41,6 +41,9 @@ PanelWindow {
     required property var haptics
     // Polkit agent (services/Polkit); the prompt is the `polkit` module.
     required property var polkit
+    // Teleprompter (services/Prompter); shown as the `prompter` module.
+    required property var prompter
+    required property var wallpaper
     // Shared per-screen island registry (IPC routes to the focused output).
     required property var registry
 
@@ -58,7 +61,8 @@ PanelWindow {
     // mini-games: OnDemand (focus on click, never steals from windows).
     // Polkit prompt: Exclusive too (pkexec from a focused terminal).
     WlrLayershell.keyboardFocus: root.state.activeModule === "launcher" || root.state.activeModule === "polkit" ? WlrKeyboardFocus.Exclusive
-        : (root.state.activeModule === "notifications" && (root.state.activePayload?.mode ?? "") === "center")
+        : ((root.state.activeModule === "notifications" && (root.state.activePayload?.mode ?? "") === "center")
+            || root.state.activeModule === "prompter")
         ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
     WlrLayershell.exclusionMode: ExclusionMode.Ignore
     // Own namespace so compositor rules can target the island (niri
@@ -268,6 +272,10 @@ PanelWindow {
                 return { width: moduleHost.preferredWidth, height: moduleHost.preferredHeight, radius: LauncherMetrics.radius(c) };
             return LauncherMetrics.estimate(c, root.state.activePayload?.plugin ?? "");
         }
+        if (root.moduleKey === "prompter") {
+            const c = root.config.prompter;
+            return { width: c.width, height: c.height, radius: c.radius };
+        }
         // Polkit prompt fits its content (message / command / status lines).
         if (root.moduleKey === "polkit") {
             const c = root.config.polkit;
@@ -400,7 +408,14 @@ PanelWindow {
     // sit straight on the blur — iOS 18 CC, fitted from the user's samples).
     readonly property color bodyColor: root.mixColor(root.restBodyColor, Qt.rgba(0, 0, 0, 0), root.frostProgress)
     // Edge fade / anything that should match the backdrop's look.
-    readonly property color backdropColor: root.mixColor(root.restBodyColor, root.theme.frostBody, root.frostProgress)
+    readonly property color backdropColor: root.mixColor(root.restBodyColor, root.frostTint, root.frostProgress)
+    // Frost tint per module: the prompter is dark glass (Theme.prompterBody)
+    // instead of the light Control Center grey. Latched while frosted, so
+    // the fade-out keeps the tint it faded in with.
+    readonly property string frostWanted: root.frostTarget ? root.moduleKey : ""
+    property string frostKey: ""
+    onFrostWantedChanged: if (root.frostWanted !== "") root.frostKey = root.frostWanted
+    readonly property color frostTint: root.frostKey === "prompter" ? root.theme.prompterBody : root.theme.frostBody
 
     // Knockouts of the SHOWN module (switch at the ContentSwap handover).
     // On the way out the last set is held, shifted with the top-centred
@@ -764,6 +779,9 @@ PanelWindow {
     // (see modules/osd/OsdModule.qml). A fresh object per key press — the
     // module rubber-bands on presses that hit an end.
     function showOsd(osd: var): void {
+        // Never over the teleprompter (the text would blink away mid-read).
+        if (root.moduleOpen && root.state.activeModule === "prompter")
+            return;
         const payload = Object.assign({}, osd ?? {});
         // Already up: update in place. Re-opening bumps openCount and replays
         // the whole swap on every key repeat (the OSD flickers).
@@ -783,7 +801,46 @@ PanelWindow {
             moduleIdle.restart();
     }
 
+    // ── Teleprompter ──
+    // The prompter is a session: another module opened over it (launcher,
+    // QS) hands the island back to it on close; only closing the prompter
+    // itself (swipe up, Esc, IPC) ends it. `prompterHere` = this output owns
+    // the session (services/Prompter is shared by all islands).
+    property bool prompterHere: false
+
+    function openPrompter(): void {
+        if (root.lock.locked || root.stolen || root.capture.active || root.capture.grabbing)
+            return;
+        root.prompterHere = true;
+        if (!(root.moduleOpen && root.state.activeModule === "prompter"))
+            openModule("prompter", {});
+    }
+
+    Connections {
+        target: root.prompter
+        // Shown on another output now: hand the session over quietly.
+        function onShowRequested() {
+            if (!root.prompterHere || root.registry.forOutput(root.compositor?.focusedOutput ?? "") === root)
+                return;
+            root.prompterHere = false;
+            if (root.moduleOpen && root.state.activeModule === "prompter")
+                root.closeModule();
+        }
+        function onHideRequested() {
+            root.prompterHere = false;
+            if (root.moduleOpen && root.state.activeModule === "prompter")
+                root.closeModule();
+        }
+    }
+
     function closeModule(): void {
+        const closing = root.state.activeModule;
+        if (closing !== "prompter" && root.prompterHere && root.prompter.open) {
+            moduleIdle.stop();
+            flowAutoClose.stop();
+            openModule("prompter", {});
+            return;
+        }
         // Closing the prompt (swipe up, Esc) = cancel the request.
         if (root.state.activeModule === "polkit" && root.polkit.active)
             root.polkit.cancel();
@@ -791,6 +848,8 @@ PanelWindow {
         moduleIdle.stop();
         flowAutoClose.stop();
         state.closeModule();
+        if (closing === "prompter" && root.prompterHere)
+            root.prompter.close();
         // previousState may be stale: fullscreen changes are ignored while a
         // module is open (onFsActiveChanged), so reconcile here. Back in
         // Minimal without fullscreen, the idle timer must run or the strip
@@ -904,7 +963,7 @@ PanelWindow {
             // owns the keyboard (it closes itself on Esc/launch).
             // HoverHandler does not see drags: a file held over the chooser
             // and a running device scan / upload count as use too.
-            if (islandHover.hovered || root.state.activeModule === "launcher" || root.polkitHolds || root.stash.outgoingDrag
+            if (islandHover.hovered || root.state.activeModule === "launcher" || root.state.activeModule === "prompter" || root.polkitHolds || root.stash.outgoingDrag
                 || root.stashDragOver || (root.state.activeModule === "stash" && root.localSend.busy)) {
                 moduleIdle.restart();
                 return;
@@ -1261,7 +1320,7 @@ PanelWindow {
             preferredRendererType: Shape.CurveRenderer
             opacity: root.frostProgress
             ShapePath {
-                fillColor: root.theme.frostBody
+                fillColor: root.frostTint
                 strokeWidth: -1
                 fillRule: ShapePath.OddEvenFill
                 PathSvg {
@@ -1277,7 +1336,7 @@ PanelWindow {
             preferredRendererType: Shape.CurveRenderer
             opacity: root.frostProgress * Math.max(0, Math.min(1, root.knockoutFill))
             ShapePath {
-                fillColor: root.theme.frostBody
+                fillColor: root.frostTint
                 strokeWidth: -1
                 PathSvg {
                     path: root.frostProgress > 0.001 && root.knockoutFill > 0.001
@@ -1362,12 +1421,15 @@ PanelWindow {
                         controlCenter: root.controlCenter,
                         haptics: root.haptics,
                         polkit: root.polkit,
+                        prompter: root.prompter,
                         quickAction: root.runQuickAction,
                         // Launcher plugins: output + bar centre (normalized,
                         // y from the top) — the wallpaper "island" effect
                         // grows from there.
                         launcherHost: ({
                                 haptics: root.haptics,
+                                wallpaper: root.wallpaper,
+                                prompter: root.prompter,
                                 screen: root.targetScreen?.name ?? "",
                                 originX: 0.5,
                                 originY: (root.islandCfg.topMargin + root.islandCfg.height / 2) / Math.max(1, root.targetScreen?.height ?? 1)
@@ -1449,6 +1511,7 @@ PanelWindow {
                     incoming: root.localSend.hasIncoming
                 },
                 capture: root.capture.debugInfo(),
+                prompter: JSON.parse(root.prompter.status()),
                 queue: root.notificationQueue.size,
                 notifCount: (root.notifications.history ?? []).length,
                 notifs: (root.notifications.history ?? []).slice(0, 5).map(n => ({

@@ -94,7 +94,7 @@ Item {
         if (name === "music")
             return root.players.musicActive;
         if (name === "dictation")
-            return root.dictation.active;
+            return root.dictation.active && root.dictation.sink === "type";
         return false;
     }
 

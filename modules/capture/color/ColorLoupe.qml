@@ -1,5 +1,5 @@
 import QtQuick
-import QtQuick.Effects
+import QtQuick.Shapes
 import "ColorMath.js" as ColorMath
 import "../../../config"
 
@@ -72,6 +72,24 @@ Item {
         return { r: d[0], g: d[1], b: d[2] };
     }
 
+    // Ready = image loaded AND the Canvas has a context (getContext before
+    // `available` only warns and returns null).
+    function samplerLoaded(): void {
+        if (!sampler.available || !sampler.isImageLoaded(root.srcUrl))
+            return;
+        root.samplerReady = true;
+        if (root.cursorX >= 0)
+            root.moveTo(root.cursorX, root.cursorY);
+    }
+
+    // Live chip rect in this item's coords — the panel grows out of it.
+    function chipRect(): var {
+        if (!liveChip.visible || loupe.opacity < 0.5)
+            return { x: root.cursorX, y: root.cursorY, w: 1, h: 1 };
+        const p = liveChip.mapToItem(root, 0, 0);
+        return { x: p.x, y: p.y, w: liveChip.width, h: liveChip.height };
+    }
+
     function moveTo(x: real, y: real): void {
         root.cursorX = x;
         root.cursorY = y;
@@ -88,12 +106,15 @@ Item {
         opacity: 0
         renderStrategy: Canvas.Immediate
         renderTarget: Canvas.Image
-        Component.onCompleted: loadImage(root.srcUrl)
-        onImageLoaded: {
-            root.samplerReady = true;
-            if (root.cursorX >= 0)
-                root.moveTo(root.cursorX, root.cursorY);
+        // An image already in the pixmap cache (the backdrop / editor loaded
+        // it — e.g. Tab from shot mode) loads synchronously and NEVER emits
+        // imageLoaded: check right after loadImage, or picks stay dead.
+        Component.onCompleted: {
+            loadImage(root.srcUrl);
+            root.samplerLoaded();
         }
+        onImageLoaded: root.samplerLoaded()
+        onAvailableChanged: root.samplerLoaded()
     }
 
     MouseArea {
@@ -118,57 +139,77 @@ Item {
         }
     }
 
+    // 1:1 physical grab, only the lens texture source (hideSource).
+    Image {
+        id: grab
+        width: root.physW
+        height: root.physH
+        source: root.srcUrl
+        smooth: false
+        sourceSize.width: root.physW
+        sourceSize.height: root.physH
+    }
+
     // ── Magnifier loupe ─────────────────────────────────────────────
     Item {
         id: loupe
         readonly property int zoom: root.cfg.loupeZoom
-        visible: root.hovered && !panel.hovering && root.cursorX >= 0
+        // Hidden via opacity, never `visible`: a CurveRenderer Shape toggled
+        // via visible never repaints once shown again.
+        opacity: root.hovered && !panel.hovering && root.cursorX >= 0 ? 1 : 0
         width: root.cfg.loupeSize
         height: width
         x: Math.min(root.cursorX + root.cfg.toolSpacing * 2, root.width - width - root.cfg.toolSpacing)
         // Above the cursor: the chasing square sits right-below it.
         y: Math.max(root.cfg.toolSpacing, root.cursorY - height - root.cfg.toolSpacing * 2)
 
-        // Circular crop: the island clip trick does not apply here (Item
-        // clip is rectangular) — binary MultiEffect mask, its stair-step is
-        // hidden under the 2px ring drawn on top.
-        Item {
+        // Lens: a ShaderEffectSource cuts the few grab pixels under the
+        // cursor (sourceRect, texture = region size, nearest filtering) and a
+        // CurveRenderer circle is filled with it (antialiased edge). A
+        // zoom-sized Image (physW × zoom ≈ 20k px) inside a clip/layer rendered
+        // NOTHING here, not even its siblings.
+        readonly property int span: Math.ceil(width / zoom)
+        readonly property int px: Math.round(root.cursorX * root.dpr)
+        readonly property int py: Math.round(root.cursorY * root.dpr)
+
+        ShaderEffectSource {
             id: lens
             anchors.fill: parent
-            clip: true
-            layer.enabled: true
-            layer.effect: MultiEffect {
-                maskEnabled: true
-                maskSource: lensMask
-                autoPaddingEnabled: false
-            }
-
-            Rectangle {
-                anchors.fill: parent
-                color: root.theme.islandBg
-            }
-
-            Image {
-                source: root.srcUrl
-                smooth: false
-                sourceSize.width: root.physW
-                sourceSize.height: root.physH
-                width: root.physW * loupe.zoom
-                height: root.physH * loupe.zoom
-                x: loupe.width / 2 - root.cursorX * root.dpr * loupe.zoom
-                y: loupe.height / 2 - root.cursorY * root.dpr * loupe.zoom
-            }
+            // opacity, not visible: an invisible ShaderEffectSource never
+            // renders its texture → the fillItem Shape drew nothing.
+            opacity: 0
+            sourceItem: grab
+            hideSource: true
+            smooth: false
+            // Picked pixel centred: its centre (p + 0.5) on the lens centre.
+            sourceRect: Qt.rect(loupe.px + 0.5 - loupe.span / 2, loupe.py + 0.5 - loupe.span / 2, loupe.span, loupe.span)
+            textureSize: Qt.size(loupe.span, loupe.span)
         }
 
-        Item {
-            id: lensMask
+        Shape {
             anchors.fill: parent
-            visible: false
-            layer.enabled: true
-            Rectangle {
-                anchors.fill: parent
-                radius: width / 2
-                color: "white"
+            preferredRendererType: Shape.CurveRenderer
+
+            ShapePath {
+                strokeWidth: -1
+                strokeColor: "transparent"
+                fillColor: root.theme.islandBg
+                PathRectangle {
+                    width: loupe.width
+                    height: loupe.height
+                    radius: loupe.width / 2
+                }
+            }
+            ShapePath {
+                strokeWidth: -1
+                strokeColor: "transparent"
+                fillColor: "white"
+                fillItem: lens
+                PathRectangle {
+                    width: loupe.width
+                    height: loupe.height
+                    radius: loupe.width / 2
+                }
             }
         }
 

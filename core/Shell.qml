@@ -21,6 +21,12 @@ Scope {
     Recorder { id: recorderService }
     Dictation { id: dictationService; keyboardLayout: keyboardLayoutService }
     KeyboardLayout { id: keyboardLayoutService }
+    // Teleprompter: shows on the focused output (Island.openPrompter).
+    Prompter {
+        id: prompterService
+        dictation: dictationService
+        onShowRequested: islandRegistry.forOutput(compositorService.focusedOutput ?? "")?.openPrompter()
+    }
     SystemUsage { id: systemUsageService }
     Sensors { id: sensorsService }
     Weather { id: weatherService }
@@ -62,6 +68,13 @@ Scope {
 
     IslandRegistry { id: islandRegistry }
 
+    // Wallpapers (wallr): favourites/history, random, video pause.
+    Wallpaper {
+        id: wallpaperService
+        compositor: compositorService
+        battery: batteryService
+    }
+
     IslandIpc {
         registry: islandRegistry
         compositor: compositorService
@@ -71,6 +84,7 @@ Scope {
         lock: lockScope
         capture: captureService
         recorder: recorderService
+        wallpaper: wallpaperService
     }
 
     OsdWatcher {
@@ -113,6 +127,8 @@ Scope {
                 controlCenter: controlCenterService
                 haptics: hapticsService
                 polkit: polkitService
+                prompter: prompterService
+                wallpaper: wallpaperService
             }
 
             Corners {

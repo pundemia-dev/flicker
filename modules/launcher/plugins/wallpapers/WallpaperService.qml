@@ -24,7 +24,7 @@ Item {
         return ((x && x.length) ? x : Quickshell.env("HOME") + "/.cache") + "/pillShell/wallpapers";
     }
 
-    // [{ path, name, type: image|gif|video, mtime, size, key }]
+    // [{ path, name, hidden, type: image|gif|video, mtime, size, key }]
     property var files: []
     property bool loaded: false
     // key -> true once its thumbnail file exists (reassigned: bindings
@@ -75,6 +75,27 @@ Item {
         }
     }
 
+    // Hidden = ".name" (hide/unhide renames). The thumbnail key ignores the
+    // dot, so hiding/unhiding keeps the cached thumbnail (raw scan strings:
+    // the same key as before hidden files were listed).
+    function makeEntry(path: string, mtimeText: string, sizeText: string): var {
+        const slash = path.lastIndexOf("/");
+        const base = path.slice(slash + 1);
+        const hidden = base.startsWith(".");
+        const visiblePath = hidden ? path.slice(0, slash + 1) + base.slice(1) : path;
+        return {
+            path: path,
+            name: (hidden ? base.slice(1) : base).replace(/\.[^.]+$/, ""),
+            hidden: hidden,
+            type: root.typeOf(path),
+            mtime: parseFloat(mtimeText),
+            size: parseInt(sizeText),
+            mtimeText: mtimeText,
+            sizeText: sizeText,
+            key: Qt.md5(visiblePath + "|" + mtimeText + "|" + sizeText)
+        };
+    }
+
     function parseFiles(text: string): void {
         const live = new Map();
         const list = [];
@@ -84,18 +105,7 @@ Item {
                 continue;
             const path = t.slice(2).join("\t");
             const id = path + "|" + t[0] + "|" + t[1];
-            let e = root.entryCache.get(id);
-            if (!e) {
-                const slash = path.lastIndexOf("/");
-                e = {
-                    path: path,
-                    name: path.slice(slash + 1).replace(/\.[^.]+$/, ""),
-                    type: root.typeOf(path),
-                    mtime: parseFloat(t[0]),
-                    size: parseInt(t[1]),
-                    key: Qt.md5(id)
-                };
-            }
+            const e = root.entryCache.get(id) ?? root.makeEntry(path, t[0], t[1]);
             live.set(id, e);
             list.push(e);
         }
@@ -106,6 +116,12 @@ Item {
             list.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
         root.files = list;
         root.loaded = true;
+    }
+
+    // A file renamed by us (hide/unhide): show the new name now instead of
+    // waiting for the next signature poll (which then confirms it).
+    function renameFile(from: string, to: string): void {
+        root.files = root.files.map(e => e.path === from ? root.makeEntry(to, e.mtimeText, e.sizeText) : e);
     }
 
     // Directory signature poll: a full rescan only when it changes.
