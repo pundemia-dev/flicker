@@ -344,7 +344,8 @@ Not a git repo. No tests, no linter, no formatter.
   abs-1, abs-3, abs-2), so with a query a removal reshuffled the ties far from the gap —
   WallFilter.rank buckets the hits by `_score` (no `score` field here) in list order — LINEAR:
   a comparator sort with Map lookups took 1.3 s for 3300 hits in QV4 (first letter 1.6 s →
-  0.33 s, mostly fuzzysort itself). Same-query rebuilds (hide/delete/rescan) don't re-search:
+  0.33 s, mostly fuzzysort itself; a ONE-letter query skips fuzzysort: starts-with, then
+  contains, list order — `WallFilter.oneLetter`). Same-query rebuilds (hide/delete/rescan) don't re-search:
   `WallFilter.refine` filters the current order (`prevFiles` = paths the last rebuild saw; a
   file not among them → full search). Slideshow = `services/WallpaperSlideshow.qml` (child of
   Wallpaper; `active` + `spec` {filter, query, visibility} persisted in wallpapers.json): step
@@ -368,7 +369,9 @@ Not a git repo. No tests, no linter, no formatter.
   refreshed when the warm-up goes idle and on opening the view if older than `dupesMaxAgeMin`.
   Caption line `detail` = "n of m · W×H · size"; a group left with one visible member drops out.
   Process stdin one-shot: `stdinEnabled: true`, write() in onStarted, then `stdinEnabled = false`
-  = EOF. NOT done: settings UI, fill-blur. Verified via IPC + log only (centre on current wallpaper, thumbs, video init); visuals
+  = EOF. Quick Settings card `slideshow` (QsCatalog, hidden by default — add it from the edit
+  footer; `services.wallpaper` in the module services map). NOT done: settings UI, fill-blur.
+  Verified via IPC + log only (centre on current wallpaper, thumbs, video init); visuals
   and keys NOT checked — the user checks visuals themselves (asked: no screenshots).
 - Polkit agent (Oct 2026, refs: DMS PolkitService, end-4 ii, caelestia): `services/Polkit.qml`
   (Quickshell `PolkitAgent` in a Loader, `Config.polkit.enabled`; ONE agent per session —

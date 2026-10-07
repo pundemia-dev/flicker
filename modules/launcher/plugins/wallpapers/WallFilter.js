@@ -48,7 +48,9 @@ function apply(files, f, ctx) {
     } else if (f.filter) {
         list = list.filter(e => e.type === f.filter);
     }
-    if (f.query)
+    if (f.query.length === 1)
+        list = oneLetter(f.query, list);
+    else if (f.query)
         list = rank(Fuzzy.go(f.query, list, { key: "name" }), list);
     return list;
 }
@@ -114,4 +116,20 @@ function refine(prev, files, prevFiles, f, ctx, renames) {
         out.push(n);
     }
     return out;
+}
+
+// A one-letter query matches nearly every name — fuzzysort ranking ~3300
+// hits took ~0.3 s in QV4. Names starting with the letter first, then the
+// ones containing it, each in list order: one linear pass.
+function oneLetter(q, list) {
+    const c = q.toLowerCase();
+    const starts = [], inside = [];
+    for (const e of list) {
+        const n = e.name.toLowerCase();
+        if (n.startsWith(c))
+            starts.push(e);
+        else if (n.includes(c))
+            inside.push(e);
+    }
+    return starts.concat(inside);
 }
