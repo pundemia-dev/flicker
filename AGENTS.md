@@ -377,7 +377,12 @@ Not a git repo. No tests, no linter, no formatter.
   blurred (blur at 1/8 size: ~1 s for 3500×5000), darkened copy at the output's size, cached in
   `<thumbCache>/fill/<md5>.jpg` + `.src` (original path); `scripts/wallpapers/current.sh` maps
   wallr's last_wallpaper back through `.src` so the carousel still centres on the original.
-  NOT done: settings UI.
+  Accent from the wallpaper (`accentFromWallpaper`, default on): `Wallpaper.updateAccent` runs
+  `matugen image <path> --json hex --dry-run --prefer saturation -m dark` (matugen 4 refuses
+  without --prefer when not on a terminal) and sets `Theme.wallAccent` = palettes.primary
+  [`accentTone`]; Theme `qsBlue`/`cardBlue` follow it (transparent = stock blues). Runs on every
+  apply + at start / config change (current.sh). GIF/video keep the previous accent. The island
+  body stays black. NOT done: settings UI.
   Verified via IPC + log only (centre on current wallpaper, thumbs, video init); visuals
   and keys NOT checked — the user checks visuals themselves (asked: no screenshots).
 - Polkit agent (Oct 2026, refs: DMS PolkitService, end-4 ii, caelestia): `services/Polkit.qml`

@@ -73,6 +73,7 @@ Scope {
         id: wallpaperService
         compositor: compositorService
         battery: batteryService
+        theme: themeService
     }
 
     IslandIpc {

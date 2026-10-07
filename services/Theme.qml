@@ -25,13 +25,18 @@ QtObject {
     readonly property color cardBg: "#1C1C1E"
     readonly property color cardTrack: "#2C2C2E"
     readonly property color cardDim: "#99EBEBF5"
-    readonly property color cardBlue: "#0F7CEC"
+    // Wallpaper accent (services/Wallpaper, launcher.wallpapers
+    // .accentFromWallpaper): matugen's primary at accentTone of the current
+    // wallpaper; transparent = off → the stock blues below.
+    property color wallAccent: "transparent"
+    readonly property bool wallAccentOn: wallAccent.a > 0
+    readonly property color cardBlue: wallAccentOn ? wallAccent : "#0F7CEC"
     readonly property color batteryGood: "#59D67A"
     readonly property color batteryWarn: "#E7C45A"
     readonly property color batteryLow: "#E35D5D"
     // Quick Settings (iOS Control Center): accents of active controls,
     // the icon disc of inactive wide/large toggles, slider fill.
-    readonly property color qsBlue: "#017EFC"
+    readonly property color qsBlue: wallAccentOn ? wallAccent : "#017EFC"
     readonly property color qsIndigo: "#5E5CE6"
     readonly property color qsGreen: "#38C65A"
     readonly property color qsOrange: "#FF9F0A"

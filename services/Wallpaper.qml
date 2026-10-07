@@ -21,6 +21,8 @@ Scope {
     id: root
     required property var compositor
     required property var battery
+    // services/Theme: wallAccent is set from the wallpaper (accentFromWallpaper).
+    property var theme: null
 
     readonly property var cfg: Config.data.launcher?.wallpapers ?? ({})
     readonly property string scripts: Quickshell.shellDir + "/scripts/wallpapers/"
@@ -140,6 +142,71 @@ Scope {
     function apply(path: string, opts: var): void {
         root.setOn(path, opts);
         root.pushHistory(path);
+        root.updateAccent(path);
+    }
+
+    // ---- accent from the wallpaper ----
+
+    // matugen (dark, prefer saturation) on a still image; GIF/video keep
+    // the previous accent. Off → the Theme's stock blues.
+    function updateAccent(path: string): void {
+        if (!(root.cfg.accentFromWallpaper ?? true)) {
+            if (root.theme)
+                root.theme.wallAccent = "transparent";
+            return;
+        }
+        if (!path || /\.(gif|mp4|webm|mkv|mov)$/i.test(path))
+            return;
+        if (accentProc.running) {
+            accentProc.pending = path;
+            return;
+        }
+        accentProc.command = ["matugen", "image", path, "--json", "hex", "--dry-run", "--prefer", "saturation", "-m", "dark"];
+        accentProc.running = true;
+    }
+
+    onCfgChanged: Qt.callLater(root.accentFromCurrent)
+    Component.onCompleted: root.accentFromCurrent()
+
+    function accentFromCurrent(): void {
+        if (!(root.cfg.accentFromWallpaper ?? true)) {
+            root.updateAccent("");
+            return;
+        }
+        const out = Quickshell.screens[0]?.name ?? "";
+        if (!out || currentProc.running)
+            return;
+        currentProc.command = [root.scripts + "current.sh", out];
+        currentProc.running = true;
+    }
+
+    Process {
+        id: currentProc
+        stdout: StdioCollector {
+            onStreamFinished: root.updateAccent(this.text.trim())
+        }
+    }
+
+    Process {
+        id: accentProc
+        property string pending: ""
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try {
+                    const tone = String(root.cfg.accentTone ?? 50);
+                    const c = JSON.parse(this.text).palettes.primary[tone].color;
+                    if (root.theme && c)
+                        root.theme.wallAccent = c;
+                } catch (e) {
+                    console.warn("[wallpaper] matugen accent failed:", e);
+                }
+            }
+        }
+        onExited: if (accentProc.pending) {
+            const p = accentProc.pending;
+            accentProc.pending = "";
+            Qt.callLater(() => root.updateAccent(p));
+        }
     }
 
     // Every wallr set goes through scripts/wallpapers/setwall.sh, one per

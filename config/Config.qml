@@ -594,6 +594,11 @@ Singleton {
                             fillBlurThreshold: 0.8,
                             fillBlurSigma: 8,
                             fillBlurDim: 0.25,
+                            // Accent colour of the shell (Theme qsBlue/cardBlue:
+                            // toggles, selections, launcher tag, stash) from the
+                            // wallpaper: matugen primary palette at accentTone.
+                            accentFromWallpaper: true,
+                            accentTone: 50,
                             theme: "",
                             // services/Wallpaper: history length, what
                             // `island wallpaperRandom` picks from (all |
