@@ -307,6 +307,22 @@ LauncherPlugin {
     function toggleHidden(): void {
         WallActions.toggleHidden(root);
     }
+    // Ctrl+S: slideshow over the current view (or stop it).
+    function toggleSlideshow(): void {
+        root.wallpaper?.slideshow.toggle({
+            filter: root.filter.filter,
+            query: root.filter.query,
+            visibility: root.visibility
+        });
+    }
+    // The slideshow holds still while the carousel is open (live preview).
+    Binding {
+        target: root.wallpaper?.slideshow ?? null
+        property: "hold"
+        value: root.isActive
+        when: !!root.wallpaper
+    }
+
     function cycleVisibility(): void {
         const v = WallFilter.VISIBILITY;
         root.visibility = v[(v.indexOf(root.visibility) + 1) % v.length];

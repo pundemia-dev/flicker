@@ -28,6 +28,10 @@ Scope {
         function launcherPlugin(id: string): void { root.island?.openLauncher(id); }
         // Random wallpaper on the focused output (config randomFrom).
         function wallpaperRandom(): void { root.wallpaper.random(root.island?.targetScreen?.name ?? ""); }
+        // Slideshow on/off (over all wallpapers; Ctrl+S in the carousel
+        // starts it over the current view) / one step now.
+        function wallpaperSlideshow(): void { root.wallpaper.slideshow.toggle(null); }
+        function wallpaperNext(): void { root.wallpaper.slideshow.next(); }
         function quicksettings(): void { root.island?.openQuickSettings(); }
         // Quick Settings straight into edit mode (= long press on a card).
         function quicksettingsEdit(): void {

@@ -2,6 +2,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import "WallrArgs.js" as WallrArgs
+import "WallEntry.js" as WallEntry
 
 // Wallpaper files + thumbnails + the wallr backend for the carousel.
 // Files: scripts/wallpapers/scan.sh over cfg.dirs (rescanned only when the
@@ -31,15 +32,6 @@ Item {
     // read thumbUrl()).
     property var thumbs: ({})
     property var failed: ({})
-
-    function typeOf(path: string): string {
-        const ext = path.slice(path.lastIndexOf(".") + 1).toLowerCase();
-        if (ext === "gif")
-            return "gif";
-        if (["mp4", "webm", "mkv", "mov"].includes(ext))
-            return "video";
-        return "image";
-    }
 
     function thumbUrl(entry: var): string {
         return entry && root.thumbs[entry.key] ? "file://" + root.cacheDir + "/" + entry.key + ".jpg" : "";
@@ -75,53 +67,23 @@ Item {
         }
     }
 
-    // Hidden = ".name" (hide/unhide renames). The thumbnail key ignores the
-    // dot, so hiding/unhiding keeps the cached thumbnail (raw scan strings:
-    // the same key as before hidden files were listed).
-    function makeEntry(path: string, mtimeText: string, sizeText: string): var {
-        const slash = path.lastIndexOf("/");
-        const base = path.slice(slash + 1);
-        const hidden = base.startsWith(".");
-        const visiblePath = hidden ? path.slice(0, slash + 1) + base.slice(1) : path;
-        return {
-            path: path,
-            name: (hidden ? base.slice(1) : base).replace(/\.[^.]+$/, ""),
-            hidden: hidden,
-            type: root.typeOf(path),
-            mtime: parseFloat(mtimeText),
-            size: parseInt(sizeText),
-            mtimeText: mtimeText,
-            sizeText: sizeText,
-            key: Qt.md5(visiblePath + "|" + mtimeText + "|" + sizeText)
-        };
-    }
-
     function parseFiles(text: string): void {
         const live = new Map();
         const list = [];
-        for (const line of text.split("\n")) {
-            const t = line.split("\t");
-            if (t.length < 3)
-                continue;
-            const path = t.slice(2).join("\t");
-            const id = path + "|" + t[0] + "|" + t[1];
-            const e = root.entryCache.get(id) ?? root.makeEntry(path, t[0], t[1]);
-            live.set(id, e);
+        for (const l of WallEntry.lines(text)) {
+            const e = root.entryCache.get(l.id) ?? WallEntry.make(l.path, l.mtimeText, l.sizeText);
+            live.set(l.id, e);
             list.push(e);
         }
         root.entryCache = live;
-        if ((root.cfg?.sort ?? "name") === "mtime")
-            list.sort((a, b) => b.mtime - a.mtime);
-        else
-            list.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
-        root.files = list;
+        root.files = WallEntry.sort(list, root.cfg?.sort ?? "name");
         root.loaded = true;
     }
 
     // A file renamed by us (hide/unhide): show the new name now instead of
     // waiting for the next signature poll (which then confirms it).
     function renameFile(from: string, to: string): void {
-        root.files = root.files.map(e => e.path === from ? root.makeEntry(to, e.mtimeText, e.sizeText) : e);
+        root.files = root.files.map(e => e.path === from ? WallEntry.make(to, e.mtimeText, e.sizeText) : e);
     }
 
     // Directory signature poll: a full rescan only when it changes.

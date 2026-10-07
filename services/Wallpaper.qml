@@ -14,7 +14,9 @@ import "../modules/launcher/plugins/wallpapers/WallrArgs.js" as WallrArgs
 //   setHidden() — renames to ".name" and back (hidden files show in the
 //     carousel only on request; random never picks them);
 //   video pause — `wallr ipc pause/resume -m <output>` while a window is
-//     fullscreen there (pauseOnFullscreen) or on battery (pauseOnBattery).
+//     fullscreen there (pauseOnFullscreen) or on battery (pauseOnBattery);
+//   slideshow (WallpaperSlideshow) and the thumbnail warm-up
+//     (WallpaperWarmup) live in their own files.
 Scope {
     id: root
     required property var compositor
@@ -64,7 +66,29 @@ Scope {
     }
 
     function save(): void {
-        stateFile.setText(JSON.stringify({ version: 1, favourites: root.favourites, history: root.history }, null, 2));
+        stateFile.setText(JSON.stringify({
+            version: 1,
+            favourites: root.favourites,
+            history: root.history,
+            slideshow: { active: slideshow.active, spec: slideshow.spec }
+        }, null, 2));
+    }
+
+    // Slideshow (services/WallpaperSlideshow): carousel Ctrl+S, IPC
+    // wallpaperSlideshow / wallpaperNext.
+    readonly property alias slideshow: slideshow
+    WallpaperSlideshow {
+        id: slideshow
+        wallpaper: root
+        cfg: root.cfg
+        discharging: root.discharging
+        onEdited: root.save()
+    }
+
+    // Background thumbnails for the carousel (services/WallpaperWarmup).
+    WallpaperWarmup {
+        cfg: root.cfg
+        discharging: root.discharging
     }
 
     FileView {
@@ -77,6 +101,8 @@ Scope {
                 const s = JSON.parse(stateFile.text());
                 root.favourites = (s.favourites ?? []).filter(p => typeof p === "string");
                 root.history = (s.history ?? []).filter(p => typeof p === "string");
+                if (s.slideshow?.active)
+                    Qt.callLater(() => slideshow.start(s.slideshow.spec));
             } catch (e) {
                 console.warn("Wallpaper: bad state file, starting empty:", e);
             }
@@ -88,7 +114,8 @@ Scope {
     // Bar centre of an output, normalized (y from the top): the "island"
     // effect grows from there.
     function originFor(output: string): var {
-        const s = Quickshell.screens.find(x => x.name === output);
+        // "" (every output): the first screen's proportions.
+        const s = Quickshell.screens.find(x => x.name === output) ?? Quickshell.screens[0];
         const isl = Config.data.island ?? {};
         return {
             originX: 0.5,
@@ -183,7 +210,7 @@ Scope {
 
     // ---- video pause (fullscreen / battery) ----
 
-    readonly property bool onBattery: !!root.battery?.present && !root.battery?.charging
+    readonly property bool discharging: !!root.battery?.present && !root.battery?.charging
 
     function setPaused(output: string, paused: bool): void {
         Quickshell.execDetached(["wallr", "ipc", paused ? "pause" : "resume", "-m", output]);
@@ -195,7 +222,7 @@ Scope {
         delegate: QtObject {
             required property ShellScreen modelData
             readonly property bool shouldPause: ((root.cfg.pauseOnFullscreen ?? true) && (root.compositor?.fullscreenOn(modelData.name) ?? false))
-                || ((root.cfg.pauseOnBattery ?? false) && root.onBattery)
+                || ((root.cfg.pauseOnBattery ?? false) && root.discharging)
             onShouldPauseChanged: root.setPaused(modelData.name, shouldPause)
             // Start from a known state (a shell restart may have left it paused).
             Component.onCompleted: root.setPaused(modelData.name, shouldPause)

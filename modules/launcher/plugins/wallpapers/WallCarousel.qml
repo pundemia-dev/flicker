@@ -91,41 +91,30 @@ Item {
         }
     }
 
-    // Hidden-files view (Ctrl+H): a pill over the carousel top while it is
-    // not the normal view.
-    FadeBlur {
+    // Status pills over the carousel top: hidden-files view (Ctrl+H),
+    // slideshow (Ctrl+S).
+    Row {
         z: 1001
         anchors.top: parent.top
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.topMargin: root.c.badgeInset ?? 8
-        width: modeRow.implicitWidth + (root.c.badgeSize ?? 26)
-        height: root.c.badgeSize ?? 26
-        shown: root.plugin.visibility !== "normal"
+        spacing: 6
 
-        Rectangle {
-            anchors.fill: parent
-            radius: height / 2
-            color: root.theme.wallCaptionShade
+        WallPill {
+            theme: root.theme
+            c: root.c
+            lc: root.lc
+            shown: root.plugin.visibility !== "normal"
+            glyph: root.plugin.visibility === "only" ? "\uecf0" : "\uea9a" // tabler eye-off / eye
+            text: root.plugin.visibility === "only" ? I18n.tr("Hidden only") : I18n.tr("With hidden")
         }
-        Row {
-            id: modeRow
-            anchors.centerIn: parent
-            spacing: 6
-            Text {
-                anchors.verticalCenter: parent.verticalCenter
-                text: root.plugin.visibility === "only" ? "\uecf0" : "\uea9a" // tabler eye-off / eye
-                font.family: root.theme.iconFamily
-                font.pixelSize: (root.c.badgeSize ?? 26) * 0.58
-                color: root.theme.islandFg
-            }
-            Text {
-                anchors.verticalCenter: parent.verticalCenter
-                text: root.plugin.visibility === "only" ? I18n.tr("Hidden only") : I18n.tr("With hidden")
-                font.family: root.theme.fontFamily
-                font.pixelSize: root.lc.subFontSize - 2
-                font.weight: Font.DemiBold
-                color: root.theme.islandFg
-            }
+        WallPill {
+            theme: root.theme
+            c: root.c
+            lc: root.lc
+            shown: root.plugin.wallpaper?.slideshow.active ?? false
+            glyph: "\uebc9" // tabler slideshow
+            text: I18n.tr("Slideshow · %1").arg(I18n.tr("%1 min").arg(Math.max(1, Math.round((root.c.slideshowIntervalSec ?? 900) / 60))))
         }
     }
 

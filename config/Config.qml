@@ -594,6 +594,24 @@ Singleton {
                             randomFrom: "all",
                             pauseOnFullscreen: true,
                             pauseOnBattery: false,
+                            // Slideshow (services/WallpaperSlideshow): step,
+                            // order random | sequential, recent paths a random
+                            // step avoids, only still images on battery.
+                            slideshowIntervalSec: 900,
+                            slideshowOrder: "random",
+                            slideshowNoRepeat: 20,
+                            slideshowStillOnBattery: true,
+                            // Background thumbnails (services/WallpaperWarmup):
+                            // first run warmupDelaySec after start, rescan every
+                            // warmupRescanMin, warmupBatch files per run with
+                            // warmupJobs ffmpeg at once; off on battery unless
+                            // warmupOnBattery.
+                            warmup: true,
+                            warmupDelaySec: 60,
+                            warmupRescanMin: 30,
+                            warmupBatch: 40,
+                            warmupJobs: 1,
+                            warmupOnBattery: false,
                             thumbHeight: 460,
                             thumbJobs: 3,
                             thumbBatch: 9,

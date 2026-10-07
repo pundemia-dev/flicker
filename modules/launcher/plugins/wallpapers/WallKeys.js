@@ -9,9 +9,10 @@
 //   Ctrl+H                hidden files: normal → include → only
 //   Ctrl+Shift+H          hide the file (rename to ".name") / unhide it
 //   Ctrl+[ / Ctrl+]       back / forward through the wallpaper history
+//   Ctrl+S                slideshow over the current view on / off
 // Ctrl combos also match by key position (xkb keycode = evdev + 8): with a
 // non-Latin layout active (ru) Ctrl+A arrives as a Cyrillic keysym.
-const SCAN = { a: 38, e: 26, d: 40, h: 43, r: 27, bracketLeft: 34, bracketRight: 35 };
+const SCAN = { a: 38, e: 26, d: 40, h: 43, r: 27, s: 39, bracketLeft: 34, bracketRight: 35 };
 
 function is(e, name, key) {
     return e.key === key || e.nativeScanCode === SCAN[name];
@@ -45,6 +46,10 @@ function handle(p, e) {
         }
         if (is(e, "e", Qt.Key_E)) {
             end();
+            return true;
+        }
+        if (is(e, "s", Qt.Key_S)) {
+            p.toggleSlideshow();
             return true;
         }
         if (is(e, "r", Qt.Key_R)) {

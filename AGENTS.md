@@ -342,7 +342,17 @@ Not a git repo. No tests, no linter, no formatter.
   a comparator sort with Map lookups took 1.3 s for 3300 hits in QV4 (first letter 1.6 s →
   0.33 s, mostly fuzzysort itself). Same-query rebuilds (hide/delete/rescan) don't re-search:
   `WallFilter.refine` filters the current order (`prevFiles` = paths the last rebuild saw; a
-  file not among them → full search). NOT done: slideshow, settings UI, fill-blur. Verified via IPC + log only (centre on current wallpaper, thumbs, video init); visuals
+  file not among them → full search). Slideshow = `services/WallpaperSlideshow.qml` (child of
+  Wallpaper; `active` + `spec` {filter, query, visibility} persisted in wallpapers.json): step
+  every `slideshowIntervalSec` on all outputs, pool = a carousel view re-resolved by a fresh scan
+  (WallEntry + WallFilter), order random (avoids `slideshowNoRepeat` recent) | sequential, still
+  images only on battery; carousel Ctrl+S = start over the current view / stop, `hold` (Binding
+  to the plugin's isActive) skips steps while the carousel is open; IPC `wallpaperSlideshow`
+  (toggle, all files) / `wallpaperNext`. Thumbnail warm-up = `services/WallpaperWarmup.qml`:
+  `warmupDelaySec` after start + every `warmupRescanMin`, missing thumbs in batches through
+  thumbs.sh (`warmupJobs`, nice), off on battery. `WallEntry.js` = the ONE entry/key builder
+  (carousel, slideshow, warm-up must hash identically). Status pills (WallPill) on the carousel
+  top: hidden view, slideshow. NOT done: settings UI, fill-blur, trash. Verified via IPC + log only (centre on current wallpaper, thumbs, video init); visuals
   and keys NOT checked — the user checks visuals themselves (asked: no screenshots).
 - Polkit agent (Oct 2026, refs: DMS PolkitService, end-4 ii, caelestia): `services/Polkit.qml`
   (Quickshell `PolkitAgent` in a Loader, `Config.polkit.enabled`; ONE agent per session —
