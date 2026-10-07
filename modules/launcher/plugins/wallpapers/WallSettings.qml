@@ -134,6 +134,14 @@ Item {
                     radius: root.cardR
                     color: root.theme.cardBg
                     visible: page.rowsIn(index) > 0
+
+                    WallCardRim {
+                        anchors.fill: parent
+                        radius: root.cardR
+                        rimWidth: root.c.settingsRimWidth ?? 1
+                        topColor: root.theme.wallSettingsRimTop
+                        bottomColor: root.theme.wallSettingsRimBottom
+                    }
                 }
             }
 

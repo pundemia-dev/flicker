@@ -2,8 +2,8 @@ import QtQuick
 import "../../../../components"
 import "../../../../config"
 
-// One row of the wallpaper settings panel (iOS Settings look): a tinted
-// rounded-square icon tile, the label, and on the right the value —
+// One row of the wallpaper settings panel (iOS Settings look): a dark
+// rounded-square icon tile with the glyph in the row's tint, the label, and on the right the value —
 // choice = text + selector glyph, bool = a switch, reset = a red label
 // only. A dot before the value marks a setting changed from config.json.
 // A click = `activated` (the panel steps the value). The hairline under
@@ -32,13 +32,13 @@ Item {
         width: root.icon
         height: root.icon
         radius: root.icon * 0.28
-        color: root.theme[root.row.tint] ?? root.theme.qsBlue
+        color: root.theme.wallSettingsIconBg
         Text {
             anchors.centerIn: parent
             text: root.row.glyph ?? ""
             font.family: root.theme.iconFamily
             font.pixelSize: root.icon * 0.62
-            color: root.theme.islandFg
+            color: root.theme[root.row.tint] ?? root.theme.qsBlue
         }
     }
 

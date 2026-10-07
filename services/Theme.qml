@@ -65,6 +65,11 @@ QtObject {
     readonly property color wallBadge: "#59FFFFFF"
     // Wallpaper settings panel: focused row highlight inside a card.
     readonly property color wallSettingsFocus: "#17FFFFFF"
+    // Dark icon tiles (the glyph carries the colour) and the cards' light
+    // rim: top edge round both top corners, bottom edge half way round.
+    readonly property color wallSettingsIconBg: "#73000000"
+    readonly property color wallSettingsRimTop: "#33FFFFFF"
+    readonly property color wallSettingsRimBottom: "#17FFFFFF"
     // Frosted body (QS / notification center over the compositor blur):
     // grey #A2A2A2 at 0.235 — fitted to iOS 18 Control Center samples.
     readonly property color frostBody: "#3CA2A2A2"

@@ -396,8 +396,10 @@ Not a git repo. No tests, no linter, no formatter.
   apply transition (picture → itself) was invisible and the effect setting "did nothing" (user).
   Panel = two tabs (`WallSettingsList.PAGES`: Transitions | General, PgUp/PgDn or a click,
   pages blur-fade), rows = `WallSettingRow`. Look (Oct 2026, iOS Settings): segmented control
-  (thumb springs), rows in two grouped `cardBg` cards with inset hairlines, tinted icon tiles
-  (row `glyph` + `tint` = a Theme colour name), value + selector glyph / iOS switch (qsGreen),
+  (thumb springs), rows in two grouped `cardBg` cards with inset hairlines and a light rim
+  (`WallCardRim`: filled slivers with vertical gradients — top edge round BOTH top corners,
+  bottom edge only half way round, to 45°; Shape has no stroke gradients), dark icon tiles
+  (`Theme.wallSettingsIconBg`) with the glyph in the row's `tint` (a Theme colour name), value + selector glyph / iOS switch (qsGreen),
   focus = `Theme.wallSettingsFocus` highlight springing inside the cards; the body grows to
   `settingsHeight` while open (the carousel inside stays at `cardHeight`; `LauncherMetrics
   .maxHeight` counts both). Every wallr effect + alias, and every effect

@@ -553,6 +553,7 @@ Singleton {
                             settingsPadding: 10,
                             settingsColumnGap: 14,
                             settingsCardRadius: 16,
+                            settingsRimWidth: 1,
                             settingsRowInset: 12,
                             settingsIconSize: 24,
                             settingsSwitchHeight: 22,
