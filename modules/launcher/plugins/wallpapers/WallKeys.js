@@ -26,6 +26,10 @@ function handle(p, e) {
     const end = () => p.step(p.entries.length - 1 - p.selected, true);
 
     if (ctrl) {
+        // Toggles never repeat: a chord held a bit long auto-repeated and
+        // hid the next card too.
+        if (e.isAutoRepeat && shift)
+            return true;
         if (is(e, "a", Qt.Key_A)) {
             if (shift)
                 p.wallpaper?.setFavourite(p.current?.path ?? "", true);

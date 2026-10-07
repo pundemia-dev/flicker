@@ -191,21 +191,56 @@ Scope {
         return path.slice(path.lastIndexOf("/") + 1).startsWith(".");
     }
 
-    // Renames "name" <-> ".name" (mv -n: never overwrites); returns the new
-    // path. Hiding drops the file from favourites/history (paths change).
+    // Renames "name" <-> ".name" through scripts/wallpapers/hide.sh (never
+    // overwrites: an identical twin under the new name sends the source to
+    // the trash, a different one gets "<stem>-<n>"). Returns the EXPECTED
+    // path at once (the carousel shows it optimistically); hideDone reports
+    // what really happened — the user's folder had 53 "name" + ".name"
+    // twins, where a plain `mv -n` silently did nothing and the card came
+    // back on the next rescan. Runs one at a time (rapid Ctrl+Shift+H).
+    signal hideDone(string from, string to, bool ok)
+
     function setHidden(path: string, hide: bool): string {
         if (!path || root.isHiddenPath(path) === hide)
             return path;
         const slash = path.lastIndexOf("/");
         const base = path.slice(slash + 1);
         const dest = path.slice(0, slash + 1) + (hide ? "." + base : base.slice(1));
-        Quickshell.execDetached(["mv", "-n", "--", path, dest]);
+        root.hideQueue = root.hideQueue.concat([[path, dest]]);
+        Qt.callLater(root.pumpHide);
         if (hide) {
             root.favourites = root.favourites.filter(p => p !== path);
             root.history = root.history.filter(p => p !== path);
             root.save();
         }
         return dest;
+    }
+
+    property var hideQueue: []
+
+    function pumpHide(): void {
+        if (hideProc.running || !root.hideQueue.length)
+            return;
+        const job = root.hideQueue[0];
+        root.hideQueue = root.hideQueue.slice(1);
+        hideProc.job = job;
+        hideProc.command = [root.scripts + "hide.sh", job[0], job[1]];
+        hideProc.running = true;
+    }
+
+    Process {
+        id: hideProc
+        property var job: null
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const out = this.text.trim();
+                const ok = out.length > 0 && !out.startsWith("!");
+                if (!ok)
+                    console.warn("[wallpaper] hide/unhide failed:", hideProc.job?.[0], out);
+                root.hideDone(hideProc.job?.[0] ?? "", ok ? out : "", ok);
+            }
+        }
+        onExited: Qt.callLater(root.pumpHide)
     }
 
     // ---- video pause (fullscreen / battery) ----

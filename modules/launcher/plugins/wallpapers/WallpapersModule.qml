@@ -40,9 +40,14 @@ LauncherPlugin {
         onFilesChanged: root.rebuild("", true)
     }
 
-    // Favourites / history filters follow the service live.
+    // Favourites / history filters follow the service live; a hide/unhide
+    // that did not land where the carousel assumed → re-read the folder.
     Connections {
         target: root.wallpaper
+        function onHideDone(from: string, to: string, ok: bool): void {
+            if (!ok || !root.indexOf[to] && !wallService.files.some(e => e.path === to))
+                wallService.rescan();
+        }
         function onFavouritesChanged(): void {
             if (root.filter.filter === "fav")
                 root.rebuild("", true);

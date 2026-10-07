@@ -322,7 +322,11 @@ Not a git repo. No tests, no linter, no formatter.
   favourites + history (paths, newest first) in `Quickshell.statePath("wallpapers.json")`,
   `apply()` (every real set → history; `noteCurrent` seeds it with wallr's current on open),
   `random(output)` (`island wallpaperRandom`, `randomFrom` all|favourites, never the current),
-  `setHidden()` (mv "name" <-> ".name"; random skips hidden), video pause `wallr ipc pause/resume -m <out>` per screen on
+  `setHidden()` ("name" <-> ".name" via `scripts/wallpapers/hide.sh`, queued, result in
+  `hideDone` → the carousel rescans if it did not land as assumed; an identical twin under the
+  new name → source to `gio trash`, a different one → "<stem>-<n>"; the user's folder had 53
+  byte-identical name/.name twins where `mv -n` silently did nothing — cards "came back"),
+  random skips hidden; hide/fav chords ignore auto-repeat, video pause `wallr ipc pause/resume -m <out>` per screen on
   fullscreen (`pauseOnFullscreen`) / battery (`pauseOnBattery`). Plugin split: WallKeys.js
   (Ctrl+A/E ends, Ctrl+R random card, Ctrl+Shift+A/D fav, Ctrl+H hidden view normal→include→only (pill on top, eye-off badge on
   hidden cards), Ctrl+Shift+H hide/unhide, Ctrl+[/] history —
