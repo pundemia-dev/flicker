@@ -1,4 +1,6 @@
 import QtQuick
+import "../components"
+import "../config"
 
 QtObject {
     readonly property color islandBg: "#000000"
@@ -30,13 +32,25 @@ QtObject {
     // wallpaper; transparent = off → the stock blues below.
     property color wallAccent: "transparent"
     readonly property bool wallAccentOn: wallAccent.a > 0
-    readonly property color cardBlue: wallAccentOn ? wallAccent : "#0F7CEC"
+    // Both accents spring to the new colour (launcher.wallpapers
+    // .accentStiffness/accentDamping) instead of jumping.
+    readonly property SpringColor cardBlueSpring: SpringColor {
+        target: wallAccentOn ? wallAccent : "#0F7CEC"
+        stiffness: Config.data.launcher?.wallpapers?.accentStiffness ?? 2
+        damping: Config.data.launcher?.wallpapers?.accentDamping ?? 0.6
+    }
+    readonly property SpringColor qsBlueSpring: SpringColor {
+        target: wallAccentOn ? wallAccent : "#017EFC"
+        stiffness: Config.data.launcher?.wallpapers?.accentStiffness ?? 2
+        damping: Config.data.launcher?.wallpapers?.accentDamping ?? 0.6
+    }
+    readonly property color cardBlue: cardBlueSpring.value
     readonly property color batteryGood: "#59D67A"
     readonly property color batteryWarn: "#E7C45A"
     readonly property color batteryLow: "#E35D5D"
     // Quick Settings (iOS Control Center): accents of active controls,
     // the icon disc of inactive wide/large toggles, slider fill.
-    readonly property color qsBlue: wallAccentOn ? wallAccent : "#017EFC"
+    readonly property color qsBlue: qsBlueSpring.value
     readonly property color qsIndigo: "#5E5CE6"
     readonly property color qsGreen: "#38C65A"
     readonly property color qsOrange: "#FF9F0A"

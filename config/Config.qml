@@ -599,6 +599,8 @@ Singleton {
                             // wallpaper: matugen primary palette at accentTone.
                             accentFromWallpaper: true,
                             accentTone: 50,
+                            accentStiffness: 2,
+                            accentDamping: 0.6,
                             theme: "",
                             // services/Wallpaper: history length, what
                             // `island wallpaperRandom` picks from (all |
