@@ -46,8 +46,10 @@ Item {
     // Segmented control.
     Rectangle {
         id: segments
-        anchors.horizontalCenter: parent.horizontalCenter
-        y: root.pad / 2
+        // Whole pixels everywhere: NativeRendering glyphs and the 1px rims
+        // looked shifted / pixelated on half-pixel positions.
+        x: Math.round((root.width - width) / 2)
+        y: Math.round(root.pad / 2)
         width: root.segW * Rows.PAGES.length + 4
         height: root.tabH
         radius: height / 2
@@ -74,17 +76,18 @@ Item {
                 height: segments.height
 
                 Row {
-                    anchors.centerIn: parent
+                    x: Math.round((parent.width - width) / 2)
+                    y: Math.round((parent.height - height) / 2)
                     spacing: 6
                     Text {
-                        anchors.verticalCenter: parent.verticalCenter
+                        y: Math.round((parent.height - height) / 2)
                         text: Rows.PAGES[parent.parent.index].glyph ?? ""
                         font.family: root.theme.iconFamily
                         font.pixelSize: root.fontSize
                         color: parent.parent.current ? root.theme.islandFg : root.theme.cardDim
                     }
                     Text {
-                        anchors.verticalCenter: parent.verticalCenter
+                        y: Math.round((parent.height - height) / 2)
                         text: I18n.tr(Rows.PAGES[parent.parent.index].title)
                         color: parent.parent.current ? root.theme.islandFg : root.theme.cardDim
                         font.family: root.theme.fontFamily
@@ -110,9 +113,9 @@ Item {
             required property int index
             readonly property var rows: Rows.PAGES[index].rows
             readonly property int perColumn: Math.ceil(page.rows.length / 2)
-            readonly property real cardW: (width - root.pad * 2 - root.gap) / 2
-            readonly property real rowH: (height - root.pad) / page.perColumn
-            y: segments.y + segments.height + root.pad
+            readonly property real cardW: Math.floor((width - root.pad * 2 - root.gap) / 2)
+            readonly property real rowH: Math.floor((height - root.pad) / page.perColumn)
+            y: Math.round(segments.y + segments.height + root.pad)
             width: root.width
             height: root.height - y
             shown: index === root.plugin.settingsPage

@@ -28,8 +28,8 @@ Item {
     // Icon tile.
     Rectangle {
         id: tile
-        x: root.inset
-        anchors.verticalCenter: parent.verticalCenter
+        x: Math.round(root.inset)
+        y: Math.round((root.height - root.icon) / 2)
         width: root.icon
         height: root.icon
         radius: root.icon * 0.28
@@ -46,7 +46,8 @@ Item {
             bottomColor: root.theme.wallSettingsIconRimBottom
         }
         Text {
-            anchors.centerIn: parent
+            x: Math.round((tile.width - implicitWidth) / 2)
+            y: Math.round((tile.height - implicitHeight) / 2)
             text: root.row.glyph ?? ""
             font.family: root.theme.iconFamily
             font.pixelSize: root.icon * 0.62
@@ -55,7 +56,7 @@ Item {
     }
 
     Text {
-        anchors.verticalCenter: parent.verticalCenter
+        y: Math.round((root.height - implicitHeight) / 2)
         anchors.left: tile.right
         anchors.leftMargin: root.inset * 0.8
         anchors.right: valueBox.left
@@ -71,7 +72,6 @@ Item {
         id: valueBox
         anchors.right: parent.right
         anchors.rightMargin: root.inset
-        anchors.verticalCenter: parent.verticalCenter
         width: root.row.kind === "bool" ? sw.width : (root.row.kind === "choice" ? choiceRow.implicitWidth : 0)
         height: parent.height
 
@@ -92,17 +92,17 @@ Item {
             id: choiceRow
             visible: root.row.kind === "choice"
             anchors.right: parent.right
-            anchors.verticalCenter: parent.verticalCenter
+            y: Math.round((parent.height - height) / 2)
             spacing: 4
             Text {
-                anchors.verticalCenter: parent.verticalCenter
+                y: Math.round((parent.height - height) / 2)
                 text: root.valueText
                 color: root.theme.subtleFg
                 font.family: root.theme.fontFamily
                 font.pixelSize: root.fontSize
             }
             Text {
-                anchors.verticalCenter: parent.verticalCenter
+                y: Math.round((parent.height - height) / 2)
                 text: "" // tabler selector
                 color: root.theme.cardDim
                 font.family: root.theme.iconFamily
@@ -115,7 +115,7 @@ Item {
             id: sw
             visible: root.row.kind === "bool"
             readonly property bool on: !!root.value
-            anchors.verticalCenter: parent.verticalCenter
+            y: Math.round((parent.height - height) / 2)
             anchors.right: parent.right
             height: root.c.settingsSwitchHeight ?? 22
             width: height * 1.7
