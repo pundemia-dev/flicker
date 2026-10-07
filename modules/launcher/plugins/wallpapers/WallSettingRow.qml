@@ -33,7 +33,18 @@ Item {
         width: root.icon
         height: root.icon
         radius: root.icon * 0.28
-        color: root.theme.wallSettingsIconBg
+        // Dark, a touch lighter at the top, with the cards' light rim.
+        gradient: Gradient {
+            GradientStop { position: 0; color: root.theme.wallSettingsIconTop }
+            GradientStop { position: 1; color: root.theme.wallSettingsIconBottom }
+        }
+        WallCardRim {
+            anchors.fill: parent
+            radius: tile.radius
+            rimWidth: root.c.settingsRimWidth ?? 1
+            topColor: root.theme.wallSettingsIconRimTop
+            bottomColor: root.theme.wallSettingsIconRimBottom
+        }
         Text {
             anchors.centerIn: parent
             text: root.row.glyph ?? ""

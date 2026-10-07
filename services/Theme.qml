@@ -67,7 +67,10 @@ QtObject {
     readonly property color wallSettingsFocus: "#17FFFFFF"
     // Dark icon tiles (the glyph carries the colour) and the cards' light
     // rim: top edge round both top corners, bottom edge half way round.
-    readonly property color wallSettingsIconBg: "#73000000"
+    readonly property color wallSettingsIconTop: "#2C2C2F"
+    readonly property color wallSettingsIconBottom: "#111113"
+    readonly property color wallSettingsIconRimTop: "#40FFFFFF"
+    readonly property color wallSettingsIconRimBottom: "#1AFFFFFF"
     readonly property color wallSettingsRimTop: "#33FFFFFF"
     readonly property color wallSettingsRimBottom: "#17FFFFFF"
     // Frosted body (QS / notification center over the compositor blur):
