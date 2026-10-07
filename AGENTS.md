@@ -404,7 +404,8 @@ Not a git repo. No tests, no linter, no formatter.
   whole pixels (fractional row heights put NativeRendering text + 1px rims on half pixels), the
   icon tile size follows the row height's parity (34 in 45 → 1 px low; now 35, exact), tile
   glyphs use `renderType: Text.CurveRendering` (NativeRendering hinted the icon font into blocky
-  strokes — measured from a screenshot with the user's OK); the body grows to
+  strokes) placed at the EXACT fractional centre — floor()-snapping a vector glyph read as
+  shifted left; measured on screenshots (user OK'd them): ink bbox within 0 / +0.5 px; the body grows to
   `settingsHeight` while open (the carousel inside stays at `cardHeight`; `LauncherMetrics
   .maxHeight` counts both). Every wallr effect + alias, and every effect
   parameter (`effectEasing/Origin/Angle/Direction`, `wipeSoftness`, `waveFrequency/Amplitude`,

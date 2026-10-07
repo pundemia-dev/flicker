@@ -51,8 +51,9 @@ Item {
         // CurveRendering: vector-antialiased glyph — NativeRendering hinted
         // the icon font into blocky strokes at this size.
         Text {
-            x: Math.floor((tile.width - implicitWidth) / 2)
-            y: Math.floor((tile.height - implicitHeight) / 2)
+            // Vector glyph: an exact (fractional) centre, no pixel snap.
+            x: (tile.width - implicitWidth) / 2
+            y: (tile.height - implicitHeight) / 2
             renderType: Text.CurveRendering
             text: root.row.glyph ?? ""
             font.family: root.theme.iconFamily
