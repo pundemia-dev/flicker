@@ -194,7 +194,7 @@ function panelHeight(c, page) {
     const pad = c.settingsPadding ?? 12;
     const top = Math.round(Math.round(pad / 2) + (c.settingsTabHeight ?? 36) + pad);
     const rows = Math.ceil((PAGES[page] ? PAGES[page].rows.length : 0) / 2);
-    return top + rows * (c.settingsRowHeight ?? 45) + pad;
+    return top + rows * (c.settingsRowHeight ?? 45) + 2 * (c.settingsCardPadding ?? 8) + pad;
 }
 
 // Tallest page (the launcher reserves the layer surface for it).

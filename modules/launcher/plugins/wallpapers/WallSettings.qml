@@ -115,6 +115,8 @@ Item {
             readonly property int perColumn: Math.ceil(page.rows.length / 2)
             readonly property real cardW: Math.floor((width - root.pad * 2 - root.gap) / 2)
             readonly property real rowH: root.c.settingsRowHeight ?? 45
+            // Gap between the first / last row and the card's edge.
+            readonly property real cardPad: root.c.settingsCardPadding ?? 8
             y: Math.round(segments.y + segments.height + root.pad)
             width: root.width
             height: root.height - y
@@ -134,7 +136,7 @@ Item {
                     required property int index
                     x: root.pad + index * (page.cardW + root.gap)
                     width: page.cardW
-                    height: page.rowsIn(index) * page.rowH
+                    height: page.rowsIn(index) * page.rowH + page.cardPad * 2
                     radius: root.cardR
                     color: root.theme.cardBg
                     visible: page.rowsIn(index) > 0
@@ -155,7 +157,7 @@ Item {
                 readonly property int col: page.column(i)
                 readonly property int r: i - col * page.perColumn
                 x: root.pad + col * (page.cardW + root.gap) + 3
-                y: r * page.rowH + 3
+                y: page.cardPad + r * page.rowH + 3
                 width: page.cardW - 6
                 height: page.rowH - 6
                 radius: root.cardR - 3
@@ -173,7 +175,7 @@ Item {
                     readonly property int r: index - col * page.perColumn
                     row: page.rows[index]
                     x: root.pad + col * (page.cardW + root.gap)
-                    y: r * page.rowH
+                    y: page.cardPad + r * page.rowH
                     width: page.cardW
                     height: page.rowH
                     separator: r < page.rowsIn(col) - 1

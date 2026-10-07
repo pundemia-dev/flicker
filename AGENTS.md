@@ -408,7 +408,7 @@ Not a git repo. No tests, no linter, no formatter.
   shifted left; measured on screenshots (user OK'd them): ink bbox within 0 / +0.5 px; rows have their OWN
   height (`settingsRowHeight`, WallSettingRow implicitHeight — they used to stretch to fill the
   page: 45 px on Transitions, 63 on General) and the body follows the page
-  (`WallSettingsList.panelHeight`: 381 / 291), so the island springs on Ctrl+I and on a tab
+  (`WallSettingsList.panelHeight`, incl. `settingsCardPadding` above/below the rows inside each card), so the island springs on Ctrl+I and on a tab
   switch (the carousel inside stays at `cardHeight`; `LauncherMetrics.maxHeight` counts
   `maxPanelHeight`). Every wallr effect + alias, and every effect
   parameter (`effectEasing/Origin/Angle/Direction`, `wipeSoftness`, `waveFrequency/Amplitude`,

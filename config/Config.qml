@@ -554,6 +554,7 @@ Singleton {
                             settingsPadding: 12,
                             settingsColumnGap: 16,
                             settingsCardRadius: 19,
+                            settingsCardPadding: 8,
                             settingsRimWidth: 1,
                             settingsRowInset: 14,
                             settingsIconSize: 34,
