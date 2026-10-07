@@ -24,7 +24,23 @@ Scope {
     // services/Theme: wallAccent is set from the wallpaper (accentFromWallpaper).
     property var theme: null
 
-    readonly property var cfg: Config.data.launcher?.wallpapers ?? ({})
+    // Tunables: config.json (launcher.wallpapers) + the carousel settings
+    // panel's overrides (persisted here, never written into config.json).
+    property var overrides: ({})
+    readonly property var cfg: Object.assign({}, Config.data.launcher?.wallpapers ?? {}, root.overrides)
+
+    function setSetting(key: string, value: var): void {
+        const o = Object.assign({}, root.overrides);
+        o[key] = value;
+        root.overrides = o;
+        root.save();
+    }
+
+    // Back to config.json for every key the panel changed.
+    function resetSettings(): void {
+        root.overrides = {};
+        root.save();
+    }
     readonly property string scripts: Quickshell.shellDir + "/scripts/wallpapers/"
 
     // ---- persisted state ----
@@ -72,7 +88,8 @@ Scope {
             version: 1,
             favourites: root.favourites,
             history: root.history,
-            slideshow: { active: slideshowItem.active, spec: slideshowItem.spec }
+            slideshow: { active: slideshowItem.active, spec: slideshowItem.spec },
+            settings: root.overrides
         }, null, 2));
     }
 
@@ -116,6 +133,7 @@ Scope {
                 const s = JSON.parse(stateFile.text());
                 root.favourites = (s.favourites ?? []).filter(p => typeof p === "string");
                 root.history = (s.history ?? []).filter(p => typeof p === "string");
+                root.overrides = (s.settings && typeof s.settings === "object") ? s.settings : {};
                 if (s.slideshow?.active)
                     Qt.callLater(() => slideshowItem.start(s.slideshow.spec));
             } catch (e) {

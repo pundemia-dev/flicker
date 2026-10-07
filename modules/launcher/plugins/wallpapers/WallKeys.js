@@ -1,5 +1,7 @@
 .pragma library
 
+.import "WallSettingsList.js" as Rows
+
 // Carousel key map (p = WallpapersModule). Returns true when handled.
 //   ←/→ (↑/↓, Tab)        step;  Shift = pageStep cards
 //   PgUp/PgDn             pageStep cards
@@ -11,17 +13,60 @@
 //   Ctrl+[ / Ctrl+]       back / forward through the wallpaper history
 //   Ctrl+S                slideshow over the current view on / off
 //   Ctrl+Delete           move the file to the trash
+//   Ctrl+I                settings panel on / off (there: arrows move,
+//                         ←/→ / Enter / Space change, Esc closes it)
 // Ctrl combos also match by key position (xkb keycode = evdev + 8): with a
 // non-Latin layout active (ru) Ctrl+A arrives as a Cyrillic keysym.
-const SCAN = { a: 38, e: 26, d: 40, h: 43, r: 27, s: 39, bracketLeft: 34, bracketRight: 35 };
+const SCAN = { a: 38, e: 26, d: 40, h: 43, r: 27, s: 39, i: 31, bracketLeft: 34, bracketRight: 35 };
 
 function is(e, name, key) {
     return e.key === key || e.nativeScanCode === SCAN[name];
 }
 
+// Settings panel: a column-major grid of Rows.ROWS (two columns).
+function settingsKey(p, e) {
+    const n = Rows.ROWS.length;
+    const per = Math.ceil(n / 2);
+    const f = p.settingsFocus;
+    switch (e.key) {
+    case Qt.Key_Escape:
+        p.settingsOpen = false;
+        return true;
+    case Qt.Key_Up:
+    case Qt.Key_Backtab:
+        p.settingsFocus = (f - 1 + n) % n;
+        return true;
+    case Qt.Key_Down:
+    case Qt.Key_Tab:
+        p.settingsFocus = (f + 1) % n;
+        return true;
+    case Qt.Key_Left:
+        p.changeSetting(f, -1);
+        return true;
+    case Qt.Key_Right:
+    case Qt.Key_Return:
+    case Qt.Key_Enter:
+    case Qt.Key_Space:
+        p.changeSetting(f, 1);
+        return true;
+    case Qt.Key_PageUp:
+    case Qt.Key_PageDown:
+        // Jump between the columns.
+        p.settingsFocus = Math.min(n - 1, f < per ? f + per : f - per);
+        return true;
+    }
+    return false;
+}
+
 function handle(p, e) {
     const shift = (e.modifiers & Qt.ShiftModifier) !== 0;
     const ctrl = (e.modifiers & Qt.ControlModifier) !== 0;
+    if (ctrl && is(e, "i", Qt.Key_I)) {
+        p.settingsOpen = !p.settingsOpen;
+        return true;
+    }
+    if (p.settingsOpen)
+        return settingsKey(p, e);
     const page = p.c.pageStep ?? 5;
     const home = () => p.step(-p.selected, true);
     const end = () => p.step(p.entries.length - 1 - p.selected, true);

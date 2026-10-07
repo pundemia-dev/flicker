@@ -548,6 +548,10 @@ Singleton {
                             // Favourite star (top-right of a card).
                             badgeSize: 26,
                             badgeInset: 8,
+                            // Settings panel (Ctrl+I in the carousel).
+                            settingsPadding: 10,
+                            settingsColumnGap: 24,
+                            settingsSwitchHeight: 20,
                             edgeFadeWidth: 120,
                             parallax: 60,
                             speeds: [

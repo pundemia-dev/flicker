@@ -382,7 +382,15 @@ Not a git repo. No tests, no linter, no formatter.
   without --prefer when not on a terminal) and sets `Theme.wallAccent` = palettes.primary
   [`accentTone`]; Theme `qsBlue`/`cardBlue` follow it (transparent = stock blues). Runs on every
   apply + at start / config change (current.sh). GIF/video keep the previous accent. The island
-  body stays black. NOT done: settings UI.
+  body stays black; qsBlue/cardBlue spring to a new accent per channel (`components/
+  SpringColor.qml`: r/g/b/a on Springs, clamped). Settings panel = Ctrl+I in the carousel:
+  `WallBody` blur-fades carousel ↔ `WallSettings` (two-column grid of `WallSettingsList.ROWS`:
+  bool / choice / reset; focus plate springs; keys in `WallKeys.settingsKey`, a click changes a
+  row; a dot marks a value that differs from config.json). Values = `Wallpaper.cfg` =
+  config.json `launcher.wallpapers` + `overrides`, persisted in wallpapers.json `settings` —
+  config.json is NEVER rewritten by the shell (JsonAdapter would dump every default);
+  `resetSettings()` drops the overrides. Readers use the merged cfg (plugin `c`, services,
+  QS slideshow card). Verified with wtype: change → override saved, reset → `{}`.
   Verified via IPC + log only (centre on current wallpaper, thumbs, video init); visuals
   and keys NOT checked — the user checks visuals themselves (asked: no screenshots).
 - Polkit agent (Oct 2026, refs: DMS PolkitService, end-4 ii, caelestia): `services/Polkit.qml`

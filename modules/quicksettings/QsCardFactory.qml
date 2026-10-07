@@ -106,7 +106,7 @@ Item {
             title: I18n.tr("Slideshow")
             accent: root.theme?.qsGreen ?? "#38C65A"
             on: show?.active ?? false
-            status: on ? I18n.tr("Every %1").arg(I18n.tr("%1 min").arg(Math.max(1, Math.round((root.services.config?.launcher?.wallpapers?.slideshowIntervalSec ?? 900) / 60)))) : I18n.tr("Off")
+            status: on ? I18n.tr("Every %1").arg(I18n.tr("%1 min").arg(Math.max(1, Math.round((root.services.wallpaper?.cfg.slideshowIntervalSec ?? 900) / 60)))) : I18n.tr("Off")
             activate: () => show?.toggle(null)
         }
     }

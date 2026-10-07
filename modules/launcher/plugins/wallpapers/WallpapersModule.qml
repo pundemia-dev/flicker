@@ -8,6 +8,7 @@ import "CarouselMath.js" as CarouselMath
 import "WallKeys.js" as WallKeys
 import "WallActions.js" as WallActions
 import "WallFlip.js" as WallFlip
+import "WallSettingsList.js" as WallSettingsList
 
 // Wallpaper carousel (pShell Wallpaper Engine look, backend wallr). The
 // plugin owns the state — filtered `entries`, `selected`, the animated
@@ -22,7 +23,8 @@ import "WallFlip.js" as WallFlip
 LauncherPlugin {
     id: root
 
-    readonly property var c: root.cfg?.wallpapers ?? ({})
+    // config.json + the settings panel's overrides (services/Wallpaper.cfg).
+    readonly property var c: root.host?.wallpaper?.cfg ?? root.cfg?.wallpapers ?? ({})
     readonly property var wallpaper: root.host?.wallpaper ?? null
 
     bodyComponent: carouselComp
@@ -111,6 +113,7 @@ LauncherPlugin {
     // ---- activation / search ----
 
     function onActivated(initialQuery: string): void {
+        root.settingsOpen = false;
         preview.reset();
         root.focusPath = "";
         if (root.host?.screen)
@@ -405,9 +408,25 @@ LauncherPlugin {
         target: root.current?.path ?? ""
     }
 
+    // Settings panel (WallSettings) in place of the carousel: Ctrl+I.
+    property bool settingsOpen: false
+    property int settingsFocus: 0
+
+    // Change settings row i (dir +1 next value / -1 previous; "reset" =
+    // back to config.json).
+    function changeSetting(i: int, dir: int): void {
+        const row = WallSettingsList.ROWS[i];
+        if (!row || !root.wallpaper)
+            return;
+        if (row.kind === "reset")
+            root.wallpaper.resetSettings();
+        else
+            root.wallpaper.setSetting(row.key, WallSettingsList.step(row, root.wallpaper.cfg[row.key], dir));
+    }
+
     Component {
         id: carouselComp
-        WallCarousel {
+        WallBody {
             plugin: root
             service: wallService
             theme: root.theme
