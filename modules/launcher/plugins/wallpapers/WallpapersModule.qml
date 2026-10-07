@@ -29,9 +29,9 @@ LauncherPlugin {
 
     bodyComponent: carouselComp
     bodyWidth: CarouselMath.bodyWidth(root.c)
-    // The settings panel (Ctrl+I) needs more room: the island springs
-    // taller while it is open.
-    bodyHeight: root.settingsOpen ? (root.c.settingsHeight ?? 320) : (root.c.cardHeight ?? 230)
+    // The settings panel (Ctrl+I) sizes to its page (fixed row height):
+    // the island springs to it, and again on a tab switch.
+    bodyHeight: root.settingsOpen ? WallSettingsList.panelHeight(root.c, root.settingsPage) : (root.c.cardHeight ?? 230)
 
     // Exposed for WallActions.js.
     readonly property alias fileService: wallService

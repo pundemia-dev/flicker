@@ -1,5 +1,6 @@
 .pragma library
 .import "plugins/wallpapers/CarouselMath.js" as CarouselMath
+.import "plugins/wallpapers/WallSettingsList.js" as WallSettingsList
 
 // Island size of the launcher (StashMetrics pattern): derived from
 // config.launcher + the live list so the island fits its content.
@@ -81,6 +82,6 @@ function estimate(c, pluginId) {
 // Tallest the launcher can get (layer surface reserve while it is open).
 // Plugin bodies (the wallpaper carousel) count too.
 function maxHeight(c) {
-    const body = Math.max(maxListHeight(c), c.wallpapers ? Math.max(c.wallpapers.cardHeight, c.wallpapers.settingsHeight || 0) : 0);
+    const body = Math.max(maxListHeight(c), c.wallpapers ? Math.max(c.wallpapers.cardHeight, WallSettingsList.maxPanelHeight(c.wallpapers)) : 0);
     return c.padding * 2 + c.inputHeight + c.gap + body;
 }

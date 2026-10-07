@@ -114,7 +114,7 @@ Item {
             readonly property var rows: Rows.PAGES[index].rows
             readonly property int perColumn: Math.ceil(page.rows.length / 2)
             readonly property real cardW: Math.floor((width - root.pad * 2 - root.gap) / 2)
-            readonly property real rowH: Math.floor((height - root.pad) / page.perColumn)
+            readonly property real rowH: root.c.settingsRowHeight ?? 45
             y: Math.round(segments.y + segments.height + root.pad)
             width: root.width
             height: root.height - y

@@ -186,3 +186,21 @@ function step(row, value, dir) {
     }
     return null;
 }
+
+// Panel height for a page: segmented control on top, then the page's rows
+// (two columns, settingsRowHeight each — rows keep their own height, the
+// panel and the island follow the page).
+function panelHeight(c, page) {
+    const pad = c.settingsPadding ?? 12;
+    const top = Math.round(Math.round(pad / 2) + (c.settingsTabHeight ?? 36) + pad);
+    const rows = Math.ceil((PAGES[page] ? PAGES[page].rows.length : 0) / 2);
+    return top + rows * (c.settingsRowHeight ?? 45) + pad;
+}
+
+// Tallest page (the launcher reserves the layer surface for it).
+function maxPanelHeight(c) {
+    let h = 0;
+    for (let i = 0; i < PAGES.length; i++)
+        h = Math.max(h, panelHeight(c, i));
+    return h;
+}

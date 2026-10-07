@@ -549,7 +549,7 @@ Singleton {
                             badgeSize: 26,
                             badgeInset: 8,
                             // Settings panel (Ctrl+I in the carousel).
-                            settingsHeight: 384,
+                            settingsRowHeight: 45,
                             settingsFontSize: 17,
                             settingsPadding: 12,
                             settingsColumnGap: 16,

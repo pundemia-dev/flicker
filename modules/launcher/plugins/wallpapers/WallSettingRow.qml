@@ -21,6 +21,9 @@ Item {
     property bool separator: true
     signal activated
 
+    // Own height (settingsRowHeight): the panel stacks rows, it does not
+    // stretch them to fill a page.
+    implicitHeight: root.c.settingsRowHeight ?? 45
     readonly property real inset: root.c.settingsRowInset ?? 12
     // Icon tile size matched to the row's parity so it centres on whole
     // pixels (34 in a 45 px row left 5 / 6 px: the tile sat 1 px low).
