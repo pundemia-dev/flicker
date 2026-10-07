@@ -142,7 +142,65 @@ LauncherPlugin {
         root.filter = WallFilter.parse(q);
         if (root.filter.filter === "dupes")
             root.wallpaper?.dupes.ensure();
+        if (root.filter.filter === "semantic" || root.filter.filter === "similar") {
+            root.wallpaper?.semantic.indexAll(); // catch up on new files
+            semanticTimer.restart();
+        }
         rebuild("", false);
+    }
+
+    // ---- "? text" / "~ name" (services/WallpaperSemantic) ----
+
+    property var semanticScores: ({})
+    property int semanticSeq: 0
+    property bool semanticBusy: false
+    // The next rebuild centres the best match, not the old selection.
+    property bool rankReset: false
+
+    Timer {
+        id: semanticTimer
+        interval: root.c.semanticDebounceMs ?? 350
+        onTriggered: root.requestSemantic()
+    }
+
+    function requestSemantic(): void {
+        const f = root.filter;
+        const sem = root.wallpaper?.semantic;
+        if (!sem || !f.query) {
+            root.semanticScores = {};
+            root.semanticBusy = false;
+            root.rebuild("", false);
+            return;
+        }
+        const seq = ++root.semanticSeq;
+        const done = scores => {
+            if (seq !== root.semanticSeq)
+                return; // a newer query is on its way
+            root.semanticScores = scores;
+            root.semanticBusy = false;
+            root.rankReset = true;
+            root.rebuild("", false);
+        };
+        root.semanticBusy = true;
+        if (f.filter === "semantic") {
+            sem.query(f.query, done);
+        } else {
+            const e = wallService.files.find(x => x.name === f.query);
+            if (e)
+                sem.similar(e.key, done);
+            else
+                done({});
+        }
+    }
+
+    // Ctrl+F: pictures similar to the centre card.
+    function findSimilar(): void {
+        const e = root.current;
+        if (!e)
+            return;
+        const q = "~ " + e.name;
+        root.requestSetInput(q);
+        root.handleInput(q);
     }
 
     // The duplicate groups arrived / were refreshed while the view is open.
@@ -192,12 +250,15 @@ LauncherPlugin {
             favourites: root.wallpaper?.favouriteSet ?? {},
             history: root.wallpaper?.history ?? [],
             visibility: root.visibility,
-            dupes: root.wallpaper?.dupes.groups ?? []
+            dupes: root.wallpaper?.dupes.groups ?? [],
+            scores: root.semanticScores,
+            top: root.c.semanticTop ?? 150
         };
         // Same query + a fuzzy search: refine the current order (a re-search
         // of ~3500 names is ~0.1-0.3 s in QV4 — a hitch on every hide).
         const files = wallService.files;
-        let list = sameList && root.filter.query && root.filter.filter !== "history" && root.filter.filter !== "dupes"
+        const ranked = ["history", "dupes", "semantic", "similar"].includes(root.filter.filter);
+        let list = sameList && root.filter.query && !ranked
             ? WallFilter.refine(root.entries, files, root.prevFiles, root.filter, ctx, root.renames) : null;
         if (!list)
             list = WallFilter.apply(files, root.filter, ctx);
@@ -213,7 +274,8 @@ LauncherPlugin {
         for (const n in root.renames)
             if (root.renames[n] === cur)
                 renamedCur = n;
-        const path = keep || (renamedCur && idx[renamedCur] !== undefined ? renamedCur : (cur || root.focusPath));
+        const path = root.rankReset ? "" : (keep || (renamedCur && idx[renamedCur] !== undefined ? renamedCur : (cur || root.focusPath)));
+        root.rankReset = false;
         const last = Math.max(0, list.length - 1);
         const fallback = sameList ? Math.max(0, Math.min(root.lastDir < 0 ? root.selected - 1 : root.selected, last)) : 0;
         const target = idx[path] ?? fallback;

@@ -134,6 +134,23 @@ Item {
             theme: root.theme
             c: root.c
             lc: root.lc
+            shown: root.plugin.semanticBusy && (root.plugin.filter.filter === "semantic" || root.plugin.filter.filter === "similar")
+            glyph: "\ueb1c" // tabler search
+            text: I18n.tr("Searching…")
+        }
+        WallPill {
+            theme: root.theme
+            c: root.c
+            lc: root.lc
+            shown: (root.plugin.filter.filter === "semantic" || root.plugin.filter.filter === "similar")
+                && (root.plugin.wallpaper?.semantic.indexing ?? false)
+            glyph: "\uf6d7" // tabler sparkles
+            text: I18n.tr("Indexing %1 / %2").arg(root.plugin.wallpaper?.semantic.done ?? 0).arg(root.plugin.wallpaper?.semantic.total ?? 0)
+        }
+        WallPill {
+            theme: root.theme
+            c: root.c
+            lc: root.lc
             shown: root.plugin.wallpaper?.slideshow.active ?? false
             glyph: "\uebc9" // tabler slideshow
             text: I18n.tr("Slideshow · %1").arg(I18n.tr("%1 min").arg(Math.max(1, Math.round((root.c.slideshowIntervalSec ?? 900) / 60))))

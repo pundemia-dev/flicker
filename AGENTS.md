@@ -382,7 +382,22 @@ Not a git repo. No tests, no linter, no formatter.
   without --prefer when not on a terminal) and sets `Theme.wallAccent` = palettes.primary
   [`accentTone`]; Theme `qsBlue`/`cardBlue` follow it (transparent = stock blues). Runs on every
   apply + at start / config change (current.sh). GIF/video keep the previous accent. The island
-  body stays black; qsBlue/cardBlue spring to a new accent per channel (`components/
+  body stays black. Semantic search (Oct 2026, model chosen after a comparison: mexma-siglip2,
+  MIT — MEXMA multilingual text + SigLIP 2 So400m/512 image, XM3600 text→image R@1 62.5 vs
+  SigLIP 2 B 40.7 / So400m 48.1; ONNX encoders from the HF repo in
+  `~/.local/share/pillShell/models/mexma-siglip2`, sha256-checked): `scripts/wallpapers/clip.py`
+  (uv script: onnxruntime/numpy/pillow/tokenizers) = a JSON-lines server (index / query /
+  similar / forget / stop), vectors fp16 in `<thumbCache>/clip/`, image encoder loaded only while
+  indexing, quits after `semanticIdleSec`; `services/WallpaperSemantic.qml` starts it on demand
+  (outbox until started), indexes all thumbnails after the warm-up goes idle (niced, ~2.8 s per
+  image on the i7-9750H — 6 threads beat 12, int8 quantize gave nothing: the export is already
+  quantized; ~1000 files ≈ 50 min, resumable: saved every 16), not on battery. Carousel: "? text"
+  (debounced `semanticDebounceMs`, stale answers dropped by seq) and "~ name" / Ctrl+F = similar,
+  best `semanticTop` by score, the best match centred (`rankReset`); pills "Searching…" /
+  "Indexing n / m". Text encoder input is fixed 1×32 (padded); its attention pooling ignores
+  the mask — queries are encoded one at a time. Verified: standalone protocol test, Russian
+  queries on named thumbnails ("кот" → 3 cats, "машина" → 3 cars), live "? кот" + Ctrl+F.
+  qsBlue/cardBlue spring to a new accent per channel (`components/
   SpringColor.qml`: r/g/b/a on Springs, clamped). Settings panel = Ctrl+I in the carousel:
   `WallBody` blur-fades carousel ↔ `WallSettings` (two-column grid of `WallSettingsList.ROWS`:
   bool / choice / reset; focus plate springs; keys in `WallKeys.settingsKey`, a click changes a

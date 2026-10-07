@@ -4,11 +4,13 @@
 // Carousel search: an optional one-letter prefix + fuzzy text.
 //   "v " videos, "g " GIFs, "i " images, "f " favourites, "h " history
 //   (newest first), "d " visual duplicates (group by group, biggest
-//   first); the rest is fuzzy matched on the file name.
-const PREFIXES = { v: "video", g: "gif", i: "image", f: "fav", h: "history", d: "dupes" };
+//   first), "? text" pictures matching a description, "~ name" pictures
+//   similar to that file (both ranked by services/WallpaperSemantic
+//   scores, ctx.scores); the rest is fuzzy matched on the file name.
+const PREFIXES = { v: "video", g: "gif", i: "image", f: "fav", h: "history", d: "dupes", "?": "semantic", "~": "similar" };
 
 function parse(q) {
-    const m = /^([vgifhd])(?:\s+|$)(.*)$/.exec(q || "");
+    const m = /^([vgifhd?~])(?:\s+|$)(.*)$/.exec(q || "");
     return {
         filter: m ? PREFIXES[m[1]] : "",
         query: (m ? m[2] : q || "").trim()
@@ -25,6 +27,14 @@ var VISIBILITY = ["normal", "include", "only"];
 function apply(files, f, ctx) {
     const vis = ctx.visibility || "normal";
     let list = vis === "include" ? files : files.filter(e => e.hidden === (vis === "only"));
+    if (f.filter === "semantic" || f.filter === "similar") {
+        // Ranked by the model's score, best first; the query text is the
+        // description / file name, not a fuzzy filter.
+        const s = ctx.scores || {};
+        return list.filter(e => s[e.key] !== undefined)
+            .sort((a, b) => s[b.key] - s[a.key])
+            .slice(0, ctx.top || 150);
+    }
     if (f.filter === "fav") {
         list = list.filter(e => ctx.favourites[e.path]);
     } else if (f.filter === "dupes") {

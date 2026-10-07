@@ -110,10 +110,23 @@ Scope {
         id: warmup
         cfg: root.cfg
         discharging: root.discharging
-        onIdle: dupesItem.refresh()
+        onIdle: {
+            dupesItem.refresh();
+            semanticItem.indexAll();
+        }
     }
 
     readonly property string thumbCacheDir: warmup.cacheDir
+
+    // Text / picture search (services/WallpaperSemantic) for the "? " and
+    // "~ " views.
+    readonly property alias semantic: semanticItem
+    WallpaperSemantic {
+        id: semanticItem
+        cfg: root.cfg
+        discharging: root.discharging
+        cacheDir: warmup.cacheDir
+    }
 
     // Visual duplicate groups (services/WallpaperDupes) for the "d " view.
     readonly property alias dupes: dupesItem

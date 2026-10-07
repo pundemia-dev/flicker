@@ -668,6 +668,20 @@ Singleton {
                             // dupesMaxMean, contrast-normalised mean <=
                             // dupesMaxZ; near-flat images, luminance std <
                             // dupesFlatStd, must match almost exactly).
+                            // "? text" / "~ name" views (services/WallpaperSemantic
+                            // + scripts/wallpapers/clip.py, mexma-siglip2 ONNX in
+                            // semanticModelDir): ranked by similarity, the best
+                            // semanticTop shown; index built in the background
+                            // after the thumbnail warm-up, not on battery
+                            // unless semanticOnBattery; the server quits after
+                            // semanticIdleSec.
+                            semanticSearch: true,
+                            semanticModelDir: "~/.local/share/pillShell/models/mexma-siglip2",
+                            semanticThreads: 6,
+                            semanticIdleSec: 300,
+                            semanticOnBattery: false,
+                            semanticTop: 150,
+                            semanticDebounceMs: 350,
                             dupesMaxAgeMin: 10,
                             dupesHashDistance: 10,
                             dupesMaxPixel: 48,

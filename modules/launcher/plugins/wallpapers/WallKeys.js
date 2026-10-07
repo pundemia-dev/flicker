@@ -11,12 +11,13 @@
 //   Ctrl+[ / Ctrl+]       back / forward through the wallpaper history
 //   Ctrl+S                slideshow over the current view on / off
 //   Ctrl+Delete           move the file to the trash
+//   Ctrl+F                pictures similar to this one ("~ name")
 //   Ctrl+I                settings panel on / off (there: ↑/↓ move,
 //                         ←/→ / Enter / Space change, PgUp/PgDn page,
 //                         Esc closes it)
 // Ctrl combos also match by key position (xkb keycode = evdev + 8): with a
 // non-Latin layout active (ru) Ctrl+A arrives as a Cyrillic keysym.
-const SCAN = { a: 38, e: 26, d: 40, h: 43, r: 27, s: 39, i: 31, bracketLeft: 34, bracketRight: 35 };
+const SCAN = { a: 38, e: 26, d: 40, h: 43, r: 27, s: 39, i: 31, f: 41, bracketLeft: 34, bracketRight: 35 };
 
 function is(e, name, key) {
     return e.key === key || e.nativeScanCode === SCAN[name];
@@ -102,6 +103,10 @@ function handle(p, e) {
         if (e.key === Qt.Key_Delete) {
             if (!e.isAutoRepeat)
                 p.trashCurrent();
+            return true;
+        }
+        if (is(e, "f", Qt.Key_F)) {
+            p.findSimilar();
             return true;
         }
         if (is(e, "s", Qt.Key_S)) {
