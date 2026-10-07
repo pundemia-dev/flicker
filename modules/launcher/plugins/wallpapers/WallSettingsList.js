@@ -6,6 +6,8 @@
 //   bool    — on / off
 //   choice  — options [{ value, label, arg? }]: label may hold "%1" = arg
 //   reset   — clears every override (back to config.json)
+//   action  — a button (`action` name, handled by the plugin; its value text
+//             is live state, e.g. the search index progress)
 // Pages (tabs, PgUp/PgDn); a page's rows fill a two-column grid in reading
 // order (left column first). The first option of every effect parameter is
 // "Default" (value "": the flag is left out, wallr's own default applies).
@@ -167,6 +169,7 @@ const PAGES = [
             { key: "pauseOnFullscreen", glyph: "\ued45", tint: "qsGreen", label: "Pause video in fullscreen", kind: "bool" },
             { key: "pauseOnBattery", glyph: "\uea34", tint: "accentYellow", label: "Pause video on battery", kind: "bool" },
             { key: "semanticIndexHidden", glyph: "\uf6d7", tint: "qsIndigo", label: "Index hidden for search", kind: "bool" },
+            { key: "", glyph: "\ueb1c", tint: "qsBlue", label: "Search index", kind: "action", action: "semanticIndex" },
             { key: "", glyph: "\ufafd", tint: "accentRed", label: "Reset to config", kind: "reset" }
         ]
     }

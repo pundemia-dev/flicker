@@ -36,6 +36,14 @@ Item {
         const v = root.valueOf(row);
         if (row.kind === "bool")
             return v ? I18n.tr("On") : I18n.tr("Off");
+        if (row.kind === "action" && row.action === "semanticIndex") {
+            const s = root.wallpaper?.semantic;
+            if (!s)
+                return "";
+            if (s.indexing || s.forced)
+                return s.total > 0 ? I18n.tr("Stop · %1 / %2").arg(s.done).arg(s.total) : I18n.tr("Stop");
+            return I18n.tr("Run now · %1 indexed").arg(s.count);
+        }
         if (row.kind !== "choice")
             return "";
         const o = row.options[Rows.optionIndex(row, v ?? "")];

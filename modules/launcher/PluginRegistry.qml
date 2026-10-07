@@ -9,7 +9,7 @@ import "plugins/prompter"
 // files, so plugins are listed explicitly — one line per plugin folder).
 // `active` = not in config.launcher.disabled, ordered by
 // config.launcher.order, then the manifest `order` hint, then title;
-// active[0] is the default plugin (plain typing): one line per folder.
+// active[0] is the default plugin (plain typing).
 QtObject {
     id: root
     property var order: []

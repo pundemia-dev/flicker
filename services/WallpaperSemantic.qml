@@ -28,7 +28,20 @@ Scope {
     property bool indexing: false
     property int done: 0
     property int total: 0
+    // Pictures in the index: read from the store itself (the server may not
+    // run), refreshed as it saves (every 16 pictures).
     property int count: 0
+    FileView {
+        path: root.cacheDir ? root.cacheDir + "/clip/keys.json" : ""
+        watchChanges: true
+        printErrors: false
+        onFileChanged: reload()
+        onLoaded: {
+            try {
+                root.count = JSON.parse(text()).length;
+            } catch (e) {}
+        }
+    }
 
     property var outbox: []
     property var callbacks: ({})
@@ -71,9 +84,34 @@ Scope {
     // Every file of the folder (keys = thumbnail keys); the server skips
     // the ones it has, and missing thumbnails. Vectors of vanished files
     // are dropped first.
+    // Automatic runs (warm-up idle, opening a "? " view) respect the power
+    // gate and a stop from the settings panel; `forceIndex` (panel button)
+    // ignores both and is not stopped by unplugging.
+    property bool forced: false
+    property bool userStopped: false
+
     function indexAll(): void {
-        if (!root.allowed || root.indexing || scanProc.running)
+        if (!root.allowed || root.userStopped || root.indexing || scanProc.running)
             return;
+        root.startScan();
+    }
+
+    function forceIndex(): void {
+        if (!root.enabled || root.indexing || scanProc.running)
+            return;
+        root.userStopped = false;
+        root.forced = true;
+        root.startScan();
+    }
+
+    function stopIndex(): void {
+        root.userStopped = true;
+        root.forced = false;
+        if (root.indexing)
+            root.send({ cmd: "stop" });
+    }
+
+    function startScan(): void {
         scanProc.command = [root.scripts + "scan.sh", "files", (root.cfg.recursive ?? true) ? "1" : "0"].concat(root.cfg.dirs ?? []);
         scanProc.running = true;
     }
@@ -98,7 +136,7 @@ Scope {
         }
     }
 
-    onAllowedChanged: if (!root.allowed && root.indexing)
+    onAllowedChanged: if (!root.allowed && root.indexing && !root.forced)
         root.send({ cmd: "stop" })
 
     Process {
@@ -130,6 +168,7 @@ Scope {
                     break;
                 case "indexed":
                     root.indexing = false;
+                    root.forced = false;
                     root.count = e.count;
                     console.info("[wallpaper] semantic index:", e.count, "pictures");
                     break;
@@ -151,6 +190,7 @@ Scope {
         onExited: (code, status) => {
             server.up = false;
             root.indexing = false;
+            root.forced = false;
             root.callbacks = {};
             if (code !== 0)
                 console.warn("[wallpaper] clip.py exited with", code);

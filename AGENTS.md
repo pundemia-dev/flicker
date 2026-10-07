@@ -400,6 +400,11 @@ Not a git repo. No tests, no linter, no formatter.
   Hidden files are indexed too (same vector hidden/unhidden — the key ignores the dot), visible
   ones FIRST (the folder is ~3900 hidden of ~4900: ~3 h for everything), or skipped with
   `semanticIndexHidden: false` (panel: General); the hidden-view mode filters BEFORE ranking.
+  Panel action row "Search index" (row kind "action"): Run now = `forceIndex()` (ignores the
+  battery gate, not stopped by unplugging), Stop = `stopIndex()` (`userStopped`: automatic runs
+  stay off until forced again or the shell restarts); value = live "Stop · n / m" / "Run now ·
+  N indexed" — N read from `<thumbCache>/clip/keys.json` (FileView, watched), the server may be
+  down.
   Ctrl+S in a "? " / "~ " view freezes the ranked list into spec `{filter: "paths", paths}`
   (`WallFilter` "paths" keeps that order) — the slideshow re-resolves synchronously and could
   not wait for the model.

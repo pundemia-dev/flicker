@@ -82,7 +82,7 @@ Item {
         id: valueBox
         anchors.right: parent.right
         anchors.rightMargin: root.inset
-        width: root.row.kind === "bool" ? sw.width : (root.row.kind === "choice" ? choiceRow.implicitWidth : 0)
+        width: root.row.kind === "bool" ? sw.width : (root.row.kind === "choice" ? choiceRow.implicitWidth : (root.row.kind === "action" ? actionText.implicitWidth : 0))
         height: parent.height
 
         // Changed-from-config dot, just left of the value.
@@ -118,6 +118,19 @@ Item {
                 font.family: root.theme.iconFamily
                 font.pixelSize: root.fontSize
             }
+        }
+
+        // action: the button text on the accent (live state, e.g. progress).
+        Text {
+            id: actionText
+            visible: root.row.kind === "action"
+            anchors.right: parent.right
+            y: Math.round((parent.height - height) / 2)
+            text: root.valueText
+            color: root.theme.qsBlue
+            font.family: root.theme.fontFamily
+            font.pixelSize: root.fontSize
+            font.weight: Font.DemiBold
         }
 
         // iOS-style switch: track tint springs, the knob slides.

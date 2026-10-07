@@ -498,7 +498,15 @@ LauncherPlugin {
         const row = root.settingsRows[i];
         if (!row || !root.wallpaper)
             return;
-        if (row.kind === "reset")
+        if (row.kind === "action") {
+            if (row.action === "semanticIndex") {
+                const s = root.wallpaper.semantic;
+                if (s.indexing || s.forced)
+                    s.stopIndex();
+                else
+                    s.forceIndex();
+            }
+        } else if (row.kind === "reset")
             root.wallpaper.resetSettings();
         else
             root.wallpaper.setSetting(row.key, WallSettingsList.step(row, root.wallpaper.cfg[row.key] ?? "", dir));
