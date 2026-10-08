@@ -7,7 +7,8 @@ import "../config"
 // start (the network is up by then). Two events in a row: pacman first,
 // then the AUR (the FIFO shows the second when the first is gone). Glyphs
 // = the user's show_updates script (Nerd Font: md-pac_man, oct-smiley);
-// pacman is drawn + animated (indicators/PacmanGlyph.qml), the font glyph
+// pacman / AUR are drawn + animated (indicators/PacmanGlyph.qml,
+// GhostGlyph.qml — the ghost follows pacman), the font glyph
 // stays as the fallback.
 // Nothing pending -> no event.
 Scope {
@@ -27,7 +28,7 @@ Scope {
             onStreamFinished: {
                 const n = this.text.trim().split("\n").map(s => parseInt(s) || 0);
                 root.announce("updates:pacman", String.fromCodePoint(0xf0baf), "accentYellow", n[0] ?? 0, "pacman");
-                root.announce("updates:aur", "", "qsBlue", n[1] ?? 0);
+                root.announce("updates:aur", "", "qsBlue", n[1] ?? 0, "ghost");
             }
         }
     }

@@ -21,11 +21,31 @@ Item {
     id: g
     property real size: 18
     property color color: "#D8BE52"
-    property color eyeColor: "#000000"
+    // Wallpaper-settings icon tile look (WallSettingRow + WallCardRim): a
+    // vertical gradient fill (lighter top, darker bottom of `color`) and a
+    // light rim — along the top all the way round, along the bottom only to
+    // 45° — as filled slivers with fading gradients (no stroke gradients
+    // in Shape). EventIcon binds the rim colours from Theme.
+    property color rimTop: "#40FFFFFF"
+    property color rimBottom: "#1AFFFFFF"
+    readonly property color fillTop: Qt.lighter(g.color, g.cfg.lighter ?? 1.18)
+    readonly property color fillBottom: Qt.darker(g.color, g.cfg.darker ?? 1.45)
+    readonly property real rimW: g.size * (g.cfg.rim ?? 0.06)
+    // Eye = a hole in the body: squeezes shut with the bite, opens with
+    // the end of the reveal sweep.
+    readonly property real eyeOpen: Math.max(0, Math.min(1, (g.sweep - 0.7) / 0.3))
+    readonly property real eyeD: g.size * (g.cfg.eye ?? 0.17)
+    readonly property real eyeCx: g.size / 2 + g.r * (g.cfg.eyeX ?? 0.12)
+    readonly property real eyeCy: g.size / 2 - g.r * (g.cfg.eyeY ?? 0.5)
+    readonly property real eyeRx: Math.max(0.01, g.eyeD / 2 * g.eyeOpen)
+    readonly property real eyeRy: Math.max(0.01, g.eyeD / 2 * g.eyeOpen * Math.max(0.18, 1 - (g.cfg.eyeClose ?? 0.85) * Math.max(0, Math.min(1, g.bite))))
 
     readonly property var cfg: Config.data.glyphs?.pacman ?? ({})
     readonly property real stroke: g.size * (g.cfg.stroke ?? 0.1)
-    readonly property real r: g.size / 2 - g.stroke / 2
+    // The round-joined stroke draws the growing line; it fades out with the
+    // sweep (a solid stroke would fight the gradient) while the disc grows
+    // by the half stroke it covered.
+    readonly property real r: g.size / 2 - g.stroke / 2 * (1 - g.sweep)
     readonly property real mouthHalf: g.cfg.mouth ?? 30
 
     // Phase drivers (0..1).
@@ -164,7 +184,10 @@ Item {
         width: d
         height: d
         radius: d / 2
-        color: g.color
+        gradient: Gradient {
+            GradientStop { position: 0; color: g.fillTop }
+            GradientStop { position: 1; color: g.fillBottom }
+        }
         // Aims at the body's LIVE centre (it recoils while the dot flies).
         x: startX + (g.size / 2 + body.x - startX) * g.fly - d / 2
         y: (g.size - d) / 2
@@ -182,9 +205,48 @@ Item {
             anchors.fill: parent
             preferredRendererType: Shape.CurveRenderer
 
+            // Fill: the sector with the eye cut out (even-odd: the island
+            // shows through, like the ghost's eyes).
             ShapePath {
-                fillColor: g.color
-                strokeColor: g.color
+                fillRule: ShapePath.OddEvenFill
+                fillGradient: LinearGradient {
+                    x1: 0; y1: g.size / 2 - g.r
+                    x2: 0; y2: g.size / 2 + g.r
+                    GradientStop { position: 0; color: g.fillTop }
+                    GradientStop { position: 1; color: g.fillBottom }
+                }
+                strokeWidth: -1
+                strokeColor: "transparent"
+                PathMove {
+                    x: g.size / 2
+                    y: g.size / 2
+                }
+                PathLine {
+                    x: g.size / 2 + g.r * g.grow * Math.cos(g.s * Math.PI / 180)
+                    y: g.size / 2 + g.r * g.grow * Math.sin(g.s * Math.PI / 180)
+                }
+                PathAngleArc {
+                    centerX: g.size / 2
+                    centerY: g.size / 2
+                    radiusX: g.r * g.grow
+                    radiusY: g.r * g.grow
+                    startAngle: g.s
+                    sweepAngle: g.e - g.s
+                    moveToStart: false
+                }
+                PathLine {
+                    x: g.size / 2
+                    y: g.size / 2
+                }
+                PathMove { x: g.eyeCx - g.eyeRx; y: g.eyeCy }
+                PathArc { x: g.eyeCx + g.eyeRx; y: g.eyeCy; radiusX: g.eyeRx; radiusY: g.eyeRy }
+                PathArc { x: g.eyeCx - g.eyeRx; y: g.eyeCy; radiusX: g.eyeRx; radiusY: g.eyeRy }
+            }
+            // Reveal line: the same sector stroked (separate path: the eye
+            // subpath must not get a round-capped stroke dot).
+            ShapePath {
+                fillColor: "transparent"
+                strokeColor: Qt.alpha(g.color, Math.max(0, 1 - g.sweep))
                 strokeWidth: g.stroke
                 joinStyle: ShapePath.RoundJoin
                 capStyle: ShapePath.RoundCap
@@ -212,19 +274,56 @@ Item {
             }
         }
 
-        // Eye: squeezes shut while the jaws close (height follows `bite`),
-        // appears with the end of the reveal sweep.
-        Rectangle {
-            readonly property real d: g.size * (g.cfg.eye ?? 0.17)
-            readonly property real cx: g.size / 2 + g.r * (g.cfg.eyeX ?? 0.12)
-            readonly property real cy: g.size / 2 - g.r * (g.cfg.eyeY ?? 0.5)
-            width: d
-            height: Math.max(d * 0.18, d * (1 - (g.cfg.eyeClose ?? 0.85) * Math.max(0, Math.min(1, g.bite))))
-            radius: Math.min(width, height) / 2
-            x: cx - width / 2
-            y: cy - height / 2
-            color: g.eyeColor
+        // Light rims (top: full, bottom: to 45°) on the outer edge of the
+        // sector, faded in with the end of the reveal.
+        Shape {
+            anchors.fill: parent
+            preferredRendererType: Shape.CurveRenderer
             opacity: Math.max(0, Math.min(1, (g.sweep - 0.7) / 0.3))
+
+            ShapePath {
+                strokeWidth: -1
+                strokeColor: "transparent"
+                fillGradient: LinearGradient {
+                    x1: 0; y1: g.size / 2 - g.r
+                    x2: 0; y2: g.size / 2
+                    GradientStop { position: 0; color: g.rimTop }
+                    GradientStop { position: 0.45; color: Qt.alpha(g.rimTop, g.rimTop.a * 0.55) }
+                    GradientStop { position: 1; color: "transparent" }
+                }
+                PathAngleArc {
+                    centerX: g.size / 2; centerY: g.size / 2
+                    radiusX: g.r; radiusY: g.r
+                    startAngle: g.s; sweepAngle: g.e - g.s
+                }
+                PathAngleArc {
+                    centerX: g.size / 2; centerY: g.size / 2
+                    radiusX: g.r - g.rimW; radiusY: g.r - g.rimW
+                    startAngle: g.e; sweepAngle: g.s - g.e
+                    moveToStart: false
+                }
+            }
+            ShapePath {
+                strokeWidth: -1
+                strokeColor: "transparent"
+                fillGradient: LinearGradient {
+                    x1: 0; y1: g.size / 2 + g.r
+                    x2: 0; y2: g.size / 2 + g.r * Math.SQRT1_2
+                    GradientStop { position: 0; color: g.rimBottom }
+                    GradientStop { position: 1; color: "transparent" }
+                }
+                PathAngleArc {
+                    centerX: g.size / 2; centerY: g.size / 2
+                    radiusX: g.r; radiusY: g.r
+                    startAngle: Math.max(g.s, 45); sweepAngle: Math.max(0, Math.min(g.e, 135) - Math.max(g.s, 45))
+                }
+                PathAngleArc {
+                    centerX: g.size / 2; centerY: g.size / 2
+                    radiusX: g.r - g.rimW; radiusY: g.r - g.rimW
+                    startAngle: Math.min(g.e, 135); sweepAngle: -Math.max(0, Math.min(g.e, 135) - Math.max(g.s, 45))
+                    moveToStart: false
+                }
+            }
         }
     }
 }

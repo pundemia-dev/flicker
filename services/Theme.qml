@@ -72,6 +72,10 @@ QtObject {
     readonly property color wallSettingsIconBottom: "#111113"
     readonly property color wallSettingsIconRimTop: "#40FFFFFF"
     readonly property color wallSettingsIconRimBottom: "#1AFFFFFF"
+    // Drawn event glyphs (indicators/*Glyph.qml): the tile rim, stronger —
+    // on a light fill (yellow pacman) the tile alphas vanished.
+    readonly property color glyphRimTop: "#8CFFFFFF"
+    readonly property color glyphRimBottom: "#40FFFFFF"
     readonly property color wallSettingsRimTop: "#33FFFFFF"
     readonly property color wallSettingsRimBottom: "#17FFFFFF"
     // Frosted body (QS / notification center over the compositor blur):

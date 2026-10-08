@@ -531,10 +531,33 @@ Not a git repo. No tests, no linter, no formatter.
   (pacman updates): reveal = line grows from the centre to the right, sweeps 330° clockwise
   while its start edge drops 30° (lower jaw); loop = dot scales+fades in on the right (SkipBtn
   entry), FLIES in at constant speed (timed linear `flyMs` — user: not a spring) to the body's
-  live centre, jaws close behind it from `biteAt` of the flight, the eye (islandBg disc) squeezes
+  live centre, jaws close behind it from `biteAt` of the flight, the eye (a HOLE in the body, even-odd —
+  the reveal stroke is a separate ShapePath so the eye gets no stroke dot) squeezes
   shut with the jaw, body recoils left on a bouncy spring, dot swallowed (drawn under the body)
   once it arrived AND the jaws shut, jaws reopen. Bites come in pairs (`series` 2, `pauseMs`
-  between them), then a `restMs` break. A spring-driven dot in sync with the jaw hit
+  between them), then a `restMs` break. Look = the wallpaper-settings icon tile: vertical
+  gradient fill (`lighter`/`darker` of the colour, dot too) + WallCardRim-style light rims on
+  the sector's outer edge (top full, bottom to 45°; `Theme.glyphRimTop/Bottom`, stronger than
+  the tile's — invisible on yellow otherwise); the reveal stroke fades out with the sweep.
+  `indicators/GhostGlyph.qml` (AUR, follows pacman; user pick over smiley/box/gear): outline
+  = ONE `PathSvg` string built in JS (head arc while drawing, then head + sides + rippling
+  hem — fixed PathX element counts can't vary). Reveal head arc → sides drop + hem (2 small travelling half-waves) opens
+  → eyes pop; eyes = HOLES in the body (even-odd ellipse subpaths in the same PathSvg; user:
+  not white sclera + pupils), shifted toward the look; loop: feet `wave` (timed infinite loop),
+  eyes look L/R (`lookHoldMs`), and on every other look-around the whole ghost STEPS sideways
+  toward the look after `swayDelayMs` (user: a shift, not a tilt; looks L R L R…, steps on looks
+  0 and 3 of 4 → first left, then right; `swayShift`). Motion (user: "nervous glances, leans
+  in as if inevitable — fast start, then slows"): TIMED decelerating curves, not springs — eyes
+  OutExpo `lookMs`, step OutExpo `swayMs`, return OutCubic `swayBackMs` (set imperatively before
+  the change), glance holds random lookHoldMin..MaxMs. Logged the value: the curve WAS right, but
+  a 2.5 px step fits the lunge into 2-3 frames and reads linear — keep the step ≥ ~4 px.
+  While stepping it LEANS into the motion (user: rectangle -> parallelogram, not a rotation):
+  a shear `Matrix4x4` about the bottom edge (hem planted, head leads by `leanShift`), `lean`
+  set in stepTo, builds up on a soft spring (leanIn*, user: not so fast), held leanHoldMs, then
+  straightens on a bouncy one (leanOut*; Spring params swapped imperatively); the return
+  leans the other way (`leanBack`). Hem
+  corners rounded by a quadratic (`hemRound`).
+  Tunables `Config.glyphs.ghost`. Verified frame by frame. A spring-driven dot in sync with the jaw hit
   the closing lips outside the mouth (user: "не в попад"). Shape CurveRenderer sector (PathAngleArc,
   clockwise degrees from 3 o'clock) with a round-joined stroke = the visible line at sweep 0.
   Phases hand over at `handoff` of the target, NOT onFinished (over-damped SpringAnimation

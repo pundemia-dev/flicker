@@ -64,19 +64,26 @@ Item {
             onLoaded: {
                 item.size = Qt.binding(() => root.glyphSize);
                 item.color = Qt.binding(() => root.tint);
-                if ("eyeColor" in item)
-                    item.eyeColor = Qt.binding(() => root.theme?.islandBg ?? "#000000");
+                if ("rimTop" in item) {
+                    item.rimTop = Qt.binding(() => root.theme?.glyphRimTop ?? "#40FFFFFF");
+                    item.rimBottom = Qt.binding(() => root.theme?.glyphRimBottom ?? "#1AFFFFFF");
+                }
             }
         }
     }
 
     readonly property color tint: root.theme?.[root.ev?.color ?? "islandFg"] ?? root.theme?.islandFg ?? "#E9ECF1"
     readonly property var glyphs: ({
-            pacman: pacmanGlyph
+            pacman: pacmanGlyph,
+            ghost: ghostGlyph
         })
     readonly property var glyphComp: root.glyphs[root.ev?.glyph ?? ""] ?? null
     Component {
         id: pacmanGlyph
         PacmanGlyph {}
+    }
+    Component {
+        id: ghostGlyph
+        GhostGlyph {}
     }
 }

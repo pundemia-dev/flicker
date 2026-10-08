@@ -133,7 +133,7 @@ Scope {
                 discharging: { key: "discharging", icon: "\uecec", color: "accentOrange", texts: [() => `${root.battery.percent}%`, "4 h 10 min"] },
                 bluetooth: { key: "bt:demo", icon: "\ueabd", color: "qsBlue", text: "87%" },
                 pacman: { key: "updates:pacman", icon: String.fromCodePoint(0xf0baf), glyph: "pacman", color: "accentYellow", family: "nerd", text: "12" },
-                aur: { key: "updates:aur", icon: "\uf4a2", color: "qsBlue", family: "nerd", text: "3" }
+                aur: { key: "updates:aur", icon: "\uf4a2", glyph: "ghost", color: "qsBlue", family: "nerd", text: "3" }
             };
             root.events.post(demos[kind] ?? { key: `demo:${kind}`, icon: "\uea37", text: kind });
         }

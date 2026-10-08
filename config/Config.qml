@@ -210,7 +210,59 @@ Singleton {
                         eye: 0.17,
                         eyeX: 0.12,
                         eyeY: 0.5,
-                        eyeClose: 0.85
+                        eyeClose: 0.85,
+                        // Look (wallpaper settings icon tile): gradient fill
+                        // lighter/darker factors of the colour, rim width.
+                        lighter: 1.18,
+                        darker: 1.45,
+                        rim: 0.06
+                    },
+                    // AUR ghost: body width; hem = feetWaves half-waves of
+                    // height feet, sampled feetSegments, travelling period waveMs;
+                    // eyes (holes; lookShift = shift toward the look);
+                    // glance hold (random lookHoldMin..MaxMs), glance / step
+                    // durations (decelerating curves); sway = sideways step
+                    // (swayShift of the size, every other look-around, after
+                    // swayDelayMs); hemRound = corner where hem meets sides.
+                    ghost: {
+                        width: 0.86,
+                        stroke: 0.1,
+                        rim: 0.06,
+                        lighter: 1.18,
+                        darker: 1.45,
+                        feet: 0.07,
+                        feetWaves: 2,
+                        feetSegments: 16,
+                        hemRound: 0.1,
+                        waveMs: 700,
+                        eyeWidth: 0.17,
+                        eyeHeight: 0.22,
+                        eyeSpread: 0.19,
+                        eyeY: 0.95,
+                        lookShift: 0.07,
+                        swayShift: 0.24,
+                        lookHoldMinMs: 450,
+                        lookHoldMaxMs: 800,
+                        lookMs: 140,
+                        swayMs: 260,
+                        swayBackMs: 520,
+                        swayDelayMs: 180,
+                        swayHoldMs: 380,
+                        // Lean while stepping (shear, head shift = leanShift
+                        // of the size; the return leans leanBack as much):
+                        // builds up on the leanIn spring for leanHoldMs
+                        // (leanBackHoldMs on the return), straightens on leanOut.
+                        leanShift: 0.18,
+                        leanBack: 0.6,
+                        leanInStiffness: 2.5,
+                        leanInDamping: 0.6,
+                        leanOutStiffness: 7,
+                        leanOutDamping: 0.3,
+                        leanHoldMs: 280,
+                        leanBackHoldMs: 320,
+                        revealStiffness: 7,
+                        eyesStiffness: 10,
+                        handoff: 0.08
                     }
                 })
             // Privacy dot (services/Privacy.qml): screen share > camera > mic.
