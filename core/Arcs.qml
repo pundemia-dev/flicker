@@ -19,9 +19,8 @@ Item {
     required property real islandRadius
     required property bool visibleInState
 
-    readonly property color batteryColor: battery.percent > root.batteryCfg.warnPercent
-        ? theme.batteryGood
-        : (battery.percent > root.batteryCfg.lowPercent ? theme.batteryWarn : theme.batteryLow)
+    // Same rule as the charger events (Battery.levelTone).
+    readonly property color batteryColor: theme[battery.levelTone ?? "batteryGood"] ?? theme.batteryGood
 
     // Low battery "wipers" (tempShell RadialSliderIcon connecting pattern):
     // below battery.lowPercent and not charging the fill sweeps from the

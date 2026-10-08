@@ -2,9 +2,12 @@ import QtQuick
 import Quickshell.Services.UPower
 import "../config"
 
-// Event source: the charger. Plugged in -> bolt (green) + the percentage,
+// Colours follow the battery level exactly like the right arc
+// (Battery.levelTone: green / yellow / red).
+// Event source: the charger (drawn BoltGlyph: halves snap together on
+// plug-in, the bolt cracks apart on unplug). Plugged in -> bolt + the percentage,
 // then the time to full rolls in (`texts` steps, events.textStepMs).
-// Pulled -> bolt-off (orange) + the percentage, then the time to empty.
+// Pulled -> broken bolt + the percentage, then the time to empty.
 // Both live; a step stays on the percentage while UPower has no estimate
 // yet. Each one cancels the other if it is still shown or queued.
 QtObject {
@@ -24,19 +27,28 @@ QtObject {
     onPluggedChanged: {
         if (!root.armed || !root.battery.present)
             return;
-        root.events.cancel(root.plugged ? "discharging" : "charging");
+        root.announce(root.plugged);
+    }
+    // The real path (also IPC `island chargerSim` for testing without a
+    // cable): cancel the opposite event, post this one.
+    function announce(plugged: bool): void {
+        root.events.cancel(plugged ? "discharging" : "charging");
         if (!(Config.data.events.charging ?? true))
             return;
         const percent = () => `${root.battery.percent}%`;
-        root.events.post(root.plugged ? {
+        root.events.post(plugged ? {
             key: "charging",
-            icon: "", // bolt
-            color: "batteryGood",
+            icon: "", // bolt (font fallback)
+            glyph: "bolt",
+            glyphArgs: { mode: "join" },
+            color: () => root.battery.levelTone,
             texts: [percent, () => root.duration(root.battery.secondsToFull)]
         } : {
             key: "discharging",
-            icon: "", // bolt-off
-            color: "accentOrange",
+            icon: "", // bolt-off (font fallback)
+            glyph: "bolt",
+            glyphArgs: { mode: "break" },
+            color: () => root.battery.levelTone,
             texts: [percent, () => root.duration(root.battery.secondsToEmpty)]
         });
     }

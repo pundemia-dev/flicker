@@ -1,5 +1,6 @@
 import QtQuick
 import "../components"
+import "glyphs"
 
 // Event indicator, LEFT half: the glyph of the visible event
 // (services/Events.qml) at the far left of the bar row; EventText is its
@@ -16,10 +17,31 @@ Item {
     readonly property var live: events?.current ?? null
     readonly property bool active: live !== null
     property var ev: null
-    onLiveChanged: if (live) ev = live
+    // A new event object = a fresh glyph (its reveal replays even when the
+    // same glyph follows itself, e.g. caffeine on -> off); an in-place
+    // update of the same key keeps the running animation.
+    // A NEW event = coming out of the gap (live was null) or another key;
+    // only an in-place update (same key while showing) keeps the glyph.
+    // Comparing keys alone missed two same-key events in a row: the item
+    // outlives the short gap, so the second one showed the first's glyph
+    // mid-loop (already cracked) with no appearance at all.
+    property bool glyphFresh: true
+    property bool hadLive: false
+    onLiveChanged: {
+        if (live) {
+            const fresh = !hadLive || (ev?.key ?? "") !== (live.key ?? "");
+            ev = live;
+            if (fresh) {
+                glyphFresh = false;
+                Qt.callLater(() => root.glyphFresh = true);
+            }
+        }
+        hadLive = live !== null;
+    }
     property bool entered: false
     Component.onCompleted: {
         ev = live;
+        hadLive = live !== null;
         entered = true;
     }
 
@@ -41,6 +63,7 @@ Item {
     Behavior on width { Spring {} }
 
     FadeBlur {
+        id: fade
         anchors.verticalCenter: parent.verticalCenter
         anchors.left: parent.left
         anchors.leftMargin: -root.pull
@@ -56,14 +79,24 @@ Item {
             iconSize: root.glyphSize
             iconColor: root.tint
         }
-        // Animated drawn glyph (event `glyph`: name in `glyphs`); a new
-        // event with another glyph recreates it, so its reveal replays.
+        // Animated drawn glyph (event `glyph`: name in `glyphs`; optional
+        // `glyphArgs` -> item.args); recreated per event (glyphFresh).
         Loader {
             anchors.fill: parent
+            active: root.glyphFresh
             sourceComponent: root.glyphComp
             onLoaded: {
                 item.size = Qt.binding(() => root.glyphSize);
                 item.color = Qt.binding(() => root.tint);
+                if ("args" in item)
+                    item.args = root.ev?.glyphArgs ?? {};
+                if ("theme" in item)
+                    item.theme = Qt.binding(() => root.theme);
+                // Glyphs start their reveal only once the icon has faded in
+                // enough (`eventGlyphStartAt` of the fade): a fresh icon
+                // fades in from 0 under blur and swallowed short reveals.
+                if ("ready" in item)
+                    item.ready = Qt.binding(() => fade.p >= (root.cfg?.eventGlyphStartAt ?? 0.8));
                 if ("rimTop" in item) {
                     item.rimTop = Qt.binding(() => root.theme?.glyphRimTop ?? "#40FFFFFF");
                     item.rimBottom = Qt.binding(() => root.theme?.glyphRimBottom ?? "#1AFFFFFF");
@@ -72,18 +105,14 @@ Item {
         }
     }
 
-    readonly property color tint: root.theme?.[root.ev?.color ?? "islandFg"] ?? root.theme?.islandFg ?? "#E9ECF1"
-    readonly property var glyphs: ({
-            pacman: pacmanGlyph,
-            ghost: ghostGlyph
-        })
-    readonly property var glyphComp: root.glyphs[root.ev?.glyph ?? ""] ?? null
-    Component {
-        id: pacmanGlyph
-        PacmanGlyph {}
+    // `color` = a Theme colour name, or a function returning one (live:
+    // the charger events follow the battery level like the right arc).
+    readonly property string toneName: {
+        const c = root.ev?.color ?? "islandFg";
+        return typeof c === "function" ? `${c()}` : `${c}`;
     }
-    Component {
-        id: ghostGlyph
-        GhostGlyph {}
-    }
+    readonly property color tint: root.theme?.[root.toneName] ?? root.theme?.islandFg ?? "#E9ECF1"
+    // Drawn glyphs by name (indicators/glyphs/GlyphRegistry.qml).
+    GlyphRegistry { id: glyphRegistry }
+    readonly property var glyphComp: glyphRegistry.map[root.ev?.glyph ?? ""] ?? null
 }

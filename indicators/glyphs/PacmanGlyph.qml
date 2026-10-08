@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Shapes
-import "../components"
-import "../config"
+import "../../components"
+import "../../config"
 
 // Animated pacman glyph for the "pacman updates" event (drawn, not a font
 // glyph). Reveal: a line grows from the centre to the right (`grow`), then
@@ -21,6 +21,10 @@ Item {
     id: g
     property real size: 18
     property color color: "#D8BE52"
+    // args.food: "dot" (default) | "box" — package installs: pacman eats
+    // little parcels (a rounded box with a tape stripe) instead of dots.
+    property var args: ({})
+    readonly property bool boxFood: (g.args?.food ?? "dot") === "box"
     // Wallpaper-settings icon tile look (WallSettingRow + WallCardRim): a
     // vertical gradient fill (lighter top, darker bottom of `color`) and a
     // light rim — along the top all the way round, along the bottom only to
@@ -67,7 +71,19 @@ Item {
     width: g.size
     height: g.size
 
-    Component.onCompleted: growAnim.start()
+    // Starts once the host says the icon is visible enough (`ready`, bound
+    // by EventIcon to its fade-in): started at creation, the reveal ran
+    // under the blur-fade-in and was sometimes invisible (user).
+    property bool ready: false
+    property bool begun: false
+    onReadyChanged: g.tryBegin()
+    Component.onCompleted: g.tryBegin()
+    function tryBegin(): void {
+        if (!g.ready || g.begun)
+            return;
+        g.begun = true;
+        growAnim.start();
+    }
 
     readonly property real handoff: g.cfg.handoff ?? 0.08
     // 0 grow, 1 sweep, 2 idle (pause / dot), 3 bite, 4 reopen.
@@ -179,11 +195,19 @@ Item {
 
     // The dot: right of the centre, flies into the body centre.
     Rectangle {
-        readonly property real d: g.size * (g.cfg.dot ?? 0.24)
+        readonly property real d: g.size * (g.cfg.dot ?? 0.24) * (g.boxFood ? (g.cfg.boxScale ?? 1.25) : 1)
         readonly property real startX: g.size / 2 + g.r * (g.cfg.dotStart ?? 1.5)
         width: d
         height: d
-        radius: d / 2
+        radius: g.boxFood ? d * 0.22 : d / 2
+        // Parcel tape stripe.
+        Rectangle {
+            visible: g.boxFood
+            anchors.centerIn: parent
+            width: parent.width * 0.2
+            height: parent.height
+            color: Qt.darker(g.color, 1.7)
+        }
         gradient: Gradient {
             GradientStop { position: 0; color: g.fillTop }
             GradientStop { position: 1; color: g.fillBottom }

@@ -21,6 +21,7 @@ PanelWindow {
     required property var audio
     required property var privacy
     required property var events
+    required property var caffeine
     required property var players
     required property var network
     required property var bluetooth
@@ -321,7 +322,9 @@ PanelWindow {
     // curve as the indicator width springs — one synchronized motion, the
     // clock glides instead of teleporting. Capped at islandCfg.maxWidth
     // (eviction in IndicatorLayout kicks in past the cap).
-    readonly property real barFittedWidth: indicators.edgePadD * 2 + indicators.stableRowWidth
+    // + an event's wider half on BOTH sides (IndicatorLayout.eventSide):
+    // the row stays centred while an event shows.
+    readonly property real barFittedWidth: indicators.edgePadD * 2 + indicators.stableRowWidth + indicators.eventSide * 2
 
     readonly property real islandWidth: root.moduleOpen
         ? root.moduleSize.width
@@ -343,6 +346,12 @@ PanelWindow {
         root.registry.register(root);
     }
     Component.onDestruction: root.registry.unregister(root)
+
+    // Caffeine mode: an idle inhibitor on this surface (services/Caffeine).
+    IdleInhibitor {
+        window: root
+        enabled: root.caffeine.active
+    }
 
     // Real backdrop blur via niri's ext-background-effect-v1 (pShell pattern):
     // the island rect is published as the compositor blur region. Two region
@@ -1537,6 +1546,7 @@ PanelWindow {
                     cameras: root.privacy.cameraNodes.map(n => n.name),
                     cameraProcs: root.privacy.cameraProcs
                 },
+                caffeine: root.caffeine.active,
                 events: {
                     current: root.events.current?.key ?? null,
                     queued: root.events.queue.map(e => e.key ?? "")

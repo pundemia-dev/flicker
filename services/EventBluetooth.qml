@@ -49,12 +49,45 @@ QtObject {
         root.events.post({
             key: `bt:${dev.address}`,
             icon: root.glyphFor(dev.icon ?? ""),
+            glyph: root.drawnGlyph(dev.icon ?? "", dev.name || dev.deviceName || ""),
             color: "qsBlue",
             text: () => dev.batteryAvailable ? `${Math.round(dev.battery * 100)}%` : (dev.name || dev.deviceName || "")
         });
     }
 
-    // BlueZ `Icon` (freedesktop device names) -> tabler glyph.
+    // Drawn animated glyph (indicators/glyphs): Apple devices by name first
+    // (BlueZ reports AirPods and AirPods Max both as audio-headset), then
+    // the BlueZ `Icon` kind; the tabler glyph below stays the fallback.
+    function drawnGlyph(icon: string, name: string): string {
+        const n = name.toLowerCase();
+        if (n.indexOf("airpods max") !== -1)
+            return "airpodsMax";
+        if (n.indexOf("airpods") !== -1 || n.indexOf("buds") !== -1 || n.indexOf("earbuds") !== -1)
+            return "airpods";
+        if (n.indexOf("homepod") !== -1)
+            return "speaker";
+        if (icon.indexOf("headset") !== -1 || icon.indexOf("headphone") !== -1)
+            return "headphones";
+        if (icon.indexOf("audio") !== -1)
+            return "speaker";
+        if (icon.indexOf("phone") !== -1)
+            return "phone";
+        if (icon.indexOf("mouse") !== -1)
+            return "mouse";
+        if (icon.indexOf("keyboard") !== -1)
+            return "keyboard";
+        if (icon.indexOf("gaming") !== -1)
+            return "gamepad";
+        if (icon.indexOf("tablet") !== -1)
+            return "tablet";
+        if (icon.indexOf("computer") !== -1)
+            return "laptop";
+        if (icon.indexOf("watch") !== -1)
+            return "watch";
+        return "bluetooth";
+    }
+
+    // BlueZ `Icon` (freedesktop device names) -> tabler glyph (fallback).
     function glyphFor(icon: string): string {
         if (icon.indexOf("headset") !== -1 || icon.indexOf("headphone") !== -1)
             return ""; // headphones

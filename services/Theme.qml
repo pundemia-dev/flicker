@@ -74,6 +74,14 @@ QtObject {
     readonly property color wallSettingsIconRimBottom: "#1AFFFFFF"
     // Drawn event glyphs (indicators/*Glyph.qml): the tile rim, stronger —
     // on a light fill (yellow pacman) the tile alphas vanished.
+    // Drawn event glyphs: Apple-ish white device bodies, dark detail ink.
+    readonly property color glyphDeviceTop: "#F5F6F8"
+    readonly property color glyphDeviceBottom: "#A9AFB9"
+    readonly property color glyphInk: "#16171B"
+    // Focus / Do Not Disturb (moon glyph + event text).
+    readonly property color focusPurple: "#8A7CF5"
+    // Caffeine event: coffee (CoffeeGlyph liquid + the event text).
+    readonly property color coffee: "#C8915A"
     readonly property color glyphRimTop: "#8CFFFFFF"
     readonly property color glyphRimBottom: "#40FFFFFF"
     readonly property color wallSettingsRimTop: "#33FFFFFF"

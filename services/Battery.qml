@@ -12,6 +12,10 @@ QtObject {
     readonly property int percent: battery ? Math.round(battery.percentage * 100) : 0
     readonly property bool charging: battery ? battery.state === UPowerDeviceState.Charging || battery.state === UPowerDeviceState.FullyCharged : false
     readonly property bool low: present && !charging && percent <= Config.data.battery.lowPercent
+    // Theme colour NAME for the level (right arc, charger events): good above
+    // warnPercent, warn above lowPercent, else low.
+    readonly property string levelTone: percent > Config.data.battery.warnPercent ? "batteryGood"
+        : (percent > Config.data.battery.lowPercent ? "batteryWarn" : "batteryLow")
     readonly property int secondsToEmpty: battery?.timeToEmpty ?? 0
     readonly property int secondsToFull: battery?.timeToFull ?? 0
 }

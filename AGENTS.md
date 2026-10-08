@@ -57,8 +57,8 @@ Not a git repo. No tests, no linter, no formatter.
   one Loader in `core/IndicatorLayout.qml`; eviction by priority and island expansion
   (`extraWidth`) are computed there from each indicator's stable `desiredWidth`.
 - Bar width is dynamic (no fixed `island.width`): `Island.barFittedWidth` fits the
-  measured centered row in `IndicatorLayout` (spec order event icon|privacy|music|dictation|
-  clock|timer|event text, nothing pinned to the edges — the clock shifts when an
+  measured centered row in `IndicatorLayout` (spec order privacy|music|dictation|
+  clock|timer, event halves pinned to the island edges outside the row, nothing else pinned — the clock shifts when an
   indicator grows, e.g. the mic hover label) with spacing/edgePad
   computed from the live content width, capped at `island.maxWidth`. Eviction is
   computed from stable desired widths against the shared budget (never from animated widths —
@@ -502,8 +502,13 @@ Not a git repo. No tests, no linter, no formatter.
   wheel, footer pills, launcher plugin, clipboard, multi-output hand-over. Known: viewport edges
   are a hard clip (no soft fade on the translucent body — MultiEffect masks are binary).
 
-- Indicators polish (Oct 2026, user decisions). Bar row = [eventIcon | privacy | music |
-  dictation | clock | timer | eventText] (`IndicatorLayout.loaders` map).
+- Indicators polish (Oct 2026, user decisions). Bar row = [privacy | music | dictation |
+  clock | timer]; event glyph / text are NOT in the row: pinned to the island's left / right edges,
+  and the island grows by the wider half on BOTH sides (`IndicatorLayout.eventSide`, added twice
+  in `Island.barFittedWidth` and the eviction budget) — the main row stays centred on screen
+  while an event shows (user). The text slot is sized ONCE per event from the widest of all its `texts`
+  steps and latched (grows only, never shrinks until the next event) — the island must not
+  resize after it spread, e.g. on the "95%" → "1 h 25 min" roll (user).
   PRIVACY DOT (`indicators/PrivacyDot.qml`, was Microphone.qml) = ONE dot, colour by the most
   sensitive capture (`services/Privacy.qml`): screen share red > camera green > mic orange,
   never several dots; hover label = consumer app. Untracked PipeWire nodes have EMPTY
@@ -521,11 +526,39 @@ Not a git repo. No tests, no linter, no formatter.
   the far RIGHT (`EventText`, `text` may be a function → live inside the binding). Event =
   {key, icon, text, color (Theme property NAME; tints glyph AND text, `textColor` overrides), family ("nerd" = Theme.nerdIconFamily)}; same
   key replaces in place, `cancel(key)` drops it. Sources (Shell): `EventCharging` (UPower
-  onBattery: plugged = green bolt, pulled = orange bolt-off; `texts` steps = percent, then
+  onBattery: plugged = bolt join, pulled = bolt break; colour = `Battery.levelTone` (the right arc's
+  rule, shared; event `color` may be a function → live); `texts` steps = percent, then
   after `events.textStepMs` the time to full / to empty drum-rolls in via RollingText; EventText
   width = per-char advances of the TARGET text), `EventBluetooth` (new connected device → device glyph +
   Battery1 % / name), `EventUpdates` (once, `updatesDelayMs` after start: pacman count, then AUR;
   glyphs from the user's show_updates: md-pac_man f0baf and f4a2 = oct-smiley in Nerd Fonts v3).
+  GLYPH LIBRARY (Oct 2026, user: "draw every one, Apple-style, same kind of animations"; services
+  for the new events NOT built yet — only the glyphs): `indicators/glyphs/` = every drawn glyph +
+  `GlyphBase.qml` (size/color/args/theme/ready → `begin()` once; `p(key, def)` reads
+  `Config.glyphs.<glyphName>` then `glyphs.common`; palette fillTop/Bottom from the tint,
+  deviceTop/Bottom + ink from Theme `glyphDevice*`/`glyphInk`), `GlyphFill` (gradient path +
+  white sheen), `GlyphLine`, `GlyphWaves` (sound/signal arcs loop), `GlyphScreen` (bezel drawn
+  along the perimeter + glass painted bottom-up + shine band), `Glyph.js` (rrect/ellipse/arcPts/
+  rrectPts/trim/clipY/span/smooth), `GlyphRegistry.qml` (explicit Components; EventIcon looks up
+  `event.glyph` there). Devices: airpods, airpodsMax (= headphones alias), speaker (HomePod mini),
+  phone, tablet, laptop, watch, mouse, keyboard, gamepad, bluetooth (rune); events: lock (VPN),
+  moon (focus, Theme `focusPurple`), transfer (`args.progress` or indeterminate), error, copy,
+  pacman `args.food: "box"` (package installs). `HelloGlyph` = Apple-style first-run "hello" (NOT an
+  event glyph, aspect × size wide): cursive Béziers sampled to a polyline, written by a timed trim,
+  hue flowing along the word (stroke cut into `segments` pieces — no stroke gradients); not wired
+  to a first-run flow yet (user: animation only). EventBluetooth picks `drawnGlyph(icon, name)` —
+  name first ("AirPods Max"/"AirPods"/"Buds"/"HomePod"; BlueZ reports both AirPods as
+  audio-head*), then the BlueZ Icon kind. Previews: IPC `island glyphDemo <name>` (`parcels` =
+  pacman with boxes) / `glyphDemoAll`; dev window `quickshell -p dev/glyphs/shell.qml` (all at
+  64 px, replay every 7 s, click = replay). Verified: harness frames (reveals step by step) +
+  every glyph in the live bar at 18 px (all readable). Traps hit: GlyphFill colours are
+  `colorTop/colorBottom` — `top`/`bottom` are FINAL Item members ("Cannot override FINAL
+  property" took the whole config down); inline `component` blocks do not see the file's ids
+  (two-of-a-kind parts are Repeater delegates instead).
+  ANIMATED GLYPHS start only when EventIcon binds `ready` (its FadeBlur p ≥
+  `indicators.eventGlyphStartAt`): starting at creation ran short reveals under the blur-fade-in
+  of a FRESH icon (invisible), while an icon surviving the gap was already visible → "sometimes
+  the animation shows, sometimes not" (user). EventIcon sets `args` BEFORE binding `ready`.
   ANIMATED GLYPHS (user: own drawn icons, animated): event `glyph: "<name>"` → EventIcon loads
   the Component from its `glyphs` map (font `icon` = fallback); `indicators/PacmanGlyph.qml`
   (pacman updates): reveal = line grows from the centre to the right, sweeps 330° clockwise
@@ -562,6 +595,35 @@ Not a git repo. No tests, no linter, no formatter.
   clockwise degrees from 3 o'clock) with a round-joined stroke = the visible line at sweep 0.
   Phases hand over at `handoff` of the target, NOT onFinished (over-damped SpringAnimation
   creeps the last % for ~1 s). Tunables `Config.glyphs.pacman`. Verified frame by frame (grim).
+  CAFFEINE (Oct 2026): `services/Caffeine.qml` (session `active`, IPC `island caffeine` toggle,
+  debugState `caffeine`); every Island holds a Quickshell `IdleInhibitor { window: root }` bound
+  to it. Toggling posts an event with `glyph: "coffee"` + `glyphArgs {drain}` (EventIcon passes
+  `glyphArgs` to `item.args`; a NEW event key recreates the glyph Loader (`glyphFresh`) so the
+  reveal replays even when the same glyph follows itself). `indicators/CoffeeGlyph.qml`: stroked
+  wide cup (handle LEFT, `handleSide`) (walls rise from the bottom curve) + handle arc sweep, coffee inside behind a gap with a
+  small travelling sine surface, poured in on an under-damped spring (slosh) / drained on off.
+  Tunables `Config.glyphs.coffee`, `Theme.coffee`. Verified frame by frame (on + off).
+  CHARGER BOLT `indicators/BoltGlyph.qml` (user pick: "the bolt breaks"). Appearance (user, after
+  several rounds — strike line / swell / bloom all read abrupt): the bolt is PAINTED by a fill
+  front (critically damped `reveal`; polygon clipped by the front's half-plane) DOWN from the top
+  on unplug, UP from the bottom on plug-in, a light gradient band rides the front, then a soft
+  neon flicker (eased `lit` dips + flares). Also fixed: a same-key event right after another
+  reused the old glyph mid-loop (EventIcon now recreates it for every new event, not just a new
+  key). `glyphArgs.mode`:
+  break (unplug): after the appearance → crack along a
+  BOLT-SHAPED top-to-bottom polyline (user: breaks into two thin bolts; vertical, not straight; the outline is split at the first /
+  last crossing, the crack must cross it exactly twice) → halves TILT apart about the crack's
+  bottom exit (left one left, right one right; user) on a bouncy spring; loop: halves drift toward each other (nearSep) and back, sparks flash in the gap when
+  close. join (plug-in): halves appear apart → snap together → flash fuses the crack; loop:
+  charge pulse. Mode is read a tick AFTER onCompleted (`Qt.callLater(begin)`): EventIcon sets
+  `args` in Loader.onLoaded, which runs after the item's onCompleted. Tunables `glyphs.bolt`.
+  Verified frame by frame via `eventDemo discharging|charging`.
+  REAL plug-in (measured with the user, Oct 2026): TLP switches to AC (turbo, PCIe ASPM default)
+  and the WHOLE compositor freezes ~0.5 s about 1.5 s after the event appears (a 492 ms frame gap
+  mid-flicker; grim frames froze too; a ~117 ms gap at every AC change as well). Springs jump to
+  their end → "no animation on plug-in" while IPC demos were perfect. Guard: a FrameAnimation
+  watches frameTime during the appearance; a gap > `stallMs` replays it (≤ `stallReplays`).
+  IPC `island chargerSim true|false` runs the REAL handler (cancel + post) without a cable.
   Sources ignore the first `startupQuietMs` (BlueZ/UPower populate async). Duplicate
   notifications dropped on arrival by `notifications.suppress` regex rules (default blueman
   "Connected…", Disconnected still shows). IPC `island eventDemo charging|discharging|bluetooth|pacman|aur|<text>`.

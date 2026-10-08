@@ -6,10 +6,10 @@ import "../components"
 // they are called inside the binding, so live values (time to full,
 // headphone battery) update while the event shows. `texts: [a, b, ...]`
 // = steps: every `events.textStepMs` the next one drum-rolls in
-// (RollingText), e.g. charging: percent -> time to full. Width = the sum of
-// per-character advances of the TARGET text (RollingText lays out one slot
-// per character; its own width springs and must not feed back here),
-// capped at eventTextMaxWidth.
+// (RollingText), e.g. charging: percent -> time to full. Width = per-char
+// advances (RollingText lays out one slot per character; its own width
+// springs and must not feed back here), of the WIDEST step, latched per
+// event; capped at eventTextMaxWidth. The label stays right-aligned.
 Item {
     id: root
     property var services: null
@@ -22,16 +22,32 @@ Item {
     readonly property bool active: live !== null
     property var ev: null
     property int step: 0
-    onLiveChanged: if (live) {
-        ev = live;
-        step = 0;
+    // A NEW event (out of the gap or another key) resets the latched width;
+    // an in-place update of the same key keeps it.
+    property bool hadLive: false
+    onLiveChanged: {
+        if (live) {
+            const fresh = !hadLive || (ev?.key ?? "") !== (live.key ?? "");
+            ev = live;
+            step = 0;
+            if (fresh)
+                peak = stepsMax;
+        }
+        hadLive = live !== null;
     }
     property bool entered: false
     Component.onCompleted: {
         ev = live;
+        hadLive = live !== null;
+        peak = stepsMax;
         entered = true;
     }
 
+    // Theme colour name (a function = live), `textColor` overrides `color`.
+    readonly property string toneName: {
+        const c = root.ev?.textColor ?? root.ev?.color ?? "islandFg";
+        return typeof c === "function" ? `${c()}` : `${c}`;
+    }
     readonly property var steps: root.ev?.texts ?? [root.ev?.text ?? ""]
     readonly property string value: {
         const t = root.steps[Math.min(root.step, root.steps.length - 1)] ?? "";
@@ -43,15 +59,31 @@ Item {
         onTriggered: root.step++
     }
 
-    readonly property real textWidth: {
+    function widthOf(str: string): real {
         let w = 0;
-        for (const ch of root.value)
+        for (const ch of str)
             w += fm.advanceWidth(ch);
         return Math.ceil(Math.min(cfg?.eventTextMaxWidth ?? 120, w));
     }
+    readonly property real textWidth: root.widthOf(root.value)
+    // The slot is sized ONCE per event (user: the island must not resize
+    // after it has spread, e.g. when the text rolls from "95%" to "1 h 25
+    // min"): the widest of ALL steps, latched — it may only grow (a live
+    // value getting longer), never shrink, until the next event.
+    readonly property real stepsMax: {
+        let w = 0;
+        for (const t of root.steps)
+            w = Math.max(w, root.widthOf(typeof t === "function" ? `${t()}` : `${t ?? ""}`));
+        return w;
+    }
+    // Latched in a handler of stepsMax (not of slotWidth itself — writing
+    // the latch from slotWidth's own change handler was a binding loop).
+    property real peak: 0
+    onStepsMaxChanged: if (root.stepsMax > root.peak) root.peak = root.stepsMax
+    readonly property real slotWidth: root.peak
     // Extra distance from the rest of the row (on top of the row spacing).
     readonly property real gap: cfg?.eventGap ?? 48
-    readonly property real desiredWidth: active ? textWidth + gap : 0
+    readonly property real desiredWidth: active ? slotWidth + gap : 0
 
     width: (entered && !evicted) ? desiredWidth : 0
     height: cfg?.musicCoverDiameter ?? 24
@@ -78,7 +110,7 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
             text: root.value
             // Tinted like the glyph (event `textColor`, else its `color`).
-            color: root.theme?.[root.ev?.textColor ?? root.ev?.color ?? "islandFg"] ?? root.theme?.islandFg ?? "#E9ECF1"
+            color: root.theme?.[root.toneName] ?? root.theme?.islandFg ?? "#E9ECF1"
             pixelSize: root.theme?.fontSizeClock ?? 14
             weight: Font.Medium
             family: root.theme?.fontFamily ?? "SF Pro Display"

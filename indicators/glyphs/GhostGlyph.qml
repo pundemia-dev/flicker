@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Shapes
-import "../components"
-import "../config"
+import "../../components"
+import "../../config"
 
 // Animated Pac-Man ghost for the "AUR updates" event (follows the pacman
 // event). Reveal: the head arc draws out from the top centre to both sides
@@ -83,7 +83,19 @@ Item {
 
     // 0 head, 1 drop, 2 eyes, 3 loop.
     property int phase: 0
-    Component.onCompleted: headAnim.start()
+    // Starts once the host says the icon is visible enough (`ready`, bound
+    // by EventIcon to its fade-in): started at creation, the reveal ran
+    // under the blur-fade-in and was sometimes invisible (user).
+    property bool ready: false
+    property bool begun: false
+    onReadyChanged: g.tryBegin()
+    Component.onCompleted: g.tryBegin()
+    function tryBegin(): void {
+        if (!g.ready || g.begun)
+            return;
+        g.begun = true;
+        headAnim.start();
+    }
     onHeadChanged: if (g.phase === 0 && g.head >= 1 - g.handoff) {
         g.phase = 1;
         dropAnim.start();

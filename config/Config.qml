@@ -154,6 +154,9 @@ Singleton {
                     eventIconSize: 18,
                     // Extra gap between an event's glyph / text and the rest of the row.
                     eventGap: 48,
+                    // Drawn glyphs start their reveal at this fade-in level
+                    // of the event icon (0..1).
+                    eventGlyphStartAt: 0.8,
                     eventTextMaxWidth: 120
                 })
             // Event indicators (services/Events.qml): one at a time, FIFO;
@@ -174,6 +177,7 @@ Singleton {
                     charging: true,
                     bluetooth: true,
                     updates: true,
+                    caffeine: true,
                     updatesDelayMs: 30000
                 })
             // Drawn animated glyphs of event indicators (indicators/*Glyph.qml).
@@ -215,7 +219,9 @@ Singleton {
                         // lighter/darker factors of the colour, rim width.
                         lighter: 1.18,
                         darker: 1.45,
-                        rim: 0.06
+                        rim: 0.06,
+                        // Parcel (args.food "box") size vs the dot.
+                        boxScale: 1.25
                     },
                     // AUR ghost: body width; hem = feetWaves half-waves of
                     // height feet, sampled feetSegments, travelling period waveMs;
@@ -263,6 +269,210 @@ Singleton {
                         revealStiffness: 7,
                         eyesStiffness: 10,
                         handoff: 0.08
+                    },
+                    // Caffeine cup: cup/handle geometry, gap between wall and
+                    // coffee, surface wave (amp, half-waves, period), pour
+                    // spring (under-damped = slosh), cup = coffee colour lightened.
+                    coffee: {
+                        stroke: 0.1,
+                        cupWidth: 0.8,
+                        cupHeight: 0.56,
+                        cupDrop: 0.06,
+                        bottomRadius: 0.3,
+                        handleRadius: 0.13,
+                        handleSide: "left",
+                        handleY: 0.42,
+                        handleSquash: 1.15,
+                        gap: 0.07,
+                        headroom: 0.1,
+                        waveAmp: 0.035,
+                        waveHalves: 2,
+                        waveSegments: 12,
+                        waveMs: 1100,
+                        lighter: 1.18,
+                        darker: 1.45,
+                        cupLighter: 1.2,
+                        revealStiffness: 7,
+                        pourStiffness: 3,
+                        pourDamping: 0.3,
+                        handoff: 0.08
+                    },
+                    // Charger bolt: crack gap (fraction of the size), how far
+                    // the halves tilt apart about the bottom (tiltDeg); the
+                    // jagged crack itself is `crack` (unit polyline, optional); unplug loop: halves drift to
+                    // nearSep and back every hoverMs, sparks below sparkAt;
+                    // plug-in: snap, flash, charge pulse every pulseMs.
+                    // Appearance: painted by a fill front (reveal spring,
+                    // top-down on unplug / bottom-up on plug-in) with a light
+                    // band (frontBand / frontLighter / frontAlpha), then a
+                    // soft neon flicker from reveal >= flickerAt (lit dips
+                    // to flickerLow / flickerMid, flares flareHigh / flareLow).
+                    bolt: {
+                        crackGap: 0.025,
+                        tiltDeg: 16,
+                        lighter: 1.2,
+                        darker: 1.4,
+                        sepStiffness: 5,
+                        sepDamping: 0.3,
+                        hoverMs: 650,
+                        nearSep: 0.45,
+                        sparkAt: 0.75,
+                        sparks: 3,
+                        sparkMs: 160,
+                        sparkCooldownMs: 500,
+                        sparkColor: "#FFF4C2",
+                        flashMs: 420,
+                        pulseMs: 1300,
+                        pulseScale: 0.07,
+                        pulseStiffness: 6,
+                        sparkX: 0.5,
+                        sparkY: 0.3,
+                        flickerLow: 0.55,
+                        flickerMid: 0.78,
+                        flickerHoldMs: 120,
+                        flickerAt: 0.9,
+                        flickerMs: 110,
+                        flareHigh: 0.6,
+                        flareLow: 0.4,
+                        revealStiffness: 4,
+                        frontBand: 0.22,
+                        frontLighter: 1.8,
+                        frontAlpha: 0.9,
+                        // A frame gap longer than stallMs during the appearance replays it.
+                        stallMs: 150,
+                        stallReplays: 2,
+                        handoff: 0.08
+                    },
+                    // Drawn event glyphs (indicators/glyphs/): `common` = the defaults
+                    // every glyph falls back to (GlyphBase.p); per glyph: when its next
+                    // phase starts (…At = fraction of the previous driver), loop timings.
+                    common: {
+                        revealStiffness: 6,
+                        popStiffness: 7,
+                        popDamping: 0.45,
+                        slideDamping: 0.55,
+                        handoff: 0.08,
+                        lighter: 1.18,
+                        darker: 1.45,
+                        sheen: 0.32,
+                        stroke: 0.1,
+                        waveMs: 1400,
+                        loopMs: 1800,
+                        shineMs: 700
+                    },
+                    bluetooth: {},
+                    airpods: {
+                        // Overall size; head height vs width (AirPods 3 look).
+                        scale: 1.1,
+                        headSquash: 0.82,
+                        // Head stretch along the OTHER diagonal (the oval's
+                        // short axis, x headSquash).
+                        headLength: 1.45,
+                        // Head roundness: 2 = ellipse, larger = less rounded (superellipse).
+                        headCorner: 2.6,
+                        // Mesh offsets from the head centre along its long axis (edges).
+                        meshTop: 0.16,
+                        // Size of the lower (inner) mesh.
+                        meshLowerScale: 1.5,
+                        // Its length alone (x meshLowerScale).
+                        meshLowerLength: 0.85,
+                        meshBottom: 0.13,
+                        // Size of the visually upper (outer) mesh.
+                        meshUpperScale: 2,
+                        // Head oval tilt (deg).
+                        headTilt: 35,
+                        // Bottom of each part's gradient: deviceBottom darkened by this.
+                        shade: 1.12,
+                        // Extra turn of the whole head vs the stem (deg, cw on the left).
+                        headTurn: 90,
+                        stagger: 0.45,
+                        dropTilt: 22,
+                        bobMs: 900
+                    },
+                    airpodsMax: {
+                        cupsAt: 0.6,
+                        bandWidth: 0.11
+                    },
+                    speaker: {
+                        glowAt: 0.7,
+                        breathMs: 1100
+                    },
+                    phone: {
+                        paintAt: 0.75,
+                        detailAt: 0.8,
+                        frame: 0.07
+                    },
+                    tablet: {
+                        paintAt: 0.75,
+                        detailAt: 0.8,
+                        frame: 0.07
+                    },
+                    laptop: {
+                        lidAt: 0.5,
+                        paintAt: 0.75,
+                        lidDamping: 0.5
+                    },
+                    watch: {
+                        scale: 1.3,
+                        ringAt: 0.7,
+                        ringStiffness: 4
+                    },
+                    mouse: {
+                        rippleMs: 650
+                    },
+                    keyboard: {
+                        // Overall size (keyboard: width is the limit, height
+                        // grows by stretchY on top).
+                        scale: 1.08,
+                        stretchY: 1.15,
+                        keysAt: 0.6,
+                        keysStiffness: 4,
+                        typeMs: 190
+                    },
+                    gamepad: {
+                        scale: 1.2,
+                        tiltStiffness: 4,
+                        buttonMs: 320,
+                        tiltDeg: 7
+                    },
+                    lock: {
+                        latchAt: 0.6,
+                        latchStiffness: 6,
+                        latchDamping: 0.35
+                    },
+                    moon: {
+                        biteAt: 0.6,
+                        rockMs: 1300,
+                        twinkleMs: 1600,
+                        rockDeg: 5
+                    },
+                    transfer: {
+                        arrowAt: 0.5,
+                        spinMs: 1100,
+                        flowMs: 700,
+                        stroke: 0.09
+                    },
+                    error: {
+                        fillAt: 0.7,
+                        barAt: 0.5,
+                        dotAt: 0.6,
+                        shakeAmp: 0.07,
+                        stroke: 0.09
+                    },
+                    copy: {
+                        slideAt: 0.5,
+                        checkAt: 0.75,
+                        stroke: 0.09
+                    },
+                    // First-run "hello" (written cursive, hue flowing along it):
+                    // width = aspect × size, writing time, hue range, stroke.
+                    hello: {
+                        aspect: 2.4,
+                        writeMs: 2600,
+                        segments: 28,
+                        hueStart: 0.55,
+                        hueSpan: 0.55,
+                        stroke: 0.075
                     }
                 })
             // Privacy dot (services/Privacy.qml): screen share > camera > mic.

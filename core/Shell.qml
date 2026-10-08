@@ -21,9 +21,10 @@ Scope {
     Privacy { id: privacyService; audio: audioService }
     // Event indicators (one at a time in the bar) + their sources.
     Events { id: eventsService }
-    EventCharging { events: eventsService; battery: batteryService }
+    EventCharging { id: eventChargingService; events: eventsService; battery: batteryService }
     EventBluetooth { events: eventsService; bluetooth: bluetoothService }
     EventUpdates { events: eventsService }
+    Caffeine { id: caffeineService; events: eventsService }
     Recorder { id: recorderService }
     Dictation { id: dictationService; keyboardLayout: keyboardLayoutService }
     KeyboardLayout { id: keyboardLayoutService }
@@ -94,6 +95,8 @@ Scope {
         wallpaper: wallpaperService
         events: eventsService
         battery: batteryService
+        caffeine: caffeineService
+        charging: eventChargingService
     }
 
     OsdWatcher {
@@ -120,6 +123,7 @@ Scope {
                 audio: audioService
                 privacy: privacyService
                 events: eventsService
+                caffeine: caffeineService
                 players: playersService
                 network: networkService
                 bluetooth: bluetoothService

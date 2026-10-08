@@ -19,6 +19,33 @@ Scope {
     required property var wallpaper
     required property var events
     required property var battery
+    required property var caffeine
+    required property var charging
+
+    // Drawn glyph previews for IPC glyphDemo: name -> [Theme colour, text].
+    readonly property var glyphDemos: ({
+            bluetooth: ["qsBlue", "Connected"],
+            airpods: ["qsBlue", "87%"],
+            airpodsMax: ["qsBlue", "64%"],
+            speaker: ["qsBlue", "HomePod"],
+            phone: ["qsBlue", "iPhone"],
+            tablet: ["qsBlue", "iPad"],
+            laptop: ["qsBlue", "MacBook"],
+            watch: ["qsBlue", "92%"],
+            mouse: ["qsBlue", "71%"],
+            keyboard: ["qsBlue", "58%"],
+            gamepad: ["qsBlue", "45%"],
+            lock: ["batteryGood", "VPN"],
+            moon: ["focusPurple", "Focus"],
+            transfer: ["qsBlue", "3 files"],
+            parcels: ["accentYellow", "Installing"],
+            error: ["accentRed", "2 failed"],
+            copy: ["batteryGood", "Copied"],
+            pacman: ["accentYellow", "12"],
+            ghost: ["qsBlue", "3"],
+            coffee: ["coffee", "On"],
+            bolt: ["batteryGood", "95%"]
+        })
 
     readonly property var island: root.registry.forOutput(root.compositor?.focusedOutput ?? "")
 
@@ -125,17 +152,40 @@ Scope {
         }
 
         // Runtime introspection of the routed island (headless debugging).
+        // Charger events through the REAL handler (cancel + post), no cable.
+        function chargerSim(plugged: bool): void { root.charging.announce(plugged); }
+        // Caffeine mode (idle inhibit) on/off.
+        function caffeine(): void { root.caffeine.toggle(); }
         // Event indicator demo (no real source needed): charging | discharging |
         // bluetooth | pacman | aur | text <anything else = the text>.
         function eventDemo(kind: string): void {
             const demos = {
-                charging: { key: "charging", icon: "\uea38", color: "batteryGood", texts: [() => `${root.battery.percent}%`, "1 h 25 min"] },
-                discharging: { key: "discharging", icon: "\uecec", color: "accentOrange", texts: [() => `${root.battery.percent}%`, "4 h 10 min"] },
+                charging: { key: "charging", icon: "\uea38", glyph: "bolt", glyphArgs: { mode: "join" }, color: () => root.battery.levelTone, texts: [() => `${root.battery.percent}%`, "1 h 25 min"] },
+                discharging: { key: "discharging", icon: "\uecec", glyph: "bolt", glyphArgs: { mode: "break" }, color: () => root.battery.levelTone, texts: [() => `${root.battery.percent}%`, "4 h 10 min"] },
                 bluetooth: { key: "bt:demo", icon: "\ueabd", color: "qsBlue", text: "87%" },
                 pacman: { key: "updates:pacman", icon: String.fromCodePoint(0xf0baf), glyph: "pacman", color: "accentYellow", family: "nerd", text: "12" },
                 aur: { key: "updates:aur", icon: "\uf4a2", glyph: "ghost", color: "qsBlue", family: "nerd", text: "3" }
             };
             root.events.post(demos[kind] ?? { key: `demo:${kind}`, icon: "\uea37", text: kind });
+        }
+        // Drawn glyph previews (no service needed): `glyphDemo <name>` posts
+        // an event with that glyph; `glyphDemoAll` queues every one.
+        function glyphDemo(name: string): void {
+            const d = root.glyphDemos[name];
+            if (!d)
+                return;
+            root.events.post({
+                key: `glyph:${name}`,
+                glyph: name === "parcels" ? "pacman" : name,
+                glyphArgs: name === "parcels" ? { food: "box" } : (name === "bolt" ? { mode: "break" } : {}),
+                icon: "\uea37",
+                color: d[0],
+                text: d[1]
+            });
+        }
+        function glyphDemoAll(): void {
+            for (const name of Object.keys(root.glyphDemos))
+                glyphDemo(name);
         }
         function debugState(): string { return root.island?.debugState() ?? "{}"; }
     }
