@@ -1,6 +1,7 @@
 import QtQuick
 import "./cards"
 import "../../config"
+import "QsCatalog.js" as QsCatalog
 
 // Card id → content Component, bound to the services. Ids/footprints live
 // in QsCatalog.js; this file only says what each card shows and does.
@@ -22,8 +23,29 @@ Item {
             wifi: wifiComp, bluetooth: btComp, hotspot: hotspotComp, dnd: dndComp, mic: micComp,
             volume: volumeComp, brightness: brightnessComp, media: mediaComp,
             record: recordComp, screenshot: screenshotComp, slideshow: slideshowComp
-        })[id] ?? null;
+        })[id] ?? (root.stubs[id] ? stubComp : null);
     }
+
+    // Placeholder cards (no backend yet): toggles flip a session-only local
+    // state so the tap reads, actions do nothing. Replace with a real
+    // Component above when a card gets its service.
+    readonly property var stubs: ({
+        magnifier: { toggle: false },
+        voiceMemos: { toggle: false, accent: "accentRed" },
+        scanCode: { toggle: false },
+        notes: { toggle: false },
+        translate: { toggle: false, status: "English → Russian" },
+        lowPower: { toggle: true, accent: "qsYellow" },
+        airplane: { toggle: true, accent: "qsOrange" },
+        cellular: { toggle: true, accent: "qsGreen" },
+        dictation: { toggle: true, accent: "qsBlue" },
+        stopwatch: { toggle: false },
+        timer: { toggle: false },
+        localsend: { toggle: false },
+        calculator: { toggle: false },
+        mirroring: { toggle: false },
+        focus: { toggle: true, accent: "qsIndigo" }
+    })
 
     Component {
         id: wifiComp
@@ -117,6 +139,24 @@ Item {
             title: I18n.tr("Screenshot")
             toggle: false
             activate: () => root.services.quickAction("screenshot")
+        }
+    }
+    Component {
+        id: stubComp
+        ButtonCard {
+            id: stub
+            readonly property string cardId: card?.cardId ?? ""
+            readonly property var spec: root.stubs[cardId] ?? {}
+            glyph: QsCatalog.glyphOf(cardId)
+            title: I18n.tr(QsCatalog.titleOf(cardId))
+            toggle: spec.toggle ?? false
+            statusShown: toggle || !!spec.status
+            status: spec.status ? I18n.tr(spec.status) : (on ? I18n.tr("On") : I18n.tr("Off"))
+            accent: (spec.accent ? root.theme?.[spec.accent] : null) ?? root.theme?.qsBlue ?? "#0A84FF"
+            activate: () => {
+                if (stub.toggle)
+                    stub.on = !stub.on;
+            }
         }
     }
     Component {

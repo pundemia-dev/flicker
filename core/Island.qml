@@ -19,6 +19,8 @@ PanelWindow {
     required property var compositor
     required property var clock
     required property var audio
+    required property var privacy
+    required property var events
     required property var players
     required property var network
     required property var bluetooth
@@ -1383,6 +1385,8 @@ PanelWindow {
                     islandHeight: root.islandHeight
                     timingCfg: root.timingCfg
                     audio: root.audio
+                    privacy: root.privacy
+                    events: root.events
                     players: root.players
                     network: root.network
                     recorder: root.recorder
@@ -1525,6 +1529,17 @@ PanelWindow {
                     active: root.audio.micActive,
                     app: root.audio.micAppName,
                     streams: root.audio.captureStreams.length
+                },
+                privacy: {
+                    kind: root.privacy.kind,
+                    app: root.privacy.appName,
+                    screens: root.privacy.screenNodes.map(n => n.name),
+                    cameras: root.privacy.cameraNodes.map(n => n.name),
+                    cameraProcs: root.privacy.cameraProcs
+                },
+                events: {
+                    current: root.events.current?.key ?? null,
+                    queued: root.events.queue.map(e => e.key ?? "")
                 },
                 dictation: {
                     active: root.dictation.active,

@@ -99,6 +99,16 @@ Item {
             e.dismiss();
     }
 
+    function suppressed(notif): bool {
+        const fields = { app: notif.appName ?? "", summary: notif.summary ?? "", body: notif.body ?? "" };
+        for (const rule of Config.data.notifications.suppress ?? []) {
+            const keys = Object.keys(rule).filter(k => k in fields);
+            if (keys.length > 0 && keys.every(k => new RegExp(rule[k], "i").test(fields[k])))
+                return true;
+        }
+        return false;
+    }
+
     Component {
         id: entryComp
         NotificationEntry {}
@@ -109,6 +119,12 @@ Item {
         persistenceSupported: true
         bodyMarkupSupported: true
         onNotification: notif => {
+            // notifications.suppress: duplicates of what an event indicator
+            // already shows (blueman "Connected") never become a card.
+            if (root.suppressed(notif)) {
+                notif.dismiss();
+                return;
+            }
             // Keep the server-side object alive: image-data pictures are
             // exposed as session-local "image://qsimage/…" URLs that die
             // with the notification (pShell pattern). Every tracked object

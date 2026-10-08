@@ -14,7 +14,8 @@ import "../../config"
 //      while the island replays appearFromEdge (the "second instance").
 //   3. Modes (Tab / wheel / 1-5 / icon in the square): shot = flameshot-
 //      style region editor, record = selection → audio chips → recording,
-//      ai = selection → inline OCR (+ Lens), color = pipette, window = pick
+//      ai = selection → inline OCR (+ Lens), scan = selection → QR /
+//      barcodes (zbarimg), color = pipette, window = pick
 //      a window as the selection. One screen claims the session once a
 //      selection / colour panel exists (editScreen).
 //   4. done()/cancel()/startRecording(): fade out → unmap → (recording only
@@ -54,7 +55,7 @@ Scope {
     readonly property string activeScreen: root.editScreen !== "" ? root.editScreen : root.cursorScreen
 
     function glyph(m: string): string {
-        return { shot: "", record: "", ai: "", color: "", window: "" }[m] ?? "";
+        return { shot: "", record: "", scan: "", ai: "", color: "", window: "" }[m] ?? "";
     }
 
     function glyphColor(m: string): color {
@@ -156,7 +157,7 @@ Scope {
     // shot / record / ai share one RegionEditor (same Loader component):
     // switching among them keeps the selection — the editor re-applies the
     // mode's follow-up itself. Any other switch rebuilds the tool.
-    readonly property var editorModes: ["shot", "record", "ai"]
+    readonly property var editorModes: ["shot", "record", "ai", "scan"]
 
     function switchMode(m: string): void {
         if (m === root.mode)
@@ -228,10 +229,11 @@ Scope {
         root.finish(null);
     }
 
-    // Global logical rect; recording starts once the overlay is gone.
-    function startRecording(r: rect, audio: string): void {
+    // Global logical rect + the same box in the output's physical px;
+    // recording starts once the overlay is gone.
+    function startRecording(r: rect, audio: string, output: string, phys: var): void {
         const geo = `${Math.round(r.x)},${Math.round(r.y)} ${Math.max(1, Math.round(r.width))}x${Math.max(1, Math.round(r.height))}`;
-        root.finish(() => root.recorder.start(geo, audio));
+        root.finish(() => root.recorder.start(geo, audio, output, phys));
     }
 
     function finish(action: var): void {

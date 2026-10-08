@@ -43,7 +43,7 @@ Item {
     // logical rects [{x, y, width, height, focused, title}] (topmost first
     // where known). Empty = unsupported (the mode is hidden).
     function windowRects(name: string): var { return backend.windowRects?.(name) ?? []; }
-    function startRecording(region: string): void { recorder?.start(region, ""); }
+    function startRecording(region: string): void { recorder?.start(region, "", "", null); }
     function stopRecording(): void { recorder?.stop(); }
 
     Niri { id: niriBackend; active: root.detect.backendName === "niri" }

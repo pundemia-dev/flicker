@@ -1,7 +1,9 @@
 import QtQuick
 import "../components"
 
-// Microphone indicator: orange dot on the island's left edge. On hover the
+// Privacy dot (iOS): ONE dot on the island's left, coloured by the most
+// sensitive capture in use (services/Privacy.qml): screen share red >
+// camera green > microphone orange — never several dots. On hover the
 // consuming app's name fades in to the right and the island expands as the
 // text appears (row width feeds Island.barFittedWidth). Not interactive.
 Item {
@@ -11,11 +13,23 @@ Item {
     property var services: null
     property bool evicted: false
 
-    readonly property var audio: services?.audio ?? null
+    readonly property var privacy: services?.privacy ?? null
     readonly property var theme: services?.theme ?? null
     readonly property var cfg: services?.cfg ?? null
-    readonly property bool active: audio?.micActive ?? false
-    readonly property string appName: audio?.micAppName ?? ""
+    readonly property bool active: privacy?.active ?? false
+    readonly property string appName: privacy?.appName ?? ""
+    // Last live kind is held while the dot collapses (kind -> "").
+    property string kind: "mic"
+    readonly property string liveKind: privacy?.kind ?? ""
+    onLiveKindChanged: if (liveKind !== "") kind = liveKind
+    Component.onCompleted: {
+        if (liveKind !== "")
+            kind = liveKind;
+        entered = true;
+    }
+    readonly property color dotColor: kind === "screen" ? (theme?.accentRed ?? "#E4483E")
+        : kind === "camera" ? (theme?.accentGreen ?? "#3DBD4E")
+        : (theme?.accentOrange ?? "#E58B4D")
     readonly property int diameter: cfg?.micDotDiameter ?? 8
     // Full-height hover box (matches the tallest indicator, the music cover):
     // an 8px-tall HoverHandler needs pixel-perfect aim and flickers when the
@@ -27,7 +41,6 @@ Item {
     // item would pop in at full width. Start collapsed and flip on creation;
     // the width spring then grows it in sync with the island.
     property bool entered: false
-    Component.onCompleted: entered = true
     // Natural label width measured OUTSIDE the label item (TextMetrics):
     // reading appLabel.implicitWidth while the label itself is width-capped
     // feeds the animated box width back into extraWidth, so the target keeps
@@ -57,7 +70,11 @@ Item {
         width: root.diameter
         height: root.diameter
         radius: width / 2
-        color: root.theme?.accentOrange ?? "#E58B4D"
+        color: dotTint.value
+    }
+    SpringColor {
+        id: dotTint
+        target: root.dotColor
     }
 
     TextMetrics {

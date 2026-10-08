@@ -51,8 +51,12 @@ Item {
     }
 
     // region: "x,y wxh" global logical geometry ("" = wf-recorder's default
-    // output). audio: one of audioModes ("" = default).
-    function start(region: string, audio: string): void {
+    // output). audio: one of audioModes ("" = default). output + crop
+    // ({x, y, width, height} in that output's physical px) record the whole
+    // output and crop in ffmpeg instead of `-g`: driftwm 0.19 ignores the
+    // offset of screencopy capture_output_region (region_loc is stored but
+    // never applied) and always delivered the top-left corner.
+    function start(region: string, audio: string, output: string, crop: var): void {
         if (root.recording)
             return;
         const a = root.audioModes.includes(audio) ? audio : root.defaultAudio();
@@ -61,8 +65,14 @@ Item {
         root.discardRequested = false;
         root.file = root.recordPath();
         const cmd = [`${Quickshell.shellDir}/scripts/capture/record.sh`, a, root.file];
-        if (region.length > 0)
+        if (output.length > 0 && crop) {
+            // yuv420p / h264 need even sizes.
+            const w = Math.max(2, crop.width - crop.width % 2);
+            const h = Math.max(2, crop.height - crop.height % 2);
+            cmd.push("-o", output, "-F", `crop=${w}:${h}:${crop.x}:${crop.y}`);
+        } else if (region.length > 0) {
             cmd.push("-g", region);
+        }
         if (root.cfg.hwAccel && root.cfg.hwDevice)
             cmd.push("--hw", root.cfg.hwDevice);
         recProc.command = cmd;

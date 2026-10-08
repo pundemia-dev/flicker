@@ -18,6 +18,9 @@ Item {
     property string glyph: ""
     property string title: ""
     property bool toggle: true
+    // Status line: toggles by default; an action may show one too
+    // (Translate: the language pair).
+    property bool statusShown: root.toggle
     property bool on: false
     property string status: root.on ? I18n.tr("On") : I18n.tr("Off")
     property color accent: theme?.qsBlue ?? "#0A84FF"
@@ -28,14 +31,14 @@ Item {
     readonly property string form: root.card?.form ?? "small"
     readonly property real pad: (root.cfg?.padding) ?? 12
     readonly property real unit: (root.cfg?.unit) ?? 80
-    readonly property real iconSize: (root.cfg?.buttonIconSize) ?? 33
+    readonly property real iconSize: (root.cfg?.buttonIconSize) ?? 40
     // Glyph centre sits where a 1x1 card's would (unit/2 from the edges),
     // so wide/large glyphs line up with neighbouring circles and stay
     // concentric with the card's corner rounding.
     readonly property real iconCentre: root.unit / 2
     // Large: text shares the glyph's left edge, mirrored bottom inset.
     readonly property real largeInset: root.iconCentre - root.iconSize / 2
-    readonly property bool showStatus: root.toggle && root.status.length > 0
+    readonly property bool showStatus: root.statusShown && root.status.length > 0
 
     // Spring-driven on factor: colours mix by it (no timed transitions).
     property real onP: root.toggle && root.on ? 1 : 0

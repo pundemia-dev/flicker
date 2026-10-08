@@ -36,7 +36,7 @@ Not a git repo. No tests, no linter, no formatter.
   (`core/IslandIpc.qml`) routed via `core/IslandRegistry.qml` to the island on
   `compositor.focusedOutput` — never put an IpcHandler in per-screen Island. Targets: `island` (launcher (toggle), launcherPlugin <id> (apps|clipboard|wallpapers, toggle), quicksettings, quicksettingsEdit/Page/Resize,
   notifications, stash (tray toggle), capture (again while open = next mode), captureMode(shot|record|color|
-  window|ai), captureScreen (= Enter in the active tool), captureCancel, screenshot
+  window|ai|scan), captureScreen (= Enter in the active tool), captureCancel, screenshot
   (instant, no overlay), record (toggle), recordPause, recordControls, dashboard, player, lock, close, minimal, island, osd, debugState,
   volumeUp/Down/Mute, micMute, brightnessUp/Down, playPause, nextTrack, prevTrack, playerSeek <s>),
   `lock` (activate/isLocked — deliberately NO unlock/toggle over IPC; unlocking needs PAM),
@@ -57,8 +57,8 @@ Not a git repo. No tests, no linter, no formatter.
   one Loader in `core/IndicatorLayout.qml`; eviction by priority and island expansion
   (`extraWidth`) are computed there from each indicator's stable `desiredWidth`.
 - Bar width is dynamic (no fixed `island.width`): `Island.barFittedWidth` fits the
-  measured centered row in `IndicatorLayout` (spec order mic|music|dictation|
-  clock|timer, nothing pinned to the edges — the clock shifts when an
+  measured centered row in `IndicatorLayout` (spec order event icon|privacy|music|dictation|
+  clock|timer|event text, nothing pinned to the edges — the clock shifts when an
   indicator grows, e.g. the mic hover label) with spacing/edgePad
   computed from the live content width, capped at `island.maxWidth`. Eviction is
   computed from stable desired widths against the shared budget (never from animated widths —
@@ -236,6 +236,11 @@ Not a git repo. No tests, no linter, no formatter.
   `components/AudioBars.qml` (cava, pulse auto = output monitor, mono, `Config.visualizer`;
   runs only while shown + playing + visible). Mic filter: match cava by `node.name` —
   `application.name` arrives AFTER the node appears (app-only match lit the mic indicator).
+  Stub cards (Oct 2026, hidden by default, no backend): magnifier, voiceMemos, scanCode, notes,
+  translate (status = language pair), lowPower, airplane, cellular, dictation, stopwatch, timer,
+  localsend, calculator, mirroring, focus — one `stubComp` ButtonCard driven by
+  `QsCardFactory.stubs` (toggles flip a session-only local `on`); give a card a real Component
+  in `componentFor` when it gets a service. Hotspot = «Режим модема», record = screen recording.
   Screenshot/record cards go through `Island.runQuickAction` (close, wait
   `actionDelayMs`, then capture — the grab must not show the open grid). The state file
   is read once at load (no watch): to test a hand-written layout, change it and force a
@@ -497,6 +502,51 @@ Not a git repo. No tests, no linter, no formatter.
   wheel, footer pills, launcher plugin, clipboard, multi-output hand-over. Known: viewport edges
   are a hard clip (no soft fade on the translucent body — MultiEffect masks are binary).
 
+- Indicators polish (Oct 2026, user decisions). Bar row = [eventIcon | privacy | music |
+  dictation | clock | timer | eventText] (`IndicatorLayout.loaders` map).
+  PRIVACY DOT (`indicators/PrivacyDot.qml`, was Microphone.qml) = ONE dot, colour by the most
+  sensitive capture (`services/Privacy.qml`): screen share red > camera green > mic orange,
+  never several dots; hover label = consumer app. Untracked PipeWire nodes have EMPTY
+  `properties` → kinds from `node.type` (`PwNodeType.VideoSource`) + `node.name`: a Video/Source
+  named with `privacy.cameraPrefixes` (v4l2_input/libcamera_input) is a camera, any other one a
+  screencast (xdpw "xdpw-stream", niri's cast). Camera also = any process holding /dev/video*
+  (`fuser` poll `cameraPollMs`, pipewire/wireplumber ignored; browsers use V4L2 directly).
+  Verified live: ffmpeg on /dev/video0 → green "ffmpeg"; a gst `pipewiresink mode=provide`
+  Video/Source named xdpw-stream → red. NOT verified: consumer names via PwLink (gst
+  pipewiresrc got "target not found" here), a real portal screencast.
+  EVENT INDICATORS (`services/Events.qml`): one at a time, FIFO with the notification-flow
+  timing (`events.showMs` 5 s alone / `showQueuedMs` 3 s with more queued, an arrival shortens
+  the visible one; `gapMs` collapse between two). Glyph at the far LEFT (`EventIcon`; pressed to the edge: same gap to the left edge as to
+  top/bottom = `pull` px into edgePaddingMin — event glyph ONLY; both halves add `eventGap` toward the row), text at
+  the far RIGHT (`EventText`, `text` may be a function → live inside the binding). Event =
+  {key, icon, text, color (Theme property NAME; tints glyph AND text, `textColor` overrides), family ("nerd" = Theme.nerdIconFamily)}; same
+  key replaces in place, `cancel(key)` drops it. Sources (Shell): `EventCharging` (UPower
+  onBattery: plugged = green bolt, pulled = orange bolt-off; `texts` steps = percent, then
+  after `events.textStepMs` the time to full / to empty drum-rolls in via RollingText; EventText
+  width = per-char advances of the TARGET text), `EventBluetooth` (new connected device → device glyph +
+  Battery1 % / name), `EventUpdates` (once, `updatesDelayMs` after start: pacman count, then AUR;
+  glyphs from the user's show_updates: md-pac_man f0baf and f4a2 = oct-smiley in Nerd Fonts v3).
+  ANIMATED GLYPHS (user: own drawn icons, animated): event `glyph: "<name>"` → EventIcon loads
+  the Component from its `glyphs` map (font `icon` = fallback); `indicators/PacmanGlyph.qml`
+  (pacman updates): reveal = line grows from the centre to the right, sweeps 330° clockwise
+  while its start edge drops 30° (lower jaw); loop = dot scales+fades in on the right (SkipBtn
+  entry), FLIES in at constant speed (timed linear `flyMs` — user: not a spring) to the body's
+  live centre, jaws close behind it from `biteAt` of the flight, the eye (islandBg disc) squeezes
+  shut with the jaw, body recoils left on a bouncy spring, dot swallowed (drawn under the body)
+  once it arrived AND the jaws shut, jaws reopen. Bites come in pairs (`series` 2, `pauseMs`
+  between them), then a `restMs` break. A spring-driven dot in sync with the jaw hit
+  the closing lips outside the mouth (user: "не в попад"). Shape CurveRenderer sector (PathAngleArc,
+  clockwise degrees from 3 o'clock) with a round-joined stroke = the visible line at sweep 0.
+  Phases hand over at `handoff` of the target, NOT onFinished (over-damped SpringAnimation
+  creeps the last % for ~1 s). Tunables `Config.glyphs.pacman`. Verified frame by frame (grim).
+  Sources ignore the first `startupQuietMs` (BlueZ/UPower populate async). Duplicate
+  notifications dropped on arrival by `notifications.suppress` regex rules (default blueman
+  "Connected…", Disconnected still shows). IPC `island eventDemo charging|discharging|bluetooth|pacman|aur|<text>`.
+  Verified live: demo events render, FIFO 3 s / 3 s / 5 s with the gap. Events show only in the
+  bar state (a module/Minimal hides them; their timers keep running).
+  LOW BATTERY: right arc "wipers" (tempShell RadialSliderIcon connecting sweep) — fill sweeps
+  level ↔ full, timed InOutCubic `arcs.wiperMs` (user exception like hideProgress), while
+  `battery.low`; verified in a scratch harness (frames).
 - MPRIS multi-player: `services/Players.qml` picks `active` dms-style (prefer a playing
   player, remember the last playing one, a paused player beats registered-idle ones at
   cold start). Plain `players[0]` picks early-registrants like Telegram (registers
@@ -935,7 +985,9 @@ Simplified / not implemented yet (see pillShell.md for the intended behaviour):
   `--audio-backend=pipewire` — so record.sh captures video (wf-recorder) and audio
   (`parecord --latency-msec=50`; default latency loses ~2s of buffer on SIGINT)
   separately and muxes per segment (`-c:v copy -af apad -shortest`, silent track for
-  "none" so concat stays compatible). All its PipeWire nodes are `pillshell_rec*` →
+  "none" so concat stays compatible). Region = `-o <output> -F crop=w:h:x:y` (physical px, even
+  w/h), NOT `-g`: driftwm 0.19 screencopy ignores the region offset (always the top-left
+  corner, verified Oct 2026; IPC `Compositor.startRecording(region)` still uses `-g`). All its PipeWire nodes are `pillshell_rec*` →
   ignored by the mic indicator. Island controls: `RecordingActionsModule` (timer, discard,
   audio cycle, pause, stop) on the red plate click / IPC recordControls.
   uv scripts (`regions.py` opencv smart regions, niri `nudge.py`) run via
@@ -949,6 +1001,14 @@ Simplified / not implemented yet (see pillShell.md for the intended behaviour):
   mouse/keyboard tool): drawing tools, text annotations, palette, toolbar clicks, resize
   handles, colour panel editing, OCR language chips, Lens upload, Esc chain, multi-monitor.
   Selections are per screen (pShell parity); only aim visuals span monitors.
+  Code scan (Oct 2026): mode `scan` (shares the RegionEditor with shot/record/ai) + a QR
+  button in the toolbar → `editor/ScanPanel` (+ `ScanRow`): `zbarimg -q --xml
+  -Stest-inverted` on the pure grab crop (inverted = dark-mode codes), outlines over the found
+  codes (polygon from the XML, crop px / dpr), rows copy on click, http/mailto get "open"
+  (xdg-open + done); one result is copied silently, Enter copies all + closes. OCR and scan
+  panels are mutually exclusive and share `RegionEditor.panelPlace()`. Verified via IPC:
+  panel renders, toolbar button checked, empty result; parser on real zbar XML. NOT
+  live-tested with a code on screen.
   Buttons: `components/IconButton` (+ audio chips) carry a barely-visible white glow
   (`components/GlowRim`: 1px border rings OUTSIDE the shape, alpha falling smoothly;
   Theme `buttonGlow*`, peak 0.05 over 6px) so they read on dark content. User: a light

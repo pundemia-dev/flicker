@@ -149,7 +149,80 @@ Singleton {
                     plateHeight: 22,
                     plateMinWidth: 46,
                     plateHPad: 20,
-                    plateRadius: 11
+                    plateRadius: 11,
+                    // Event indicators: glyph size (far left), text cap (far right).
+                    eventIconSize: 18,
+                    // Extra gap between an event's glyph / text and the rest of the row.
+                    eventGap: 48,
+                    eventTextMaxWidth: 120
+                })
+            // Event indicators (services/Events.qml): one at a time, FIFO;
+            // alone showMs, with more queued showQueuedMs; gapMs = bar
+            // collapse between two events. Sources: charger plugged in,
+            // Bluetooth device connected, pending updates (once,
+            // updatesDelayMs after start). startupQuietMs: changes right
+            // after start are the start-up state, not events.
+            property var events: ({
+                    enabled: true,
+                    showMs: 5000,
+                    showQueuedMs: 3000,
+                    gapMs: 350,
+                    // `texts` steps (charging: percent -> time to full): the
+                    // next one drum-rolls in after this long.
+                    textStepMs: 1800,
+                    startupQuietMs: 5000,
+                    charging: true,
+                    bluetooth: true,
+                    updates: true,
+                    updatesDelayMs: 30000
+                })
+            // Drawn animated glyphs of event indicators (indicators/*Glyph.qml).
+            // pacman: sizes are fractions of the glyph size; mouth = jaw
+            // half-angle (deg); dotStart = dot spawn distance in radii right
+            // of the centre; recoil = leftward kick while biting.
+            property var glyphs: ({
+                    pacman: {
+                        stroke: 0.1,
+                        mouth: 30,
+                        dot: 0.24,
+                        dotStart: 1.5,
+                        recoil: 0.18,
+                        // Bites come in series: pauseMs between bites, restMs
+                        // after every `series` bites.
+                        pauseMs: 0,
+                        series: 2,
+                        // Inside a series the next dot spawns once the jaws
+                        // are reopened down to this bite level (1 = shut).
+                        seriesReopen: 0.5,
+                        restMs: 450,
+                        revealStiffness: 7,
+                        dotStiffness: 12,
+                        biteStiffness: 12,
+                        recoilStiffness: 10,
+                        recoilDamping: 0.25,
+                        handoff: 0.08,
+                        // Dot flight (timed, linear) and the share of it after
+                        // which the jaws start closing behind the dot.
+                        flyMs: 260,
+                        biteAt: 0.5,
+                        // Eye: diameter, centre offset in radii (right, up),
+                        // how far it squeezes shut while biting.
+                        eye: 0.17,
+                        eyeX: 0.12,
+                        eyeY: 0.5,
+                        eyeClose: 0.85
+                    }
+                })
+            // Privacy dot (services/Privacy.qml): screen share > camera > mic.
+            // PipeWire Video/Source nodes named with a cameraPrefixes prefix
+            // are cameras, every other one is a screencast (screenExclude:
+            // name substrings to ignore). /dev/video* holders are polled
+            // every cameraPollMs (0 = off); cameraIgnore = process names.
+            property var privacy: ({
+                    cameraPrefixes: ["v4l2_input", "libcamera_input"],
+                    screenExclude: [],
+                    cameraPollMs: 2000,
+                    cameraIgnore: ["pipewire", "wireplumber"]
                 })
             property var arcs: ({
                     radius: 18,
@@ -158,7 +231,10 @@ Singleton {
                     glowWidth: 12,
                     hideMs: 260,
                     showMs: 420,
-                    collapseAt: 0.5
+                    collapseAt: 0.5,
+                    // Low battery (battery.lowPercent, not charging): the fill
+                    // wipes between the level and full and back (one way).
+                    wiperMs: 900
                 })
             property var corners: ({
                     enabled: true,
@@ -203,7 +279,13 @@ Singleton {
                     // Notification card: left avatar/icon diameter; the app-icon
                     // badge overlapping the avatar's bottom-right rim.
                     avatarSize: 56,
-                    badgeSize: 16
+                    badgeSize: 16,
+                    // Dropped on arrival (no card, no history): every given
+                    // field is a case-insensitive regex that must match
+                    // (app = appName, summary, body). Default: blueman's
+                    // "Connected" (+ its later "Connected 80%" update; Disconnected
+                    // still shows) — the Bluetooth event indicator says it.
+                    suppress: [{ app: "^blueman$", body: "^connected\\b" }]
                 })
             property var battery: ({
                     warnPercent: 50,
@@ -378,7 +460,7 @@ Singleton {
                     padding: 12,
                     iconSize: 22,
                     // Default button (ButtonCard) glyph size.
-                    buttonIconSize: 33,
+                    buttonIconSize: 40,
                     titleSize: 13,
                     subtitleSize: 11,
                     // Long press on a card enters edit mode (ms).
@@ -395,7 +477,7 @@ Singleton {
                     // Wheel step on slider cards (fraction of the range).
                     wheelStep: 0.05,
                     // Slider card glyph size = iconSize x this.
-                    sliderIconScale: 1.25,
+                    sliderIconScale: 1.5,
                     // Tab rail (right of the grid, one icon per page,
                     // vertically centred): column width, icon disc, gap.
                     railWidth: 32,
@@ -784,7 +866,7 @@ Singleton {
                     tempDir: "/tmp/pillShell-capture",
                     saveDir: "~/Pictures/Screenshots",
                     copyToClipboard: true,
-                    modes: ["shot", "record", "color", "window", "ai"],
+                    modes: ["shot", "record", "color", "window", "ai", "scan"],
                     defaultMode: "shot",
                     squareSize: 44,
                     squareRadius: 22,
@@ -836,6 +918,9 @@ Singleton {
                     recentColors: 12,
                     ocrDefaultLang: "auto",
                     ocrPanelWidth: 380,
+                    scanPanelWidth: 380,
+                    scanBoxPad: 4,
+                    scanBoxWidth: 2,
                     lensUploadUrl: "https://uguu.se/upload",
                     smartRegions: true,
                     panelRadius: 18,

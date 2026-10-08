@@ -23,7 +23,23 @@ const CARDS = {
     media: { glyph: "\ueafc", title: "Music", sizes: [[2, 2], [1, 1], [2, 1], [4, 1], [4, 2], [4, 4], [4, 6]] },
     record: { glyph: "\ued47", title: "Screen Recording", sizes: BUTTON_SMALL },
     screenshot: { glyph: "\uf201", title: "Screenshot", sizes: BUTTON_SMALL },
-    slideshow: { glyph: "\uebc9", title: "Slideshow", sizes: BUTTON_SMALL }
+    slideshow: { glyph: "\uebc9", title: "Slideshow", sizes: BUTTON_SMALL },
+    // Stubs (no backend yet, cards/QsCardFactory stubComp): start hidden.
+    magnifier: { glyph: "\ueb56", title: "Magnifier", sizes: BUTTON_SMALL },
+    voiceMemos: { glyph: "\uecd4", title: "Voice Memos", sizes: BUTTON_SMALL },
+    scanCode: { glyph: "\ueb11", title: "Scan Code", sizes: BUTTON_SMALL },
+    notes: { glyph: "\ueb6e", title: "Notes", sizes: BUTTON_SMALL },
+    translate: { glyph: "\uebbe", title: "Translate", sizes: BUTTON_WIDE },
+    lowPower: { glyph: "\uef3c", title: "Low Power Mode", sizes: BUTTON_SMALL },
+    airplane: { glyph: "\ueb6f", title: "Airplane Mode", sizes: BUTTON_SMALL },
+    cellular: { glyph: "\ueccb", title: "Cellular Data", sizes: BUTTON_SMALL },
+    dictation: { glyph: "\uef2c", title: "Dictation", sizes: BUTTON_SMALL },
+    stopwatch: { glyph: "\uff9b", title: "Stopwatch", sizes: BUTTON_SMALL },
+    timer: { glyph: "\uef93", title: "Timer", sizes: BUTTON_SMALL },
+    localsend: { glyph: "\ueb1e", title: "LocalSend", sizes: BUTTON_SMALL },
+    calculator: { glyph: "\ueb80", title: "Calculator", sizes: BUTTON_SMALL },
+    mirroring: { glyph: "\ued18", title: "Screen Mirroring", sizes: BUTTON_WIDE },
+    focus: { glyph: "\uebd3", title: "Focus", sizes: BUTTON_WIDE }
 };
 
 // Stable order (Repeater model: delegates are never recreated, cards
@@ -33,7 +49,7 @@ const IDS = Object.keys(CARDS);
 // W W M M   W = wifi 2x1, B = bluetooth 2x1, M = media 2x2
 // B B M M   D = dnd, m = mic, H = hotspot, R = record (1x1)
 // D m V L   V = volume 1x2, L = brightness 1x2
-// H R V L   screenshot, slideshow start hidden (edit footer → add)
+// H R V L   screenshot, slideshow and the stubs start hidden (edit footer → add)
 const DEFAULT_LAYOUT = [
     { id: "wifi", x: 0, y: 0, w: 2, h: 1 },
     { id: "bluetooth", x: 0, y: 1, w: 2, h: 1 },

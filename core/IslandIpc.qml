@@ -17,6 +17,8 @@ Scope {
     required property var capture
     required property var recorder
     required property var wallpaper
+    required property var events
+    required property var battery
 
     readonly property var island: root.registry.forOutput(root.compositor?.focusedOutput ?? "")
 
@@ -49,7 +51,7 @@ Scope {
         }
         function notifications(): void { root.island?.openNotificationCenter(); }
         function capture(): void { root.island?.openCapture(""); }
-        // shot | record | color | window | ai (while open: switch to it).
+        // shot | record | color | window | ai | scan (while open: switch to it).
         function captureMode(mode: string): void { root.island?.openCapture(mode); }
         // While capturing: the active screen's main action (Enter) / abort.
         function captureScreen(): void { root.capture.confirm(); }
@@ -123,6 +125,18 @@ Scope {
         }
 
         // Runtime introspection of the routed island (headless debugging).
+        // Event indicator demo (no real source needed): charging | discharging |
+        // bluetooth | pacman | aur | text <anything else = the text>.
+        function eventDemo(kind: string): void {
+            const demos = {
+                charging: { key: "charging", icon: "\uea38", color: "batteryGood", texts: [() => `${root.battery.percent}%`, "1 h 25 min"] },
+                discharging: { key: "discharging", icon: "\uecec", color: "accentOrange", texts: [() => `${root.battery.percent}%`, "4 h 10 min"] },
+                bluetooth: { key: "bt:demo", icon: "\ueabd", color: "qsBlue", text: "87%" },
+                pacman: { key: "updates:pacman", icon: String.fromCodePoint(0xf0baf), glyph: "pacman", color: "accentYellow", family: "nerd", text: "12" },
+                aur: { key: "updates:aur", icon: "\uf4a2", color: "qsBlue", family: "nerd", text: "3" }
+            };
+            root.events.post(demos[kind] ?? { key: `demo:${kind}`, icon: "\uea37", text: kind });
+        }
         function debugState(): string { return root.island?.debugState() ?? "{}"; }
     }
 }

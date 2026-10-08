@@ -23,6 +23,20 @@ Item {
         ? theme.batteryGood
         : (battery.percent > root.batteryCfg.lowPercent ? theme.batteryWarn : theme.batteryLow)
 
+    // Low battery "wipers" (tempShell RadialSliderIcon connecting pattern):
+    // below battery.lowPercent and not charging the fill sweeps from the
+    // real level up to full and back, forever, so the arc is not missed.
+    // Timed easing like the reference (a looping sweep, not a spring —
+    // same user exception as hideProgress); alwaysRunToEnd parks it at 0.
+    property real wipe: 0
+    SequentialAnimation on wipe {
+        running: root.battery.low && root.visible
+        loops: Animation.Infinite
+        alwaysRunToEnd: true
+        NumberAnimation { from: 0; to: 1; duration: root.cfg.wiperMs ?? 900; easing.type: Easing.InOutCubic }
+        NumberAnimation { from: 1; to: 0; duration: root.cfg.wiperMs ?? 900; easing.type: Easing.InOutCubic }
+    }
+
     // Rounding centre of the bar ends (capsule clamp): the arc circles
     // share it, so arcs wrap the island ends concentrically.
     readonly property real endCenter: Math.min(root.islandRadius, root.height / 2)
@@ -227,7 +241,8 @@ Item {
                 ctx.lineCap = "round";
                 const r = root.centerRadius;
                 const cx = width / 2, cy = height / 2;
-                const p = Math.max(0, Math.min(1, root.battery.percent / 100));
+                const level = Math.max(0, Math.min(1, root.battery.percent / 100));
+                const p = level + (1 - level) * root.wipe;
                 // The round caps bridge one thickness worth of angle, the
                 // rest stays a visible hairline gap (DashProgress pattern).
                 const gap = (root.cfg.thickness / r) * 1.75;
@@ -269,6 +284,7 @@ Item {
             Connections {
                 target: root
                 function onBatteryColorChanged() { rightArc.requestPaint(); }
+                function onWipeChanged() { rightArc.requestPaint(); }
                 function onGlowWidthChanged() { rightArc.requestPaint(); }
             }
             Connections {

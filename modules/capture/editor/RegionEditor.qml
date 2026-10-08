@@ -10,7 +10,8 @@ import "../../../config"
 //             reselects, click on an object selects it (drag moves, Del);
 //   tool    → drag draws; wheel = thickness; RMB = palette ring.
 // Capture mode shapes the follow-up: shot = toolbar, record = audio chooser
-// (recording starts on a chip), ai = OCR panel opens on the selection.
+// (recording starts on a chip), ai = OCR panel opens on the selection,
+// scan = QR / barcode panel opens on the selection.
 // Commit renders the selection + annotations through an offscreen composite
 // at physical resolution (1:1 grab pixels, nothing resampled).
 Item {
@@ -51,6 +52,7 @@ Item {
     property bool committing: false
     property alias model: editorModel
     property alias ocrPanel: ocr
+    property alias scanPanel: scan
 
     onHasSelectionChanged: root.capture.selectionChanged(root.hasSelection)
     onActiveToolChanged: {
@@ -82,8 +84,31 @@ Item {
             root.pendingRecord = true;
         else if (root.capture.mode === "ai" && !ocr.open)
             ocr.toggle();
+        else if (root.capture.mode === "scan" && !scan.open)
+            scan.toggle();
         else if (ocr.open)
             ocr.recrop();
+        else if (scan.open)
+            scan.recrop();
+    }
+
+    // Side panels (OCR / scan): the roomiest strip around the selection,
+    // `clearance` away from it (the toolbar ring), clamped to the screen.
+    function panelPlace(w: real, h: real, clearance: real): point {
+        const m = root.cfg.toolSpacing, c = clearance + m;
+        const side = [
+            { s: "bottom", v: root.height - (root.selY + root.selH) },
+            { s: "top", v: root.selY },
+            { s: "right", v: root.width - (root.selX + root.selW) },
+            { s: "left", v: root.selX }
+        ].sort((a, b) => b.v - a.v)[0].s;
+        let x = root.selX + root.selW / 2 - w / 2;
+        let y = root.selY + root.selH / 2 - h / 2;
+        if (side === "bottom") y = root.selY + root.selH + c;
+        else if (side === "top") y = root.selY - c - h;
+        else if (side === "right") x = root.selX + root.selW + c;
+        else x = root.selX - c - w;
+        return Qt.point(Math.max(m, Math.min(root.width - w - m, x)), Math.max(m, Math.min(root.height - h - m, y)));
     }
 
     // Mode switched among shot / record / ai with a live selection.
@@ -95,6 +120,8 @@ Item {
             root.pendingRecord = root.capture.mode === "record";
             if (root.capture.mode === "ai" && !ocr.open)
                 ocr.toggle();
+            else if (root.capture.mode === "scan" && !scan.open)
+                scan.toggle();
         }
     }
 
@@ -143,7 +170,7 @@ Item {
     function startRecording(audio: string): void {
         if (!root.hasSelection)
             return;
-        root.capture.startRecording(Qt.rect(root.ox + root.selX, root.oy + root.selY, root.selW, root.selH), audio);
+        root.capture.startRecording(Qt.rect(root.ox + root.selX, root.oy + root.selY, root.selW, root.selH), audio, root.screenName, root.physRect());
     }
 
     function commitEditingText(): void {
@@ -182,6 +209,10 @@ Item {
             ocr.open = false;
             return true;
         }
+        if (scan.open) {
+            scan.open = false;
+            return true;
+        }
         if (root.pendingRecord && root.capture.mode !== "record") {
             root.pendingRecord = false;
             return true;
@@ -218,7 +249,13 @@ Item {
             if (ocr.text !== "")
                 root.actions.copyText(ocr.text, I18n.tr("Text copied"));
             root.capture.done();
-        } else if (root.capture.mode !== "ai")
+        } else if (scan.open) {
+            if (scan.running)
+                return;
+            if (scan.results.length > 1)
+                root.actions.copyText(scan.allText(), I18n.tr("Codes copied"));
+            root.capture.done();
+        } else if (root.capture.mode !== "ai" && root.capture.mode !== "scan")
             root.commitDefault();
     }
 
@@ -329,6 +366,13 @@ Item {
 
     OcrPanel {
         id: ocr
+        anchors.fill: parent
+        editor: root
+        clearance: root.cfg.toolButtonSize + root.cfg.toolSpacing * 2
+    }
+
+    ScanPanel {
+        id: scan
         anchors.fill: parent
         editor: root
         clearance: root.cfg.toolButtonSize + root.cfg.toolSpacing * 2

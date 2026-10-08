@@ -184,7 +184,7 @@ Item {
     }
 
     // Glyph slot: centre (small), bottom (tall), left (wide), top-left (large).
-    readonly property real iconSize: ((root.cfg?.iconSize) ?? 22) * ((root.cfg?.sliderIconScale) ?? 1.25)
+    readonly property real iconSize: ((root.cfg?.iconSize) ?? 22) * ((root.cfg?.sliderIconScale) ?? 1.5)
     readonly property point glyphCenter: {
         const half = root.unit / 2;
         if (root.form === "small")

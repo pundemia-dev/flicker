@@ -33,6 +33,7 @@ Item {
         { kind: "copy", glyph: "" },
         { kind: "save", glyph: "" },
         { kind: "ocr", glyph: "" },
+        { kind: "scan", glyph: "" },
         { kind: "lens", glyph: "" },
         { kind: "record", glyph: "" },
         { kind: "close", glyph: "" }
@@ -94,6 +95,7 @@ Item {
         case "copy": e.commit(true, false); break;
         case "save": e.commit(false, true); break;
         case "ocr": e.ocrPanel.toggle(); break;
+        case "scan": e.scanPanel.toggle(); break;
         case "lens": e.lens(); break;
         case "record": e.pendingRecord = true; break;
         case "close": e.capture.cancel(); break;
@@ -183,6 +185,7 @@ Item {
             fg: modelData.kind === "swatch" ? root.ed.model.drawColor
                 : (modelData.kind === "record" ? root.ed.theme.accentRed : root.ed.theme.islandFg)
             checked: (modelData.kind === "tool" && root.ed.activeTool === modelData.tool) || (modelData.kind === "ocr" && root.ed.ocrPanel.open)
+                || (modelData.kind === "scan" && root.ed.scanPanel.open)
             disabled: modelData.kind === "undo" ? root.ed.model.undoStack.length === 0
                 : (modelData.kind === "redo" ? root.ed.model.redoStack.length === 0 : false)
             onClicked: root.dispatch(modelData)

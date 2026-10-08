@@ -3,7 +3,8 @@ import "../components"
 import "../indicators"
 
 // Bar content: a single Row centered in the island, in spec order
-// [ microphone | music | dictation | clock | timer ]. Nothing is pinned to
+// [ event icon | privacy | music | dictation | clock | timer | event text ].
+// Nothing is pinned to
 // the island edges, so the clock shifts whenever an indicator grows (e.g.
 // the mic hover label) — the whole group stays centered and the island fits
 // it (see Island.barFittedWidth). Recording/hotspot render on the clock
@@ -19,6 +20,8 @@ Item {
     required property real islandHeight
     required property var timingCfg
     required property var audio
+    required property var privacy
+    required property var events
     required property var players
     required property var network
     required property var recorder
@@ -30,17 +33,29 @@ Item {
 
     readonly property var servicesBundle: ({
             audio: root.audio,
+            privacy: root.privacy,
+            events: root.events,
             players: root.players,
             network: root.network,
             recorder: root.recorder,
             dictation: root.dictation,
             theme: root.theme,
-            cfg: root.cfg
+            cfg: root.cfg,
+            islandHeight: root.islandHeight
         })
 
     // Visual order in the row (spec example); the clock sits between the
-    // left indicators and the timer.
-    readonly property var orderedNames: ["microphone", "music", "dictation", "timer"]
+    // left indicators and the timer. An event's glyph / text take the far
+    // left / far right.
+    readonly property var orderedNames: ["eventIcon", "privacy", "music", "dictation", "timer", "eventText"]
+    readonly property var loaders: ({
+            eventIcon: eventIconLoader,
+            privacy: privacyLoader,
+            music: musicLoader,
+            dictation: waveLoader,
+            timer: timerLoader,
+            eventText: eventTextLoader
+        })
 
     // Live clock width (plate grows with the recording timer text).
     readonly property real clockWidth: clockPlate.implicitWidth
@@ -50,10 +65,12 @@ Item {
     // Clock centre in this item's coords (follows the row's springs).
     readonly property real clockCenterX: barRow.x + clockPlate.x + clockPlate.width / 2
     // Animated indicator widths (0 while hidden/evicted).
-    readonly property real indicatorsNow: (micLoader.item?.width ?? 0)
+    readonly property real indicatorsNow: (eventIconLoader.item?.width ?? 0)
+        + (privacyLoader.item?.width ?? 0)
         + (musicLoader.item?.width ?? 0)
         + (waveLoader.item?.width ?? 0)
         + (timerLoader.item?.width ?? 0)
+        + (eventTextLoader.item?.width ?? 0)
     // Live content width: spacing/padding factors stay relative to the actual
     // current content size (spec), never to the island width (that would loop).
     // Deliberately excludes Row spacing so spacing never feeds back into itself.
@@ -89,8 +106,10 @@ Item {
     readonly property real stableRowWidth: keptSum + clockWidth + spacingD * keptCount
 
     function indicatorActive(name: string): bool {
-        if (name === "microphone")
-            return root.audio.micActive;
+        if (name === "eventIcon" || name === "eventText")
+            return root.events.current !== null;
+        if (name === "privacy")
+            return root.privacy.active;
         if (name === "music")
             return root.players.musicActive;
         if (name === "dictation")
@@ -99,15 +118,7 @@ Item {
     }
 
     function desiredWidth(name: string): real {
-        if (name === "microphone")
-            return micLoader.item ? micLoader.item.desiredWidth : 0;
-        if (name === "music")
-            return musicLoader.item ? musicLoader.item.desiredWidth : 0;
-        if (name === "dictation")
-            return waveLoader.item ? waveLoader.item.desiredWidth : 0;
-        if (name === "timer")
-            return timerLoader.item ? timerLoader.item.desiredWidth : 0;
-        return 0;
+        return root.loaders[name]?.item?.desiredWidth ?? 0;
     }
 
     function priorityOf(name: string): int {
@@ -163,14 +174,17 @@ Item {
 
     // Loader introspection (debugState): catches ghost items (loaded but
     // invisible) keeping the row wide after the indicator is gone.
-    readonly property var loaderState: ({
-            microphone: [micLoader.active, micLoader.item !== null, micLoader.item?.width ?? -1],
-            music: [musicLoader.active, musicLoader.item !== null, musicLoader.item?.width ?? -1],
-            dictation: [waveLoader.active, waveLoader.item !== null, waveLoader.item?.width ?? -1],
-            timer: [timerLoader.active, timerLoader.item !== null, timerLoader.item?.width ?? -1]
-        })
+    readonly property var loaderState: {
+        const out = {};
+        for (const n of root.orderedNames) {
+            const l = root.loaders[n];
+            out[n] = [l.active, l.item !== null, l.item?.width ?? -1];
+        }
+        return out;
+    }
 
-    // Order per spec: [ microphone | music | dictation | clock | timer ].
+    // Order per spec: [ event icon | privacy | music | dictation | clock |
+    // timer | event text ].
     // Every child is vertically centered (pShell pattern): without it, Row
     // top-aligns children and short ones (the 8px mic dot next to the 24px
     // music cover) stick to the top edge.
@@ -193,7 +207,21 @@ Item {
         // Spring on movement: Row sets x from the (springing) widths, so each
         // child glides to its slot instead of jumping with the layout.
         Loader {
-            id: micLoader
+            id: eventIconLoader
+            anchors.verticalCenter: parent.verticalCenter
+            Behavior on x { Spring {} }
+            width: item ? item.width : 0
+            height: item ? item.height : 0
+            readonly property bool collapsing: item !== null && !root.indicatorActive("eventIcon") && item.width > 0.5
+            sourceComponent: registry.eventIconIndicator
+            active: root.indicatorActive("eventIcon") || collapsing
+            onLoaded: {
+                item.services = Qt.binding(() => root.servicesBundle);
+                item.evicted = Qt.binding(() => root.isEvicted("eventIcon"));
+            }
+        }
+        Loader {
+            id: privacyLoader
             anchors.verticalCenter: parent.verticalCenter
             Behavior on x { Spring {} }
             width: item ? item.width : 0
@@ -202,12 +230,12 @@ Item {
             // via its own spring while still loaded, in sync with the
             // island — same Spring, same frame). Unloading instantly would
             // snap the row and teleport the clock.
-            readonly property bool collapsing: item !== null && !root.indicatorActive("microphone") && item.width > 0.5
-            sourceComponent: registry.microphoneIndicator
-            active: root.indicatorActive("microphone") || collapsing
+            readonly property bool collapsing: item !== null && !root.indicatorActive("privacy") && item.width > 0.5
+            sourceComponent: registry.privacyIndicator
+            active: root.indicatorActive("privacy") || collapsing
             onLoaded: {
                 item.services = Qt.binding(() => root.servicesBundle);
-                item.evicted = Qt.binding(() => root.isEvicted("microphone"));
+                item.evicted = Qt.binding(() => root.isEvicted("privacy"));
             }
         }
         Loader {
@@ -267,6 +295,20 @@ Item {
             onLoaded: {
                 item.services = Qt.binding(() => root.servicesBundle);
                 item.evicted = Qt.binding(() => root.isEvicted("timer"));
+            }
+        }
+        Loader {
+            id: eventTextLoader
+            anchors.verticalCenter: parent.verticalCenter
+            Behavior on x { Spring {} }
+            width: item ? item.width : 0
+            height: item ? item.height : 0
+            readonly property bool collapsing: item !== null && !root.indicatorActive("eventText") && item.width > 0.5
+            sourceComponent: registry.eventTextIndicator
+            active: root.indicatorActive("eventText") || collapsing
+            onLoaded: {
+                item.services = Qt.binding(() => root.servicesBundle);
+                item.evicted = Qt.binding(() => root.isEvicted("eventText"));
             }
         }
     }

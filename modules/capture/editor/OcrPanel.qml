@@ -39,6 +39,7 @@ Item {
         }
         if (!root.ed.hasSelection)
             return;
+        root.ed.scanPanel.open = false;
         root.langs = root.initialLangs();
         root.open = true;
         root.recrop();
@@ -90,22 +91,7 @@ Item {
 
     readonly property real panelW: root.cfg.ocrPanelWidth
     readonly property real panelH: col.implicitHeight + root.cfg.panelPad * 2
-    readonly property point place: {
-        const m = root.cfg.toolSpacing, c = root.clearance + m, e = root.ed;
-        const side = [
-            { s: "bottom", v: root.height - (e.selY + e.selH) },
-            { s: "top", v: e.selY },
-            { s: "right", v: root.width - (e.selX + e.selW) },
-            { s: "left", v: e.selX }
-        ].sort((a, b) => b.v - a.v)[0].s;
-        let x = e.selX + e.selW / 2 - root.panelW / 2;
-        let y = e.selY + e.selH / 2 - root.panelH / 2;
-        if (side === "bottom") y = e.selY + e.selH + c;
-        else if (side === "top") y = e.selY - c - root.panelH;
-        else if (side === "right") x = e.selX + e.selW + c;
-        else x = e.selX - c - root.panelW;
-        return Qt.point(Math.max(m, Math.min(root.width - root.panelW - m, x)), Math.max(m, Math.min(root.height - root.panelH - m, y)));
-    }
+    readonly property point place: root.ed.panelPlace(root.panelW, root.panelH, root.clearance)
 
     visible: opacity > 0.01
     opacity: root.open ? (root.ed.interacting ? 0.4 : 1) : 0

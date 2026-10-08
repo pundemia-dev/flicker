@@ -54,6 +54,7 @@ QtObject {
     readonly property color qsIndigo: "#5E5CE6"
     readonly property color qsGreen: "#38C65A"
     readonly property color qsOrange: "#FF9F0A"
+    readonly property color qsYellow: "#FFCC00"
     readonly property color qsDisc: "#3A3A3C"
     // QS card surface (card bg + slider track): black, user (Oct 2026).
     readonly property color qsCardBg: "#000000"
@@ -111,6 +112,8 @@ QtObject {
     // Icon glyph font (fc family "tabler-icons"; the filled media-control set
     // lives in the U+F6xx plane: prev f697 pause f690 play f691 next f696).
     readonly property string iconFamily: "tabler-icons"
+    // Nerd Font glyphs (event indicators: pacman / AUR, like show_updates).
+    readonly property string nerdIconFamily: "JetBrainsMono Nerd Font"
     // Capture overlay: screen dim, crosshair and selection frame.
     readonly property color captureDim: "#000000"
     readonly property color captureCross: "#E9ECF1"
