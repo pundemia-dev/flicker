@@ -210,6 +210,8 @@ Item {
                     spacing: root.gap
                     IconButton {
                         theme: root.theme
+                        tile: true
+                        radius: root.cfg.toolRadius
                         width: root.cfg.toolButtonSize
                         height: width
                         glyph: ""
@@ -218,6 +220,8 @@ Item {
                     }
                     IconButton {
                         theme: root.theme
+                        tile: true
+                        radius: root.cfg.toolRadius
                         width: root.cfg.toolButtonSize
                         height: width
                         glyph: ""

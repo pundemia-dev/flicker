@@ -44,7 +44,7 @@ Item {
             GradientStop { position: 0; color: root.theme.wallSettingsIconTop }
             GradientStop { position: 1; color: root.theme.wallSettingsIconBottom }
         }
-        WallCardRim {
+        CardRim {
             anchors.fill: parent
             radius: tile.radius
             rimWidth: root.c.settingsRimWidth ?? 1

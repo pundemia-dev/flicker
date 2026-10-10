@@ -177,9 +177,8 @@ Item {
             Behavior on opacity { enabled: root.springy; NumberAnimation { duration: root.cfg.fadeInMs } }
             width: root.btn
             height: root.btn
+            tile: true
             radius: root.cfg.toolRadius
-            bg: root.ed.theme.islandBg
-            hoverBg: root.ed.theme.cardBg
             iconSize: root.cfg.toolIconSize
             glyph: modelData.glyph
             fg: modelData.kind === "swatch" ? root.ed.model.drawColor

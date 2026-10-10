@@ -14,7 +14,7 @@ import "../../config"
 // look with a delay (a sideways step, not a tilt — user), leaning into it
 // (shear: rectangle -> parallelogram, hem planted): first round
 // steps left (on its left look), the next steps right (on its right look). Fill = the pacman look: vertical
-// gradient + a light rim along the head (WallCardRim style). Phases hand
+// gradient + a light rim along the head (CardRim style). Phases hand
 // over at `handoff` of the target (see PacmanGlyph). Tunables:
 // Config.data.glyphs.ghost (sizes are fractions of `size`).
 Item {

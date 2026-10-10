@@ -72,6 +72,13 @@ QtObject {
     readonly property color wallSettingsIconBottom: "#111113"
     readonly property color wallSettingsIconRimTop: "#40FFFFFF"
     readonly property color wallSettingsIconRimBottom: "#1AFFFFFF"
+    // The same tile on buttons (components/IconTile, capture): corner radius
+    // as a fraction of the size, hover veil, and a tinted tile (checked /
+    // accent) as lighter → darker of its colour.
+    readonly property real iconTileRadius: 0.28
+    readonly property color iconTileHover: "#14FFFFFF"
+    readonly property real iconTileTintLighter: 1.15
+    readonly property real iconTileTintDarker: 1.35
     // Drawn event glyphs (indicators/*Glyph.qml): the tile rim, stronger —
     // on a light fill (yellow pacman) the tile alphas vanished.
     // Drawn event glyphs: Apple-ish white device bodies, dark detail ink.

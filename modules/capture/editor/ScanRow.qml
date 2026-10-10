@@ -56,6 +56,8 @@ Rectangle {
     IconButton {
         id: openBtn
         theme: root.theme
+        tile: true
+        radius: root.cfg.toolRadius
         visible: root.link
         anchors.right: parent.right
         anchors.rightMargin: root.cfg.panelPad / 2

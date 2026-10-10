@@ -25,7 +25,7 @@ Item {
     // little parcels (a rounded box with a tape stripe) instead of dots.
     property var args: ({})
     readonly property bool boxFood: (g.args?.food ?? "dot") === "box"
-    // Wallpaper-settings icon tile look (WallSettingRow + WallCardRim): a
+    // Wallpaper-settings icon tile look (WallSettingRow + CardRim): a
     // vertical gradient fill (lighter top, darker bottom of `color`) and a
     // light rim — along the top all the way round, along the bottom only to
     // 45° — as filled slivers with fading gradients (no stroke gradients

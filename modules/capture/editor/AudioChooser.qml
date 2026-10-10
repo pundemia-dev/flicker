@@ -72,7 +72,8 @@ Item {
         Behavior on opacity { enabled: root.springy; NumberAnimation { duration: root.cfg.fadeInMs } }
         width: row.implicitWidth + root.cfg.toolSpacing * 2
         height: root.cfg.toolButtonSize + root.cfg.toolSpacing * 2
-        radius: height / 2
+        // Concentric with the chips' tile radius.
+        radius: root.cfg.toolRadius + root.cfg.toolSpacing
         color: root.theme.islandBg
 
         Row {
@@ -83,22 +84,17 @@ Item {
             Repeater {
                 model: root.choices
 
-                Rectangle {
+                // Icon tile look (wallpaper settings), like the buttons.
+                IconTile {
                     id: chip
                     required property var modelData
                     readonly property bool preselected: root.recorder.defaultAudio() === modelData.v
+                    theme: root.theme
                     width: chipRow.implicitWidth + root.cfg.panelPad
                     height: root.cfg.toolButtonSize
-                    radius: height / 2
-                    color: preselected ? root.theme.accentRed : (chipMa.containsMouse ? root.theme.cardTrack : root.theme.cardBg)
-
-                    GlowRim {
-                        radius: chip.radius
-                        color: root.theme.buttonGlow
-                        spread: root.theme.buttonGlowWidth
-                        peakAlpha: root.theme.buttonGlowAlpha
-                        rings: root.theme.buttonGlowRings
-                    }
+                    radius: root.cfg.toolRadius
+                    fill: preselected ? root.theme.accentRed : "transparent"
+                    hovered: chipMa.containsMouse
 
                     Row {
                         id: chipRow
@@ -132,6 +128,8 @@ Item {
 
             IconButton {
                 theme: root.theme
+                tile: true
+                radius: root.cfg.toolRadius
                 width: root.cfg.toolButtonSize
                 height: width
                 glyph: ""

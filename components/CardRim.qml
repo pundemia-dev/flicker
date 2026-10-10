@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Shapes
 
-// Light rim on a rounded card of the settings panel: a thin white edge
+// Light rim on a rounded card / icon tile (wallpaper settings, capture buttons): a thin white edge
 // along the TOP, running all the way round both top corners (down to where
 // the sides start), and along the BOTTOM, running only half way round the
 // bottom corners (to 45°). Each is a filled sliver between the card outline

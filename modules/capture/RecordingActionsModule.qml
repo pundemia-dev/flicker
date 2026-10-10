@@ -64,11 +64,13 @@ Item {
                 required property var modelData
                 anchors.verticalCenter: parent.verticalCenter
                 theme: root.theme
+                tile: true
+                radius: root.cfg.toolRadius * width / root.cfg.toolButtonSize
                 width: root.cfg.toolButtonSize + root.cfg.toolSpacing
                 height: width
                 glyph: modelData.glyph
                 fg: modelData.fg
-                bg: modelData.bg ?? root.theme.cardBg
+                tileFill: modelData.bg ?? "transparent"
                 iconSize: root.cfg.toolIconSize
                 onClicked: modelData.run()
             }

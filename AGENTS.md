@@ -428,9 +428,9 @@ Not a git repo. No tests, no linter, no formatter.
   Panel = two tabs (`WallSettingsList.PAGES`: Transitions | General, PgUp/PgDn or a click,
   pages blur-fade), rows = `WallSettingRow`. Look (Oct 2026, iOS Settings): segmented control
   (thumb springs), rows in two grouped `cardBg` cards with inset hairlines and a light rim
-  (`WallCardRim`: filled slivers with vertical gradients — top edge round BOTH top corners,
+  (`components/CardRim` (was WallCardRim): filled slivers with vertical gradients — top edge round BOTH top corners,
   bottom edge only half way round, to 45°; Shape has no stroke gradients), dark icon tiles
-  (`Theme.wallSettingsIconTop/Bottom` gradient + the same `WallCardRim`) with the glyph in the row's `tint` (a Theme colour name), value + selector glyph / iOS switch (qsGreen),
+  (`Theme.wallSettingsIconTop/Bottom` gradient + the same `CardRim`) with the glyph in the row's `tint` (a Theme colour name), value + selector glyph / iOS switch (qsGreen),
   focus = `Theme.wallSettingsFocus` highlight springing inside the cards; everything snapped to
   whole pixels (fractional row heights put NativeRendering text + 1px rims on half pixels), the
   icon tile size follows the row height's parity (34 in 45 → 1 px low; now 35, exact), tile
@@ -569,7 +569,7 @@ Not a git repo. No tests, no linter, no formatter.
   shut with the jaw, body recoils left on a bouncy spring, dot swallowed (drawn under the body)
   once it arrived AND the jaws shut, jaws reopen. Bites come in pairs (`series` 2, `pauseMs`
   between them), then a `restMs` break. Look = the wallpaper-settings icon tile: vertical
-  gradient fill (`lighter`/`darker` of the colour, dot too) + WallCardRim-style light rims on
+  gradient fill (`lighter`/`darker` of the colour, dot too) + CardRim-style light rims on
   the sector's outer edge (top full, bottom to 45°; `Theme.glyphRimTop/Bottom`, stronger than
   the tile's — invisible on yellow otherwise); the reveal stroke fades out with the sweep.
   `indicators/GhostGlyph.qml` (AUR, follows pacman; user pick over smiley/box/gear): outline
@@ -1094,7 +1094,13 @@ Simplified / not implemented yet (see pillShell.md for the intended behaviour):
   panels are mutually exclusive and share `RegionEditor.panelPlace()`. Verified via IPC:
   panel renders, toolbar button checked, empty result; parser on real zbar XML. NOT
   live-tested with a code on screen.
-  Buttons: `components/IconButton` (+ audio chips) carry a barely-visible white glow
+  Buttons (Oct 2026, user): capture IconButtons (`tile: true`) and the audio chips use the
+  wallpaper-settings icon-tile look = `components/IconTile` (Theme `wallSettingsIcon*` gradient +
+  `CardRim`, radius `capture.toolRadius`, hover veil `Theme.iconTileHover`, checked / `tileFill`
+  = lighter→darker of that colour, glyph CurveRendering at the exact centre); the audio bar's
+  radius is concentric (toolRadius + toolSpacing). Verified on a grim frame (record chips).
+  Non-tile IconButtons (stash) keep the GlowRim below:
+  `components/IconButton` carries a barely-visible white glow
   (`components/GlowRim`: 1px border rings OUTSIDE the shape, alpha falling smoothly;
   Theme `buttonGlow*`, peak 0.05 over 6px) so they read on dark content. User: a light
   haze, NOT a fill/wash and NOT an outline (0.2 alpha over 3px already read as a stroke);
