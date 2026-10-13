@@ -196,6 +196,10 @@ PanelWindow {
     // Island size when capture opened: the empty capture module keeps it, so
     // only the content blur->fades out before the hand-over.
     property var captureFrom: ({ width: 0, height: 0 })
+    // This island handed its background to the capture session: it stays a
+    // Minimal strip (no startup morph / idle lift into the bar) until the
+    // session ends, then expands back into the bar.
+    property bool captureMinimal: false
     Binding {
         target: root.contentItem
         property: "opacity"
@@ -548,7 +552,7 @@ PanelWindow {
             return;
         if (root.fsActive)
             root.state.setMinimal();
-        else if (!root.tickerVisible && !root.temporaryRevealFromMinimal)
+        else if (!root.tickerVisible && !root.temporaryRevealFromMinimal && !root.captureMinimal)
             root.state.setIsland();
     }
 
@@ -759,6 +763,7 @@ PanelWindow {
             return;
         }
         root.stolen = true;
+        root.captureMinimal = true;
         root.closeModule();
         root.state.setMinimal();
         root.started = false;
@@ -772,6 +777,24 @@ PanelWindow {
         onTriggered: root.stealForCapture()
     }
     onShownModuleChanged: if (root.shownModule === "capture") captureSteal.restart()
+
+    Connections {
+        target: root.capture
+        function onActiveChanged(): void {
+            root.releaseCaptureMinimal();
+        }
+        // Expand while the overlay fades out (its hole fill fades over it).
+        function onClosingChanged(): void {
+            root.releaseCaptureMinimal();
+        }
+    }
+    function releaseCaptureMinimal(): void {
+        if ((root.capture.active && !root.capture.closing) || !root.captureMinimal)
+            return;
+        root.captureMinimal = false;
+        if (root.state.currentState === root.state.minimal && !root.fsActive)
+            root.state.setIsland();
+    }
 
     Timer {
         id: captureReappear
@@ -1059,7 +1082,7 @@ PanelWindow {
         id: minimalIdle
         interval: root.timingCfg.minimalIdleMs
         onTriggered: {
-            if (root.state.currentState === root.state.minimal && !root.fsActive)
+            if (root.state.currentState === root.state.minimal && !root.fsActive && !root.captureMinimal)
                 root.state.setIsland();
         }
     }
@@ -1146,7 +1169,7 @@ PanelWindow {
             // Skipped under fullscreen (stays Minimal; onFsActiveChanged
             // brings the bar back later) and if the state already moved on
             // (e.g. a module opened in the meantime).
-            if (!root.fsActive && root.state.currentState === root.state.minimal)
+            if (!root.fsActive && !root.captureMinimal && root.state.currentState === root.state.minimal)
                 root.state.setIsland();
         }
     }

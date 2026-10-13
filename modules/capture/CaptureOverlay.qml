@@ -58,6 +58,7 @@ PanelWindow {
         anchors.fill: parent
         source: root.capture.grabbed ? "file://" + root.capture.srcFor(root.name) : ""
         hole: root.capture.holeOn(root.name)
+        holeFilled: root.capture.stolen && !root.capture.closing
     }
 
     CaptureDim {
