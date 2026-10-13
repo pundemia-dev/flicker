@@ -202,102 +202,118 @@ Item {
     // Every child is vertically centered (pShell pattern): without it, Row
     // top-aligns children and short ones (the 8px mic dot next to the 24px
     // music cover) stick to the top edge.
-    Row {
-        id: barRow
-        anchors.centerIn: parent
-        // Stable spacing: the row width must glide on the same curve as the
-        // island (see stableRowWidth), so gaps can't be driven by animated
-        // widths mid-morph.
-        spacing: root.spacingD
+    // While an event shows, the row recedes (user: the clock and the other
+    // indicators clashed with it): fades to `eventRowOpacity` under a light
+    // content blur (`eventRowBlur`). Queued events keep it dimmed through
+    // the collapse gap between them, so it never flickers bright.
+    readonly property bool eventShowing: (root.events?.current ?? null) !== null
+        || (root.events?.queue?.length ?? 0) > 0
+    property real rowDim: root.eventShowing ? 1 : 0
+    Behavior on rowDim { Spring { stiffness: 4; damp: 0.5; eps: 0.005 } }
 
-        // Explicit geometry from the loaded item (0 when unloaded):
-        // QQuickLoader keeps its last size after unloading, so without this
-        // a dead 8px mic Loader keeps the row (and the island's padding)
-        // wide forever. No width spring here: the loader must track the
-        // item's own (spring-animated) width exactly — its own spring would
-        // lag behind, leaving the full-width text hanging over the clock.
-        // Smooth collapse on unload comes from delayed unload below: the
-        // item stays loaded while its width spring shrinks to ~0.
-        // Spring on movement: Row sets x from the (springing) widths, so each
-        // child glides to its slot instead of jumping with the layout.
-        Loader {
-            id: timerLoader
-            anchors.verticalCenter: parent.verticalCenter
-            Behavior on x { Spring {} }
-            width: item ? item.width : 0
-            height: item ? item.height : 0
-            readonly property bool collapsing: item !== null && !root.indicatorActive("timer") && item.width > 0.5
-            sourceComponent: registry.timerIndicator
-            active: root.indicatorActive("timer") || collapsing
-            onLoaded: {
-                item.services = Qt.binding(() => root.servicesBundle);
-                item.evicted = Qt.binding(() => root.isEvicted("timer"));
-                item.requestOpen.connect((n, p) => root.requestModule(n, p));
-            }
-        }
-        Loader {
-            id: musicLoader
-            anchors.verticalCenter: parent.verticalCenter
-            Behavior on x { Spring {} }
-            width: item ? item.width : 0
-            height: item ? item.height : 0
-            readonly property bool collapsing: item !== null && !root.indicatorActive("music") && item.width > 0.5
-            sourceComponent: registry.musicIndicator
-            active: root.indicatorActive("music") || collapsing
-            onLoaded: {
-                item.services = Qt.binding(() => root.servicesBundle);
-                item.evicted = Qt.binding(() => root.isEvicted("music"));
-                if (item.requestOpen)
+    BlurSurface {
+        id: rowSurface
+        anchors.fill: parent
+        amount: root.rowDim * (root.cfg?.eventRowBlur ?? 0.3)
+        opacity: 1 - root.rowDim * (1 - (root.cfg?.eventRowOpacity ?? 0.45))
+
+        Row {
+            id: barRow
+            anchors.centerIn: parent
+            // Stable spacing: the row width must glide on the same curve as the
+            // island (see stableRowWidth), so gaps can't be driven by animated
+            // widths mid-morph.
+            spacing: root.spacingD
+
+            // Explicit geometry from the loaded item (0 when unloaded):
+            // QQuickLoader keeps its last size after unloading, so without this
+            // a dead 8px mic Loader keeps the row (and the island's padding)
+            // wide forever. No width spring here: the loader must track the
+            // item's own (spring-animated) width exactly — its own spring would
+            // lag behind, leaving the full-width text hanging over the clock.
+            // Smooth collapse on unload comes from delayed unload below: the
+            // item stays loaded while its width spring shrinks to ~0.
+            // Spring on movement: Row sets x from the (springing) widths, so each
+            // child glides to its slot instead of jumping with the layout.
+            Loader {
+                id: timerLoader
+                anchors.verticalCenter: parent.verticalCenter
+                Behavior on x { Spring {} }
+                width: item ? item.width : 0
+                height: item ? item.height : 0
+                readonly property bool collapsing: item !== null && !root.indicatorActive("timer") && item.width > 0.5
+                sourceComponent: registry.timerIndicator
+                active: root.indicatorActive("timer") || collapsing
+                onLoaded: {
+                    item.services = Qt.binding(() => root.servicesBundle);
+                    item.evicted = Qt.binding(() => root.isEvicted("timer"));
                     item.requestOpen.connect((n, p) => root.requestModule(n, p));
+                }
             }
-        }
-        Loader {
-            id: privacyLoader
-            anchors.verticalCenter: parent.verticalCenter
-            Behavior on x { Spring {} }
-            width: item ? item.width : 0
-            height: item ? item.height : 0
-            // Unload only after the item has collapsed (width glides down
-            // via its own spring while still loaded, in sync with the
-            // island — same Spring, same frame). Unloading instantly would
-            // snap the row and teleport the clock.
-            readonly property bool collapsing: item !== null && !root.indicatorActive("privacy") && item.width > 0.5
-            sourceComponent: registry.privacyIndicator
-            active: root.indicatorActive("privacy") || collapsing
-            onLoaded: {
-                item.services = Qt.binding(() => root.servicesBundle);
-                item.evicted = Qt.binding(() => root.isEvicted("privacy"));
+            Loader {
+                id: musicLoader
+                anchors.verticalCenter: parent.verticalCenter
+                Behavior on x { Spring {} }
+                width: item ? item.width : 0
+                height: item ? item.height : 0
+                readonly property bool collapsing: item !== null && !root.indicatorActive("music") && item.width > 0.5
+                sourceComponent: registry.musicIndicator
+                active: root.indicatorActive("music") || collapsing
+                onLoaded: {
+                    item.services = Qt.binding(() => root.servicesBundle);
+                    item.evicted = Qt.binding(() => root.isEvicted("music"));
+                    if (item.requestOpen)
+                        item.requestOpen.connect((n, p) => root.requestModule(n, p));
+                }
             }
-        }
-        Loader {
-            id: waveLoader
-            anchors.verticalCenter: parent.verticalCenter
-            Behavior on x { Spring {} }
-            width: item ? item.width : 0
-            height: item ? item.height : 0
-            readonly property bool collapsing: item !== null && !root.indicatorActive("dictation") && item.width > 0.5
-            sourceComponent: registry.dictationIndicator
-            active: root.indicatorActive("dictation") || collapsing
-            onLoaded: {
-                item.services = Qt.binding(() => root.servicesBundle);
-                item.evicted = Qt.binding(() => root.isEvicted("dictation"));
+            Loader {
+                id: privacyLoader
+                anchors.verticalCenter: parent.verticalCenter
+                Behavior on x { Spring {} }
+                width: item ? item.width : 0
+                height: item ? item.height : 0
+                // Unload only after the item has collapsed (width glides down
+                // via its own spring while still loaded, in sync with the
+                // island — same Spring, same frame). Unloading instantly would
+                // snap the row and teleport the clock.
+                readonly property bool collapsing: item !== null && !root.indicatorActive("privacy") && item.width > 0.5
+                sourceComponent: registry.privacyIndicator
+                active: root.indicatorActive("privacy") || collapsing
+                onLoaded: {
+                    item.services = Qt.binding(() => root.servicesBundle);
+                    item.evicted = Qt.binding(() => root.isEvicted("privacy"));
+                }
             }
-        }
+            Loader {
+                id: waveLoader
+                anchors.verticalCenter: parent.verticalCenter
+                Behavior on x { Spring {} }
+                width: item ? item.width : 0
+                height: item ? item.height : 0
+                readonly property bool collapsing: item !== null && !root.indicatorActive("dictation") && item.width > 0.5
+                sourceComponent: registry.dictationIndicator
+                active: root.indicatorActive("dictation") || collapsing
+                onLoaded: {
+                    item.services = Qt.binding(() => root.servicesBundle);
+                    item.evicted = Qt.binding(() => root.isEvicted("dictation"));
+                }
+            }
 
-        ClockPlate {
-            id: clockPlate
-            anchors.verticalCenter: parent.verticalCenter
-            Behavior on x { Spring {} }
-            clock: root.clock
-            recorder: root.recorder
-            network: root.network
-            theme: root.theme
-            islandHeight: root.islandHeight
-            cfg: root.cfg
-            timingCfg: root.timingCfg
-            onRequestModule: name => root.requestModule(name, {})
-        }
+            ClockPlate {
+                id: clockPlate
+                anchors.verticalCenter: parent.verticalCenter
+                Behavior on x { Spring {} }
+                clock: root.clock
+                recorder: root.recorder
+                network: root.network
+                theme: root.theme
+                islandHeight: root.islandHeight
+                cfg: root.cfg
+                timingCfg: root.timingCfg
+                onRequestModule: name => root.requestModule(name, {})
+            }
 
+        }
     }
 
     // Event halves, pinned to the island edges (see eventSide).

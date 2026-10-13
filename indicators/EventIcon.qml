@@ -45,7 +45,7 @@ Item {
         entered = true;
     }
 
-    readonly property int glyphSize: cfg?.eventIconSize ?? 18
+    readonly property int glyphSize: cfg?.eventIconSize ?? 22
     // Pressed against the island's left edge (event glyph only, user): the
     // glyph keeps the same gap to the left edge as to the top/bottom, so it
     // reaches `pull` px into the edge padding. The item is that much
@@ -55,7 +55,7 @@ Item {
     readonly property real edgeGap: ((services?.islandHeight ?? 36) - glyphSize) / 2
     readonly property real pull: Math.max(0, Math.min(glyphSize, (cfg?.edgePaddingMin ?? 16) - edgeGap))
     // Extra distance from the rest of the row (on top of the row spacing).
-    readonly property real gap: cfg?.eventGap ?? 48
+    readonly property real gap: cfg?.eventGap ?? 28
     readonly property real desiredWidth: active ? glyphSize - pull + gap : 0
 
     width: (entered && !evicted) ? desiredWidth : 0

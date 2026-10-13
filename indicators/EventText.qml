@@ -43,9 +43,10 @@ Item {
         entered = true;
     }
 
-    // Theme colour name (a function = live), `textColor` overrides `color`.
+    // Theme colour name (a function = live): `textColor`, else neutral
+    // Theme.eventText — only the glyph carries the event `color`.
     readonly property string toneName: {
-        const c = root.ev?.textColor ?? root.ev?.color ?? "islandFg";
+        const c = root.ev?.textColor ?? "eventText";
         return typeof c === "function" ? `${c()}` : `${c}`;
     }
     readonly property var steps: root.ev?.texts ?? [root.ev?.text ?? ""]
@@ -82,7 +83,7 @@ Item {
     onStepsMaxChanged: if (root.stepsMax > root.peak) root.peak = root.stepsMax
     readonly property real slotWidth: root.peak
     // Extra distance from the rest of the row (on top of the row spacing).
-    readonly property real gap: cfg?.eventGap ?? 48
+    readonly property real gap: cfg?.eventGap ?? 28
     readonly property real desiredWidth: active ? slotWidth + gap : 0
 
     width: (entered && !evicted) ? desiredWidth : 0
@@ -109,7 +110,7 @@ Item {
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
             text: root.value
-            // Tinted like the glyph (event `textColor`, else its `color`).
+            // Neutral (Theme.eventText) unless the event sets `textColor`.
             color: root.theme?.[root.toneName] ?? root.theme?.islandFg ?? "#E9ECF1"
             pixelSize: root.theme?.fontSizeClock ?? 14
             weight: Font.Medium

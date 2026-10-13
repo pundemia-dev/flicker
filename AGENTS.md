@@ -569,10 +569,10 @@ Not a git repo. No tests, no linter, no formatter.
   pipewiresrc got "target not found" here), a real portal screencast.
   EVENT INDICATORS (`services/Events.qml`): one at a time, FIFO with the notification-flow
   timing (`events.showMs` 5 s alone / `showQueuedMs` 3 s with more queued, an arrival shortens
-  the visible one; `gapMs` collapse between two). Glyph at the far LEFT (`EventIcon`; pressed to the edge: same gap to the left edge as to
+  the visible one; `gapMs` collapse between two). Glyph at the far LEFT (`EventIcon`, `eventIconSize` 22, `eventGap` 28 — user, Oct 2026; while an event shows (or is queued) the row recedes: `IndicatorLayout.rowSurface` BlurSurface to `eventRowOpacity`/`eventRowBlur`; pressed to the edge: same gap to the left edge as to
   top/bottom = `pull` px into edgePaddingMin — event glyph ONLY; both halves add `eventGap` toward the row), text at
   the far RIGHT (`EventText`, `text` may be a function → live inside the binding). Event =
-  {key, icon, text, color (Theme property NAME; tints glyph AND text, `textColor` overrides), family ("nerd" = Theme.nerdIconFamily)}; same
+  {key, icon, text, color (Theme property NAME; tints the glyph; text is neutral `Theme.eventText` unless `textColor` — user, Oct 2026), family ("nerd" = Theme.nerdIconFamily)}; same
   key replaces in place, `cancel(key)` drops it. Sources (Shell): `EventCharging` (UPower
   onBattery: plugged = bolt join, pulled = bolt break; colour = `Battery.levelTone` (the right arc's
   rule, shared; event `color` may be a function → live); `texts` steps = percent, then

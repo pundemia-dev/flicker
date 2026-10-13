@@ -153,13 +153,17 @@ Singleton {
                     plateHPad: 20,
                     plateRadius: 11,
                     // Event indicators: glyph size (far left), text cap (far right).
-                    eventIconSize: 18,
+                    eventIconSize: 22,
                     // Extra gap between an event's glyph / text and the rest of the row.
-                    eventGap: 48,
+                    eventGap: 28,
                     // Drawn glyphs start their reveal at this fade-in level
                     // of the event icon (0..1).
                     eventGlyphStartAt: 0.8,
                     eventTextMaxWidth: 120,
+                    // The row (clock + indicators) while an event shows:
+                    // opacity and content blur amount (0..1).
+                    eventRowOpacity: 0.45,
+                    eventRowBlur: 0.3,
                     // Timer ring (leftmost in the row): box size, stroke.
                     timerRingSize: 18,
                     timerRingLine: 2.5,

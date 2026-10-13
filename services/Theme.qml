@@ -5,6 +5,9 @@ import "../config"
 QtObject {
     readonly property color islandBg: "#000000"
     readonly property color islandFg: "#E9ECF1"
+    // Event text (bar, right half): neutral — only the glyph carries the
+    // event colour (an event may still override it with `textColor`).
+    readonly property color eventText: "#E9ECF1"
     // 1px rim over the island edge (DMS approach): masks the zone where the
     // hard compositor blur mask diverges from the smooth painted corner.
     readonly property color islandRim: "#26FFFFFF"
