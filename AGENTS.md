@@ -787,6 +787,10 @@ Not a git repo. No tests, no linter, no formatter.
   player, remember the last playing one, a paused player beats registered-idle ones at
   cold start). Plain `players[0]` picks early-registrants like Telegram (registers
   Stopped with stale voice-message metadata) over the actually playing app.
+  Cover art: `Players.artUrl` is NEVER a remote URL — http(s) art (Spotify i.scdn.co, YouTube
+  thumbs) is fetched with `curl -4` into `cachePath("art")/<md5>` (`Config.mediaArt`), Qt's
+  network Image loader stalled on this network's broken IPv6 (Spotify covers never showed,
+  no warning logged; a fresh process loaded them). Raw value = `remoteArt`.
 
 - i18n (Oct 2026, user: source language ENGLISH): `config/I18n.qml` (pragma Singleton next to
   Config, so `import "<rel>/config"` brings both). EVERY user-visible string = `I18n.tr("English")`

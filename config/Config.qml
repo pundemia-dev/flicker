@@ -873,6 +873,14 @@ Singleton {
                     barWidth: 3,
                     heightRatio: 0.6
                 })
+            // Remote cover art (services/Players.qml): http(s) art URLs are
+            // fetched with `curl -4` into cachePath("art") — Qt's own loader
+            // stalls on this network's broken IPv6 (Spotify's i.scdn.co
+            // never showed). Timeout per fetch; newest cacheMax files kept.
+            property var mediaArt: ({
+                    fetchTimeoutSec: 10,
+                    cacheMax: 200
+                })
             // Shape-built volume glyph (components/VolumeIcon.qml): timed arc
             // fade + pulse()/wave() bump (up OutCubic, down InOutCubic); only
             // the mute slash is a spring.
