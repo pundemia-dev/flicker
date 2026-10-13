@@ -362,6 +362,17 @@ Item {
         onAddRequested: root.cc.addPage()
     }
 
+    // Session menu: top-right corner, in the rail column (not a card).
+    QsSessionButton {
+        x: rail.x + rail.width - width
+        y: QsMetrics.sessionTop(root.cfg)
+        cfg: root.cfg
+        theme: root.theme
+        frost: root.frost
+        visible: root.cfg.sessionButton ?? false
+        onClicked: root.openRequested("session", {})
+    }
+
     QsEditFooter {
         x: root.cfg.margins
         y: root.cfg.margins + root.bodyH + root.cfg.spacing

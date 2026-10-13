@@ -58,6 +58,19 @@ Item {
     // history change causes).
     property var expandedApps: ({})
 
+    // One tile's context panel open at a time (drag down / long press).
+    property var actionEntry: null
+    property string actionStage: ""
+    readonly property bool wantsKeyboard: root.actionStage === "reply" && root.actionEntry !== null
+    function setStage(entry: var, stage: string): void {
+        root.actionEntry = stage === "" ? null : entry;
+        root.actionStage = stage;
+    }
+    onHistoryChanged: {
+        if (root.actionEntry && !root.history.includes(root.actionEntry))
+            root.setStage(null, "");
+    }
+
     // Groups by app, in history order (history is newest first, so the
     // first entry seen makes a group's position = its newest arrival).
     readonly property var groups: {
@@ -93,12 +106,12 @@ Item {
         root.expandedApps = next;
     }
 
-    // iOS tap: open the app (default action) and drop the notification.
+    // iOS tap: open the app (default action + focus its window, or start
+    // it) and drop the notification.
     function activate(entry: var): void {
-        if (!entry?.invokeDefault())
+        if (!entry)
             return;
-        if (root.history.includes(entry))
-            entry.dismiss();
+        root.service?.open(entry);
         root.closeRequested();
     }
 
@@ -183,6 +196,9 @@ Item {
                         cfg: root.cfg
                         theme: root.theme
                         frost: root.frost
+                        actionEntry: root.actionEntry
+                        actionStage: root.actionStage
+                        onStageRequested: (entry, stage) => root.setStage(entry, stage)
                         onExpandRequested: on => root.setExpanded(modelData.app, on)
                         onActivated: entry => root.activate(entry)
                         onDismissGroup: root.service?.dismissAll(modelData.entries)

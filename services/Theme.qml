@@ -56,6 +56,8 @@ QtObject {
     readonly property color qsOrange: "#FF9F0A"
     readonly property color qsYellow: "#FFCC00"
     readonly property color qsDisc: "#3A3A3C"
+    // Session menu selection plate (darker than qsDisc, user).
+    readonly property color sessionPlate: "#242426"
     // QS card surface (card bg + slider track): black, user (Oct 2026).
     readonly property color qsCardBg: "#000000"
     // Launcher: hairline between the search row and the results.
@@ -87,8 +89,29 @@ QtObject {
     readonly property color glyphInk: "#16171B"
     // Focus / Do Not Disturb (moon glyph + event text).
     readonly property color focusPurple: "#8A7CF5"
+    // Keyboard pill (modules/keyboard): background without a wallpaper
+    // accent; ink by background luminance (dark on light, light on dark).
+    readonly property color keyboardPillBg: "#E5E5EA"
+    readonly property color keyboardPillInkDark: "#1C1C1E"
+    readonly property color keyboardPillInkLight: "#FFFFFF"
     // Caffeine event: coffee (CoffeeGlyph liquid + the event text).
     readonly property color coffee: "#C8915A"
+    // Shazam: card tint while listening + the event glyph/text.
+    readonly property color shazam: "#0088FF"
+    // Timer (modules/timer, bar ring): iOS Clock orange; paused progress
+    // greys out; secondary labels; buttons = tinted discs (start green,
+    // cancel red, pause grey).
+    readonly property color timerAccent: "#FF9F0A"
+    // Ruler tick passing the triangle flashes to this (then back).
+    readonly property color timerTickFlash: "#FFF4D6"
+    readonly property color timerTickDim: "#6B4307"
+    readonly property color timerPaused: "#8E8E93"
+    readonly property color timerTrack: "#2EFFFFFF"
+    readonly property color timerDim: "#8E8E93"
+    readonly property color timerButton: "#3A3A3C"
+    readonly property color timerStartDisc: "#3D2A0A"
+    readonly property color timerCancelDisc: "#4D1A17"
+    readonly property color timerCancelInk: "#FF453A"
     readonly property color glyphRimTop: "#8CFFFFFF"
     readonly property color glyphRimBottom: "#40FFFFFF"
     readonly property color wallSettingsRimTop: "#33FFFFFF"

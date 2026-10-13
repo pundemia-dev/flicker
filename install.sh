@@ -106,6 +106,12 @@ if command -v uv >/dev/null 2>&1; then
   else
     echo "   warning: could not prepare the clip.py env (it is retried online on first use)"
   fi
+  # Shazam (services/Shazam): same offline-first start; records with parecord.
+  if RUST_LOG=warn uv sync --quiet --script "$PILL_DIR/scripts/shazam/recognize.py"; then
+    echo "   shazam env ready"
+  else
+    echo "   warning: could not prepare the shazam env (it is retried online on first use)"
+  fi
 fi
 
 # 3c. Folder and autostart hints (nothing is changed here).

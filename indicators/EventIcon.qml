@@ -88,8 +88,10 @@ Item {
             onLoaded: {
                 item.size = Qt.binding(() => root.glyphSize);
                 item.color = Qt.binding(() => root.tint);
+                // Bound: an in-place update of the same key keeps the glyph
+                // and hands it the new args (Shazam listening -> found).
                 if ("args" in item)
-                    item.args = root.ev?.glyphArgs ?? {};
+                    item.args = Qt.binding(() => root.ev?.glyphArgs ?? {});
                 if ("theme" in item)
                     item.theme = Qt.binding(() => root.theme);
                 // Glyphs start their reveal only once the icon has faded in

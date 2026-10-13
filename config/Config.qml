@@ -122,6 +122,8 @@ Singleton {
                     polkit: true,
                     // Wallpaper carousel: click per card passing the centre.
                     wallpapers: true,
+                    // Timer ruler: click per minute passing the triangle.
+                    timer: true,
                     intensity: { click: 1, deep: 1, release: 1, tick: 1 },
                     backendOptions: {}
                 })
@@ -157,13 +159,22 @@ Singleton {
                     // Drawn glyphs start their reveal at this fade-in level
                     // of the event icon (0..1).
                     eventGlyphStartAt: 0.8,
-                    eventTextMaxWidth: 120
+                    eventTextMaxWidth: 120,
+                    // Timer ring (leftmost in the row): box size, stroke.
+                    timerRingSize: 18,
+                    timerRingLine: 2.5,
+                    // While a player shows, the timer ring goes around the
+                    // music cover (gap ring <-> cover); press + drag down
+                    // past musicTimerDragPx on the cover opens the timer.
+                    musicTimerRing: true,
+                    musicTimerRingGap: 1.5,
+                    musicTimerDragPx: 14
                 })
             // Event indicators (services/Events.qml): one at a time, FIFO;
             // alone showMs, with more queued showQueuedMs; gapMs = bar
             // collapse between two events. Sources: charger plugged in,
             // Bluetooth device connected, pending updates (once,
-            // updatesDelayMs after start). startupQuietMs: changes right
+            // updatesDelayMs after start, only after a boot). startupQuietMs: changes right
             // after start are the start-up state, not events.
             property var events: ({
                     enabled: true,
@@ -178,7 +189,63 @@ Singleton {
                     bluetooth: true,
                     updates: true,
                     caffeine: true,
-                    updatesDelayMs: 30000
+                    shazam: true,
+                    updatesDelayMs: 30000,
+                    // Updates are announced only if the shell started within
+                    // this long after boot (not on a restart). 0 = always.
+                    updatesMaxUptimeSec: 180
+                })
+            // Keyboard pill (services/KeyboardIndicator + Caret,
+            // modules/keyboard): macOS-style capsule under the TEXT CARET
+            // (input-method helper scripts/keyboard/caret.py), else under the
+            // mouse pointer. Caps Lock on = ⇪ (held at the caret, capsPointerMs
+            // at the pointer), a layout switch = its short name for
+            // layoutShowMs. labels: xkb code or full name -> text. Caps Lock =
+            // keyboard LED in sysfs, polled every capsPollMs. caretOffsets:
+            // {app_id: [dx, dy]} overrides the measured offset. Background
+            // = the wallpaper accent (Theme.wallAccent, keyboardPillBg without).
+            property var keyboard: ({
+                    enabled: true,
+                    layout: true,
+                    caps: true,
+                    followCaret: true,
+                    layoutShowMs: 1200,
+                    capsPointerMs: 2500,
+                    capsPollMs: 150,
+                    ledRescanMs: 10000,
+                    startupQuietMs: 1500,
+                    probeTimeoutMs: 250,
+                    caretRetryMs: 3000,
+                    caretRetryBusyMs: 60000,
+                    caretOffsets: ({}),
+                    // Auto-measure each window's caret offset (driftwm, see
+                    // services/CaretCalibration).
+                    calibrate: true,
+                    calibrateDelayMs: 400,
+                    calibrateFrames: 7,
+                    calibrateIntervalMs: 200,
+                    calibrateAttempts: 4,
+                    calibrateMaxPx: 80,
+                    labels: ({ us: "EN", "English (US)": "EN", ru: "RU", Russian: "RU" }),
+                    gap: 6,
+                    edgeMargin: 8,
+                    pointerHeight: 22,
+                    fallbackY: 0.8,
+                    pillHeight: 26,
+                    pillPadding: 10,
+                    pillCapsWidth: 34,
+                    labelSize: 13,
+                    capsGlyph: 0.62,
+                    capsStroke: 1.6,
+                    inkThreshold: 0.6,
+                    popScale: 0.15,
+                    shadowSize: 10,
+                    shadowOffset: 3,
+                    shadowStrength: 0.035,
+                    moveSpring: 3.5,
+                    moveDamping: 0.38,
+                    widthSpring: 4,
+                    widthDamping: 0.4
                 })
             // Drawn animated glyphs of event indicators (indicators/*Glyph.qml).
             // pacman: sizes are fractions of the glyph size; mouth = jaw
@@ -273,6 +340,16 @@ Singleton {
                     // Caffeine cup: cup/handle geometry, gap between wall and
                     // coffee, surface wave (amp, half-waves, period), pour
                     // spring (under-damped = slosh), cup = coffee colour lightened.
+                    // Shazam event glyph: springs up from appearScale, breathes
+                    // (scale/opacity, breathMs per half) while listening.
+                    shazam: {
+                        appearScale: 0.5,
+                        appearStiffness: 4,
+                        appearDamping: 0.35,
+                        breathMs: 650,
+                        breathScale: 0.8,
+                        breathOpacity: 0.55
+                    },
                     coffee: {
                         stroke: 0.1,
                         cupWidth: 0.8,
@@ -538,6 +615,19 @@ Singleton {
                     flowShowQueuedMs: 3000,
                     // Collapse-to-bar pause between queued flow cards.
                     flowSwapGapMs: 300,
+                    // Flow card gestures: drag down past flowPullThreshold
+                    // opens the context buttons (row height / gap), a long
+                    // press (flowLongPressMs) the inline reply field; at
+                    // most flowMaxActions buttons (incl. Reply / Dismiss).
+                    flowActionHeight: 32,
+                    // Side gap from the island edge to the buttons / reply field.
+                    flowActionInset: 28,
+                    // Horizontal padding around a button's label.
+                    flowActionPadding: 16,
+                    flowActionSpacing: 8,
+                    flowPullThreshold: 36,
+                    flowLongPressMs: 450,
+                    flowMaxActions: 4,
                     // Notification card: left avatar/icon diameter; the app-icon
                     // badge overlapping the avatar's bottom-right rim.
                     avatarSize: 56,
@@ -745,6 +835,11 @@ Singleton {
                     railWidth: 32,
                     railIcon: 30,
                     railSpacing: 6,
+                    // Session menu button, top-right corner of the rail
+                    // column (outside the grid): disc size, glyph size.
+                    sessionButton: true,
+                    sessionButtonSize: 32,
+                    sessionIconSize: 17,
                     // Vertical drag on the grid flips pages past this (px);
                     // a swipe up STARTING in the bottom closeZone (px)
                     // closes the module instead.
@@ -843,6 +938,12 @@ Singleton {
                     // (appear*, rowBlurMax), hover ignored while rows move.
                     motionStiffness: 5,
                     motionDamping: 0.45,
+                    // Scroll: rows spring after the step, each softer by
+                    // this per row away from the selection (0 = in step).
+                    scrollStagger: 0.06,
+                    // Scroll spring of the rows + plate (stiffer than motion*).
+                    scrollStiffness: 3,
+                    scrollDamping: 0.5,
                     appearStiffness: 4,
                     appearDamping: 0.5,
                     removeStiffness: 9,
@@ -1118,7 +1219,121 @@ Singleton {
                     osd: ({ width: 340, height: 60, radius: 20 }),
                     dictation: ({ width: 480, height: 132 }),
                     "recording-actions": ({ width: 440, height: 96 }),
-                    "hotspot-actions": ({ width: 360, height: 84 })
+                    "hotspot-actions": ({ width: 360, height: 84 }),
+                    timer: ({ width: 380, height: 172, radius: 40 })
+                })
+            // Timer (services/Countdown, modules/timer, indicators/TimerRing).
+            // Ruler: one tick per minute (tickSpacing px), a number every
+            // labelEvery; motion = the wallpaper carousel's (speeds by pace,
+            // wheel = 1 min per notch, touchpad touchpadStep per minute).
+            // Layout: padding / buttonSize / time sizes (setup bottom-right,
+            // live centre), perimeter progress inset + line; the ruler is
+            // placed by its triangle (top = module centre + triangleOffset). Alarm: pw-play
+            // alarmSound every alarmEveryMs for at most alarmMaxSec;
+            // openOnFinish opens the module on the focused output.
+            // Session menu (services/Session, modules/session). actions =
+            // buttons in order (lock logout suspend hibernate reboot
+            // poweroff), defaultAction = selected on open; confirm = a second
+            // press within confirmMs for logout / hibernate / reboot /
+            // poweroff. commands: shell lines; logout by compositor backend.
+            // lockOnSuspend locks first and waits lockSettleMs.
+            property var session: ({
+                    actions: ["lock", "logout", "suspend", "reboot", "poweroff"],
+                    defaultAction: "lock",
+                    confirm: true,
+                    confirmMs: 3000,
+                    actionDelayMs: 350,
+                    lockOnSuspend: true,
+                    lockSettleMs: 600,
+                    commands: ({
+                            suspend: "systemctl suspend",
+                            hibernate: "systemctl hibernate",
+                            reboot: "systemctl reboot",
+                            poweroff: "systemctl poweroff",
+                            logout: ({
+                                    niri: "niri msg action quit -s",
+                                    drift: "driftwm msg action quit",
+                                    hyprland: "hyprctl dispatch exit",
+                                    "default": "loginctl terminate-session \"$XDG_SESSION_ID\""
+                                })
+                        }),
+                    padding: 14,
+                    buttonSize: 52,
+                    iconSize: 28,
+                    spacing: 6,
+                    radius: 32,
+                    idleScale: 0.9,
+                    idleOpacity: 0.55
+                })
+            // Music recognition (services/Shazam, scripts/shazam/recognize.py,
+            // QS card `shazam`, IPC `island shazam`). source: auto (what the
+            // computer plays; the mic when the output is silent) | monitor |
+            // mic. Asks Shazam every stepSec, gives up after maxSec. A match
+            // = event (title cut to eventMaxChars) + notification (notify:
+            // tap opens shazam.com, "Copy"); history keeps historyLimit
+            // matches; the card shows the outcome for statusHoldMs.
+            property var shazam: ({
+                    source: "auto",
+                    stepSec: 4,
+                    maxSec: 15,
+                    notify: true,
+                    historyLimit: 50,
+                    eventMaxChars: 28,
+                    statusHoldMs: 6000
+                })
+            property var timer: ({
+                    defaultMinutes: 10,
+                    maxMinutes: 120,
+                    perimeterPx: 900,
+                    alarmSound: "/usr/share/sounds/freedesktop/stereo/alarm-clock-elapsed.oga",
+                    alarmEveryMs: 2500,
+                    alarmMaxSec: 60,
+                    openOnFinish: true,
+                    padding: 20,
+                    buttonSize: 52,
+                    glyphSize: 22,
+                    liveButtonSize: 62,
+                    liveGlyphSize: 30,
+                    livePadding: 48,
+                    // Min gap between the live time and the buttons.
+                    liveTimeGap: 10,
+                    startLabelSize: 15,
+                    setupTimeSize: 30,
+                    liveTimeSize: 46,
+                    liveTimeOffset: 2,
+                    liveLabelGap: 2,
+                    smallSize: 15,
+                    // Perimeter progress width; the gap to the island edge
+                    // equals it.
+                    perimeterLine: 8,
+                    // Free top part of the perimeter, a fraction of the
+                    // island width (centred).
+                    perimeterGap: 0.3333,
+                    layoutStiffness: 3.5,
+                    layoutDamping: 0.5,
+                    triangleOffset: 6,
+                    tickSpacing: 9,
+                    tickWidth: 3,
+                    tickHeight: 38,
+                    // Tick on the triangle: flash to Theme.timerTickFlash,
+                    // back after flashHoldMs (fast spring in, soft out).
+                    flashHoldMs: 260,
+                    flashInStiffness: 30,
+                    flashInDamping: 1,
+                    flashOutStiffness: 5,
+                    flashOutDamping: 0.8,
+                    labelEvery: 5,
+                    labelSize: 15,
+                    triangleSize: 12,
+                    triangleGap: 6,
+                    fadeFrom: 0.45,
+                    speeds: [{ stiffness: 3.2, damping: 0.42 }, { stiffness: 6, damping: 0.5 }, { stiffness: 12, damping: 0.7 }],
+                    speedWindowMs: 280,
+                    touchpadStep: 120,
+                    touchpadAccelFrom: 30,
+                    touchpadAccel: 1,
+                    touchpadAccelMax: 3,
+                    touchpadHoldMs: 150
                 })
             // Capture (modules/capture): stolen-island square + flight/chase
             // springs, dim/crosshair, region editor (annotation toolbar, palette),
@@ -1137,17 +1352,25 @@ Singleton {
                     birthSpring: 6,
                     birthDamping: 0.5,
                     birthArc: 1.5,
+                    // Selection frame morphs (click → region, old frame → new drag), FLIP spring.
+                    frameSpring: 6,
+                    frameDamping: 0.6,
                     iconSize: 20,
                     iconBlurMax: 10,
                     iconAt: 0.35,
-                    chaseOffsetX: 22,
-                    chaseOffsetY: 22,
+                    chaseOffsetX: 38,
+                    chaseOffsetY: 38,
+                    // Gap the chasing square keeps from the screen's right / bottom edge.
+                    chaseEdgeMargin: 12,
                     chaseSpring: 3.0,
                     chaseDamping: 0.3,
                     chaseMass: 1.2,
                     flightSpring: 2.4,
                     flightDamping: 0.42,
-                    arcBend: 0.6,
+                    // Launch arc: bulge (× chord length, normal on the upper side) and where
+                    // along the chord it peaks (0.5 = symmetric, less = leaves the bar sideways).
+                    arcBend: 0.5,
+                    arcLead: 0.4,
                     dimOpacity: 0.35,
                     crosshairOpacity: 0.5,
                     crosshairWidth: 1,

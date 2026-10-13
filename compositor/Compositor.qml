@@ -43,6 +43,9 @@ Item {
     // logical rects [{x, y, width, height, focused, title}] (topmost first
     // where known). Empty = unsupported (the mode is hidden).
     function windowRects(name: string): var { return backend.windowRects?.(name) ?? []; }
+    // Read it in a binding to re-evaluate windowRects() on every window /
+    // camera change (the backends keep their snapshots in plain props).
+    readonly property var windowState: [backend.lastState ?? null, backend.windows ?? null, backend.workspaces ?? null]
     function startRecording(region: string): void { recorder?.start(region, "", "", null); }
     function stopRecording(): void { recorder?.stop(); }
 

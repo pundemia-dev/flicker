@@ -22,7 +22,11 @@ Item {
         return ({
             wifi: wifiComp, bluetooth: btComp, hotspot: hotspotComp, dnd: dndComp, mic: micComp,
             volume: volumeComp, brightness: brightnessComp, media: mediaComp,
-            record: recordComp, screenshot: screenshotComp, slideshow: slideshowComp
+            record: recordComp, screenshot: screenshotComp, scanCode: scanCodeComp,
+            localsend: localsendComp,
+            slideshow: slideshowComp,
+            shazam: shazamComp,
+            timer: timerComp
         })[id] ?? (root.stubs[id] ? stubComp : null);
     }
 
@@ -32,7 +36,6 @@ Item {
     readonly property var stubs: ({
         magnifier: { toggle: false },
         voiceMemos: { toggle: false, accent: "accentRed" },
-        scanCode: { toggle: false },
         notes: { toggle: false },
         translate: { toggle: false, status: "English → Russian" },
         lowPower: { toggle: true, accent: "qsYellow" },
@@ -40,8 +43,6 @@ Item {
         cellular: { toggle: true, accent: "qsGreen" },
         dictation: { toggle: true, accent: "qsBlue" },
         stopwatch: { toggle: false },
-        timer: { toggle: false },
-        localsend: { toggle: false },
         calculator: { toggle: false },
         mirroring: { toggle: false },
         focus: { toggle: true, accent: "qsIndigo" }
@@ -132,6 +133,45 @@ Item {
             activate: () => show?.toggle(null)
         }
     }
+    // Music recognition (services/Shazam): lit while listening, tap =
+    // listen / cancel; status = the outcome for a while, else the last match.
+    Component {
+        id: shazamComp
+        ButtonCard {
+            readonly property var shazam: root.services.shazam ?? null
+            readonly property var last: shazam?.result ?? null
+            glyph: QsCatalog.glyphOf("shazam")
+            title: I18n.tr(QsCatalog.titleOf("shazam"))
+            accent: root.theme?.shazam ?? "#0088FF"
+            on: shazam?.listening ?? false
+            status: {
+                switch (shazam?.phase ?? "idle") {
+                case "listening":
+                    return shazam.source === "mic" ? I18n.tr("Listening to the mic…") : I18n.tr("Listening…");
+                case "none":
+                    return I18n.tr("No match");
+                case "error":
+                    return I18n.tr("Failed");
+                }
+                return last ? (last.artist ? `${last.title} — ${last.artist}` : last.title) : I18n.tr("Tap to listen");
+            }
+            activate: () => shazam?.toggle()
+        }
+    }
+    // Timer (services/Countdown): lit while it runs, status = time left;
+    // a tap opens the timer module (setup / countdown).
+    Component {
+        id: timerComp
+        ButtonCard {
+            readonly property var countdown: root.services.countdown ?? null
+            glyph: "\uef93"
+            title: I18n.tr("Timer")
+            accent: root.theme?.timerAccent ?? "#FF9F0A"
+            on: countdown?.active ?? false
+            status: on ? countdown.remainingText : I18n.tr("%1 min").arg(countdown?.setupMinutes ?? 0)
+            activate: () => root.openRequested("timer", {})
+        }
+    }
     Component {
         id: screenshotComp
         ButtonCard {
@@ -139,6 +179,24 @@ Item {
             title: I18n.tr("Screenshot")
             toggle: false
             activate: () => root.services.quickAction("screenshot")
+        }
+    }
+    Component {
+        id: scanCodeComp
+        ButtonCard {
+            glyph: QsCatalog.glyphOf("scanCode")
+            title: I18n.tr(QsCatalog.titleOf("scanCode"))
+            toggle: false
+            activate: () => root.services.quickAction("scan")
+        }
+    }
+    Component {
+        id: localsendComp
+        ButtonCard {
+            glyph: QsCatalog.glyphOf("localsend")
+            title: I18n.tr(QsCatalog.titleOf("localsend"))
+            toggle: false
+            activate: () => root.services.openStash?.("")
         }
     }
     Component {

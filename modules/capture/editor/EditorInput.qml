@@ -221,12 +221,12 @@ MouseArea {
             }
             return;
         }
+        // Outside the selection: nothing leaves yet — a click morphs the
+        // frame to the new region, a drag dismisses it (onPositionChanged).
         root.m.selectedObj = -1;
         root.m.selObjRect = null;
-        e.pendingRecord = false;
         root.pressSmart = e.smartRectAt(mouse.x, mouse.y);
-        e.dragMode = "select";
-        root.updateSelect(mouse.x, mouse.y);
+        e.dragMode = "reselect";
     }
 
     onDoubleClicked: mouse => {
@@ -236,7 +236,7 @@ MouseArea {
         const r = e.smartRectAt(mouse.x, mouse.y);
         if (r) {
             e.dragMode = "";
-            e.setSelection(r);
+            e.morphSelection(r);
         }
     }
 
@@ -246,6 +246,12 @@ MouseArea {
         switch (e.dragMode) {
         case "select":
             root.updateSelect(mouse.x, mouse.y);
+            break;
+        case "reselect":
+            if (Math.abs(mouse.x - root.pressX) >= e.cfg.minSelection || Math.abs(mouse.y - root.pressY) >= e.cfg.minSelection) {
+                e.dismissForReselect(root.pressX, root.pressY);
+                root.updateSelect(mouse.x, mouse.y);
+            }
             break;
         case "draw":
             root.applyDraw(mouse.x, mouse.y);
@@ -265,6 +271,11 @@ MouseArea {
 
     onReleased: mouse => {
         const e = root.ed, mode = e.dragMode;
+        if (mode === "reselect") {
+            e.dragMode = "";
+            e.morphSelection(root.pressSmart ?? Qt.rect(0, 0, width, height));
+            return;
+        }
         if (mode === "select") {
             // Plain click = the highlighted smart region under the cursor
             // (what the blue candidate frame promises), else the whole
@@ -272,7 +283,10 @@ MouseArea {
             const click = Math.abs(mouse.x - root.pressX) < root.ed.cfg.minSelection && Math.abs(mouse.y - root.pressY) < root.ed.cfg.minSelection;
             const smart = click ? root.pressSmart : null;
             e.dragMode = "";
-            e.setSelection(!click ? Qt.rect(e.selX, e.selY, e.selW, e.selH) : (smart ?? Qt.rect(0, 0, width, height)));
+            if (click)
+                e.morphSelection(smart ?? Qt.rect(0, 0, width, height));
+            else
+                e.setSelection(Qt.rect(e.selX, e.selY, e.selW, e.selH));
             return;
         }
         if (mode === "draw")

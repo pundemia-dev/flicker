@@ -52,7 +52,10 @@ Item {
                     width: w.size[0] * zoom,
                     height: w.size[1] * zoom,
                     focused: w.is_focused === true,
-                    title: w.title ?? ""
+                    title: w.title ?? "",
+                    appId: w.app_id ?? "",
+                    id: w.id,
+                    zoom: zoom
                 })).filter(r => r.x < osize[0] && r.y < osize[1] && r.x + r.width > 0 && r.y + r.height > 0)
             .sort((a, b) => (b.focused ? 1 : 0) - (a.focused ? 1 : 0));
     }

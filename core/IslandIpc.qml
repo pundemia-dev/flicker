@@ -21,6 +21,9 @@ Scope {
     required property var battery
     required property var caffeine
     required property var charging
+    required property var countdown
+    required property var keyboard
+    required property var shazam
 
     // Drawn glyph previews for IPC glyphDemo: name -> [Theme colour, text].
     readonly property var glyphDemos: ({
@@ -104,6 +107,8 @@ Scope {
         function stash(): void { root.island?.toggleStash(); }
         function player(): void { root.island?.openModule("player", {}); }
         function lock(): void { root.lock.activate(); }
+        // Session menu (lock / log out / sleep / restart / shut down), toggle.
+        function session(): void { root.island?.toggleSession(); }
         function close(): void {
             if (root.island?.moduleOpen)
                 root.island.closeModule();
@@ -154,8 +159,20 @@ Scope {
         // Runtime introspection of the routed island (headless debugging).
         // Charger events through the REAL handler (cancel + post), no cable.
         function chargerSim(plugged: bool): void { root.charging.announce(plugged); }
+        // Timer module (setup / countdown); again while open closes it.
+        function timer(): void { root.island?.openTimer(null); }
+        // Start a countdown of n minutes without the module (1..maxMinutes).
+        function timerStart(minutes: int): void { root.countdown.start(minutes); }
+        // Pause / resume, cancel.
+        function timerPause(): void { root.countdown.toggle(); }
+        function timerCancel(): void { root.countdown.cancel(); }
         // Caffeine mode (idle inhibit) on/off.
         function caffeine(): void { root.caffeine.toggle(); }
+        // Music recognition: start listening / cancel a running one.
+        function shazam(): void { root.shazam.toggle(); }
+        // Keyboard pill preview: "layout" = flash the current layout,
+        // "caps" = toggle a fake Caps Lock (the LED poll restores the truth).
+        function keyboardDemo(kind: string): void { root.keyboard.demo(kind); }
         // Event indicator demo (no real source needed): charging | discharging |
         // bluetooth | pacman | aur | text <anything else = the text>.
         function eventDemo(kind: string): void {

@@ -54,7 +54,10 @@ Item {
                 width: size[0],
                 height: size[1],
                 focused: w.is_focused === true,
-                title: w.title ?? ""
+                title: w.title ?? "",
+                appId: w.app_id ?? "",
+                id: w.id,
+                zoom: 1
             };
         }).sort((a, b) => (b.focused ? 1 : 0) - (a.focused ? 1 : 0));
     }

@@ -1,11 +1,14 @@
 import QtQuick
 import "../../core"
+import "../../components"
 import "../../config"
 
 // The stolen island background as the cursor bubble (pShell CursorGuide
 // shape: every corner fully round except the top-left one, which points at
 // the cursor) with the current mode icon. Icon arrival and mode changes go
-// through ContentSwap (blur->fade).
+// through ContentSwap (blur->fade). Leaves as the island (black body,
+// island rim) and turns into the capture buttons' icon tile (IconTile) as it
+// lands: `tileLevel` 0..1 follows the flight.
 Rectangle {
     id: root
     required property var theme
@@ -15,6 +18,7 @@ Rectangle {
     property var swapKey
     property bool iconShown: false
     property real tipRadius: 0
+    property real tileLevel: 0
     topLeftRadius: root.tipRadius
     // Rendered icon: switches at the ContentSwap handover, not on the mode
     // change itself (the new glyph must not pop in before the blur).
@@ -24,6 +28,15 @@ Rectangle {
     color: root.theme.islandBg
     border.width: root.theme.islandRimWidth
     border.color: root.theme.islandRim
+
+    IconTile {
+        anchors.fill: parent
+        theme: root.theme
+        radius: root.radius
+        topLeftRadius: root.tipRadius
+        opacity: Math.max(0, Math.min(1, root.tileLevel))
+        visible: opacity > 0
+    }
 
     ContentSwap {
         anchors.fill: parent
@@ -43,7 +56,10 @@ Rectangle {
         }
 
         Text {
-            anchors.centerIn: parent
+            // Vector glyph at the exact centre, like the button tiles.
+            x: (parent.width - implicitWidth) / 2
+            y: (parent.height - implicitHeight) / 2
+            renderType: Text.CurveRendering
             text: root.shownGlyph
             color: root.shownColor
             font.family: root.theme.iconFamily

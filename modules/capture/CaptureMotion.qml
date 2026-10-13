@@ -17,8 +17,19 @@ Item {
     // Cursor (global) and whether a real pointer position arrived yet.
     property real cursorX: 0
     property real cursorY: 0
-    readonly property real targetX: cursorX + cfg.chaseOffsetX
-    readonly property real targetY: cursorY + cfg.chaseOffsetY
+    // Screen under the cursor (global rect; empty = unknown). The chase
+    // point stays chaseEdgeMargin inside its right / bottom edge (pShell
+    // CursorGuide), so a cursor pressed to the edge never pushes the square
+    // off screen. Clamped with the TARGET size, not the animated w/h.
+    property rect bounds: Qt.rect(0, 0, 0, 0)
+    readonly property real targetX: {
+        const x = cursorX + cfg.chaseOffsetX;
+        return bounds.width > 0 ? Math.min(x, bounds.x + bounds.width - cfg.squareSize / 2 - cfg.chaseEdgeMargin) : x;
+    }
+    readonly property real targetY: {
+        const y = cursorY + cfg.chaseOffsetY;
+        return bounds.height > 0 ? Math.min(y, bounds.y + bounds.height - cfg.squareSize / 2 - cfg.chaseEdgeMargin) : y;
+    }
 
     // Stolen square: centre + size/radius.
     property real fromX: 0
@@ -32,11 +43,18 @@ Item {
     property bool chasing: false
     readonly property bool flying: flightAnim.running
 
-    // Arc control point: between the chord midpoint and the corner
-    // (target.x, from.y) — the square leaves the island sideways and
-    // curves down onto the cursor.
-    readonly property real ctrlX: (fromX + targetX) / 2 + (targetX - (fromX + targetX) / 2) * cfg.arcBend
-    readonly property real ctrlY: (fromY + targetY) / 2 + (fromY - (fromY + targetY) / 2) * cfg.arcBend
+    // Arc control point: `arcLead` along the chord, pushed off it by
+    // `arcBend` × chord length along the normal on the UPPER side (for a
+    // straight drop: toward +x, the side the bubble sits on). Always a real
+    // arc — the old corner (target.x, from.y) control lay ON the chord when
+    // the cursor was right below the island, and the flight went straight.
+    // arcLead < 0.5 bulges early: the square leaves the bar sideways, then
+    // dives onto the cursor.
+    readonly property real chordX: targetX - fromX
+    readonly property real chordY: targetY - fromY
+    readonly property real arcSide: chordX >= 0 ? 1 : -1
+    readonly property real ctrlX: fromX + chordX * cfg.arcLead + chordY * arcSide * cfg.arcBend
+    readonly property real ctrlY: fromY + chordY * cfg.arcLead - chordX * arcSide * cfg.arcBend
 
     function bezier(a: real, c: real, b: real, t: real): real {
         const u = 1 - t;

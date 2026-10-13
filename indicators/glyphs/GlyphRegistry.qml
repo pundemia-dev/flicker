@@ -26,10 +26,12 @@ QtObject {
             transfer: transfer,
             error: error,
             copy: copy,
-            hello: hello
+            hello: hello,
+            shazam: shazam
         })
 
     property Component pacman: PacmanGlyph {}
+    property Component shazam: ShazamGlyph {}
     property Component ghost: GhostGlyph {}
     property Component coffee: CoffeeGlyph {}
     property Component bolt: BoltGlyph {}

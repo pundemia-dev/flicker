@@ -173,6 +173,12 @@ Scope {
     function pointerAt(gx: real, gy: real): void {
         motionState.cursorX = gx;
         motionState.cursorY = gy;
+        const b = motionState.bounds;
+        if (!(gx >= b.x && gx < b.x + b.width && gy >= b.y && gy < b.y + b.height)) {
+            const s = Quickshell.screens.find(s => gx >= s.x && gx < s.x + s.width && gy >= s.y && gy < s.y + s.height);
+            if (s)
+                motionState.bounds = Qt.rect(s.x, s.y, s.width, s.height);
+        }
         if (!root.cursorKnown) {
             root.cursorKnown = true;
             motionState.crossLevel = root.hasSelection ? 0 : 1;

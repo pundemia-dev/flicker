@@ -11,12 +11,28 @@ import "../config"
 // GhostGlyph.qml — the ghost follows pacman), the font glyph
 // stays as the fallback.
 // Nothing pending -> no event.
+// Only after a boot, not a shell restart: the system uptime at shell start
+// must be <= updatesMaxUptimeSec (0 = check on every start).
 Scope {
     id: root
     required property var events
+    // Read once at start: a restart later in the session never qualifies.
+    property bool freshBoot: false
+
+    Process {
+        running: true
+        command: ["cat", "/proc/uptime"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const up = parseFloat(this.text) || 0;
+                const max = Config.data.events.updatesMaxUptimeSec ?? 180;
+                root.freshBoot = max <= 0 || up <= max;
+            }
+        }
+    }
 
     Timer {
-        running: Config.data.events.updates ?? true
+        running: root.freshBoot && (Config.data.events.updates ?? true)
         interval: Config.data.events.updatesDelayMs
         onTriggered: check.running = true
     }

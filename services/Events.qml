@@ -17,6 +17,8 @@ import "../config"
 //   family icon font (default Theme.iconFamily)
 //   key    same key = replace in place (current: content updates without
 //          restarting its timer; queued: the queued copy is replaced)
+//   hold   stays until replaced by a same-key event without `hold` (its
+//          timer starts then) or cancelled — e.g. Shazam "Listening…"
 Scope {
     id: root
 
@@ -31,7 +33,12 @@ Scope {
             return;
         const key = ev.key ?? "";
         if (key !== "" && root.current && (root.current.key ?? "") === key) {
+            const wasHeld = !!root.current.hold;
             root.current = ev;
+            if (wasHeld && !ev.hold) {
+                root.shownAt = Date.now();
+                root.arm();
+            }
             return;
         }
         const idx = key === "" ? -1 : root.queue.findIndex(e => (e.key ?? "") === key);
@@ -62,11 +69,18 @@ Scope {
         root.current = root.queue[0];
         root.queue = root.queue.slice(1);
         root.shownAt = Date.now();
+        if (!root.current.hold)
+            root.arm();
+    }
+
+    function arm(): void {
         life.interval = root.queue.length > 0 ? root.cfg.showQueuedMs : root.cfg.showMs;
         life.restart();
     }
 
     function shorten(): void {
+        if (root.current?.hold)
+            return;
         const left = root.cfg.showQueuedMs - (Date.now() - root.shownAt);
         if (left <= 0)
             root.finish();

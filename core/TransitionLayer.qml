@@ -16,7 +16,10 @@ import "../components"
 //       properties: { radius: "slot" },  // animated props: number/color
 //                                     // values, or "slot" = slot[prop]
 //       duration: 300,                // timed curves only
-//       curve: "spring"               // "spring" (default) or Easing.Type
+//       curve: "spring",              // "spring" (default) or Easing.Type
+//       hideLanded: true              // optional: invisible once docked —
+//                                     // the module draws its own copy
+//                                     // (live text the element can't show)
 //   })
 //   readonly property var sharedTransitions // optional: { module: contract }
 //                                     // when one element serves several
@@ -33,6 +36,12 @@ import "../components"
 // with the island spring, so the target is re-read every frame).
 // A slot is an Item with `property Item docked`: set while an element is
 // headed to / sitting in it, so the module hides its own fallback.
+// adopt(owner, module) docks an element into the open module's slot with
+// no flight (the module drew its own copy so far: opened without a
+// flight, or the element was born meanwhile) — a returnHome() right after
+// flies it home from there.
+// Several layers can run side by side (one flight each): Island keeps one
+// per simultaneous element (the timer: clock + ring).
 Item {
     id: root
     anchors.fill: parent
@@ -110,6 +119,7 @@ Item {
         root.el.anchors.fill = undefined;
         root.el.anchors.centerIn = undefined;
         root.el.parent = root;
+        root.el.visible = true;
         root.el.x = root.fromRect.x;
         root.el.y = root.fromRect.y;
         root.el.width = root.fromRect.w;
@@ -180,16 +190,55 @@ Item {
             return;
         springAnim.stop();
         timedAnim.stop();
-        if (root.slot && root.slot.docked === root.el)
-            root.slot.docked = null;
+        // slot.docked stays set: the leaving module must not show its own
+        // copy again (it would be frozen into ContentSwap's ghost next to
+        // the element flying home). The module is on its way out anyway.
         if (!root.owner || (root.homeItem()?.width ?? 0) < 1) {
             // Home is gone/collapsed (indicator unloaded): nothing to fly to.
             root.abort();
             return;
         }
+        // A hidden docked element kept its landing values while the module
+        // showed its own copy (the timer's time changed since): leave from
+        // what the slot shows NOW.
+        if (root.contract.hideLanded && root.slot)
+            for (const k in (root.contract.properties ?? {}))
+                root.setPath(root.el, k, root.propTarget(k));
         root.lift();
         root.phase = "home";
         root.startAnim();
+    }
+
+    // Dock `owner`'s element straight into module `name`'s slot (no
+    // flight): the target values are applied at once. False = nothing to
+    // adopt (no contract/element/slot, or a flight is already running).
+    function adopt(owner: Item, name: string): bool {
+        const c = root.contractFor(owner, name);
+        const element = owner?.sharedElement;
+        if (!c || !element || root.el)
+            return false;
+        const s = root.slotResolver?.(name, c.slot ?? "") ?? null;
+        if (!s)
+            return false;
+        root.owner = owner;
+        root.contract = c;
+        root.el = element;
+        root.slot = s;
+        root.homeProps = {};
+        for (const k in (c.properties ?? {}))
+            root.homeProps[k] = root.snapshot(root.getPath(element, k));
+        root.el.anchors.fill = undefined;
+        root.el.anchors.centerIn = undefined;
+        for (const k in (c.properties ?? {}))
+            root.setPath(root.el, k, root.propTarget(k));
+        s.docked = element;
+        root.el.parent = s;
+        root.el.x = 0;
+        root.el.y = 0;
+        root.el.anchors.fill = s;
+        root.el.visible = !(c.hideLanded ?? false);
+        root.phase = "landed";
+        return true;
     }
 
     // Drop the flight, re-docking the element home without animation.
@@ -204,7 +253,12 @@ Item {
     }
 
     function dockHome(): void {
+        // Docked (abort from "landed") = still anchored to the module's
+        // slot: drop that before restoreShared() re-anchors it at home.
+        root.el.anchors.fill = undefined;
+        root.el.anchors.centerIn = undefined;
         root.el.parent = root.owner;
+        root.el.visible = true;
         for (const k in root.homeProps)
             root.setPath(root.el, k, root.homeValue(k));
         root.owner.restoreShared?.();
@@ -231,7 +285,10 @@ Item {
                 if (!root.slot)
                     return; // module not created yet: hold position
                 root.slot.docked = root.el; // module hides its own fallback
-                root.startAnim();
+                // The slot vanished mid-flight (module re-created by a
+                // replayed swap): keep the running curve, just retarget.
+                if (!springAnim.running && !timedAnim.running)
+                    root.startAnim();
             }
             to = root.rectOf(root.slot);
             for (const k in root.fromProps)
@@ -241,7 +298,12 @@ Item {
                 root.abort();
                 return;
             }
-            to = root.rectOf(root.homeItem());
+            const home = root.homeItem();
+            if (!home) {
+                root.abort();
+                return;
+            }
+            to = root.rectOf(home);
             for (const k in root.fromProps)
                 targetProps[k] = root.homeValue(k);
         } else {
@@ -265,6 +327,7 @@ Item {
             root.el.x = 0;
             root.el.y = 0;
             root.el.anchors.fill = root.slot;
+            root.el.visible = !(root.contract.hideLanded ?? false);
             root.phase = "landed";
         } else if (root.phase === "home") {
             root.dockHome();

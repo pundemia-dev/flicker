@@ -157,6 +157,7 @@ PanelWindow {
         height: root.motion.h
         radius: root.motion.r
         tipRadius: root.motion.rTip
+        tileLevel: root.motion.chasing ? 1 : root.motion.flight
         theme: root.theme
         cfg: root.cfg
         glyph: root.capture.glyph(root.capture.mode)

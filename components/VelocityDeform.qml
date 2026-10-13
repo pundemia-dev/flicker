@@ -17,6 +17,15 @@ Matrix4x4 {
     property real sizeW: root.item?.width ?? 0
     property real sizeH: root.item?.height ?? 0
     property bool active: root.item?.visible ?? false
+    // Optional velocity source instead of the item's on-screen centre: a
+    // position in ANY fixed frame (the launcher plate's slot in list
+    // content coords — on screen it stands still while the list scrolls
+    // under a held key, yet it is travelling through the list).
+    property bool useSource: false
+    property real sourceX: 0
+    property real sourceY: 0
+    onSourceXChanged: if (root.useSource) root.wake()
+    onSourceYChanged: if (root.useSource) root.wake()
 
     readonly property var cfg: Config.data.deform
     readonly property real atten: {
@@ -44,6 +53,8 @@ Matrix4x4 {
         0, 0, 0, 1)
 
     function centre(): point {
+        if (root.useSource)
+            return Qt.point(root.sourceX, root.sourceY);
         const it = root.item;
         return it.parent.mapToItem(null, it.x + it.width / 2, it.y + it.height / 2);
     }
@@ -120,7 +131,7 @@ Matrix4x4 {
 
     property Connections watcher: Connections {
         target: root.item
-        function onXChanged() { root.wake(); }
-        function onYChanged() { root.wake(); }
+        function onXChanged() { if (!root.useSource) root.wake(); }
+        function onYChanged() { if (!root.useSource) root.wake(); }
     }
 }

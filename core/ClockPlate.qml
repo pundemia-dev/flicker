@@ -40,6 +40,9 @@ Item {
     //  - dashboard: flies into the header's time and grows to its size;
     //    text is NOT in the contract, so the label's live binding keeps
     //    ticking while docked.
+    //  - timer: flies into the timer's time (setup value / countdown) and
+    //    hides there — the module rolls its own digits (hideLanded); on
+    //    close the countdown flies back and turns into the clock.
     readonly property Item sharedElement: clockLabel
     readonly property var sharedTransitions: ({
             notifications: {
@@ -52,6 +55,19 @@ Item {
                     "font.weight": "slot"
                 },
                 curve: "spring"
+            },
+            timer: {
+                target: "timer",
+                slot: "time",
+                properties: {
+                    text: "slot",
+                    color: "slot",
+                    "font.pixelSize": "slot",
+                    "font.weight": "slot",
+                    "font.family": "slot"
+                },
+                curve: "spring",
+                hideLanded: true
             },
             dashboard: {
                 target: "dashboard",

@@ -41,16 +41,28 @@ Item {
 
     // Birth (first appearance per selection): every button starts under the
     // chasing square (centre, local coords; the square is drawn above the
-    // tools) and springs out to its ring slot while fading in. Later
-    // re-appearances (after a frame move/resize) just glide between slots.
+    // tools) and springs out to its ring slot while fading in. After that the
+    // buttons stay up while the frame is moved / resized (RegionEditor
+    // .toolsUp) and the same springs carry them to their new slots. When the
+    // selection is dropped for a new one (RegionEditor.dismissForReselect)
+    // birth runs in reverse: back into the (live) bubble, fading under it.
+    property bool shown: false
+    property bool retracting: false
     property bool born: false
     property bool springy: false
     property bool bornOnce: false
     property point origin: Qt.point(0, 0)
+    visible: root.shown || root.retracting
+
+    function bubbleOrigin(): point {
+        const m = root.ed.capture.motion;
+        return Qt.point(m.centerX - root.ed.ox - root.btn / 2, m.centerY - root.ed.oy - root.btn / 2);
+    }
 
     function birth(): void {
-        const m = root.ed.capture.motion;
-        root.origin = Qt.point(m.centerX - root.ed.ox - root.btn / 2, m.centerY - root.ed.oy - root.btn / 2);
+        retractEnd.stop();
+        root.retracting = false;
+        root.origin = root.bubbleOrigin();
         root.springy = false;
         root.born = false;
         root.springy = true;
@@ -58,7 +70,23 @@ Item {
         root.bornOnce = true;
     }
 
-    onVisibleChanged: if (visible && !root.bornOnce) root.birth()
+    onShownChanged: {
+        if (root.shown) {
+            if (!root.bornOnce)
+                root.birth();
+        } else if (!root.ed.hasSelection && root.born) {
+            root.origin = Qt.binding(() => root.bubbleOrigin());
+            root.retracting = true;
+            root.born = false;
+            retractEnd.restart();
+        }
+    }
+
+    Timer {
+        id: retractEnd
+        interval: root.cfg.squareHideDelayMs
+        onTriggered: root.retracting = false
+    }
 
     // Stiffness gain of one axis: grows with the share of the OTHER axis'
     // distance, i.e. the shorter axis springs harder.
@@ -174,7 +202,7 @@ Item {
             opacity: (root.born ? 1 : 0) * (disabled ? 0.4 : 1)
             Behavior on x { enabled: root.springy; Spring { stiffness: arcX; damp: root.cfg.birthDamping } }
             Behavior on y { enabled: root.springy; Spring { stiffness: arcY; damp: root.cfg.birthDamping } }
-            Behavior on opacity { enabled: root.springy; NumberAnimation { duration: root.cfg.fadeInMs } }
+            Behavior on opacity { enabled: root.springy; NumberAnimation { duration: root.born ? root.cfg.fadeInMs : root.cfg.squareHideDelayMs } }
             width: root.btn
             height: root.btn
             tile: true

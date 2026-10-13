@@ -36,10 +36,11 @@ Not a git repo. No tests, no linter, no formatter.
   (`core/IslandIpc.qml`) routed via `core/IslandRegistry.qml` to the island on
   `compositor.focusedOutput` — never put an IpcHandler in per-screen Island. Targets: `island` (launcher (toggle), launcherPlugin <id> (apps|clipboard|wallpapers, toggle), quicksettings, quicksettingsEdit/Page/Resize,
   notifications, stash (tray toggle), capture (again while open = next mode), captureMode(shot|record|color|
-  window|ai|scan), captureScreen (= Enter in the active tool), captureCancel, screenshot
+  window|ai|scan), captureScreen (= Enter in the active tool), captureCancel, session (session menu toggle), screenshot
   (instant, no overlay), record (toggle), recordPause, recordControls, dashboard, player, lock, close, minimal, island, osd, debugState,
   volumeUp/Down/Mute, micMute, brightnessUp/Down, playPause, nextTrack, prevTrack, playerSeek <s>),
   `lock` (activate/isLocked — deliberately NO unlock/toggle over IPC; unlocking needs PAM),
+  keyboardDemo layout|caps, shazam (listen / cancel), timer (module toggle), timerStart <min>, timerPause (toggle), timerCancel,
   `dictation` (start/stop/toggle/cancel/status),
   `prompter` (open <path>, clipboard, text <s>, show/close/toggle, pause, mode voice|auto|manual,
   move <n words>, next/prev (block), status).
@@ -57,8 +58,8 @@ Not a git repo. No tests, no linter, no formatter.
   one Loader in `core/IndicatorLayout.qml`; eviction by priority and island expansion
   (`extraWidth`) are computed there from each indicator's stable `desiredWidth`.
 - Bar width is dynamic (no fixed `island.width`): `Island.barFittedWidth` fits the
-  measured centered row in `IndicatorLayout` (spec order privacy|music|dictation|
-  clock|timer, event halves pinned to the island edges outside the row, nothing else pinned — the clock shifts when an
+  measured centered row in `IndicatorLayout` (order timer|privacy|music|dictation|
+  clock, event halves pinned to the island edges outside the row, nothing else pinned — the clock shifts when an
   indicator grows, e.g. the mic hover label) with spacing/edgePad
   computed from the live content width, capped at `island.maxWidth`. Eviction is
   computed from stable desired widths against the shared budget (never from animated widths —
@@ -193,6 +194,27 @@ Not a git repo. No tests, no linter, no formatter.
   while the center is open (click the game for Space/arrows). Last game + best scores live
   on the Notifications service (session only). Do NOT name game props `top`/`floor`-like
   Item members (`top` → "Cannot override FINAL property").
+- Notification actions (Oct 2026): server advertises `actions` + `inline-reply` (senders like
+  Telegram read capabilities at THEIR start — restart them). Tap (flow card + center tile) =
+  `Notifications.open(entry)`: default action, then focus the app's window via
+  `services/AppActivator.qml` (Quickshell `ToplevelManager` = wlr-foreign-toplevel, served by
+  niri AND driftwm; match desktop-entry hint / appName / .desktop id/startupClass/exec,
+  retried a few times after a default action), else launch the .desktop entry
+  (`launcher.apps.launchPrefix`); then dismiss. Flow card = `modules/notifications/FlowCard.qml`
+  (grabs presses, forwards swipe-up close): drag down = island follows (preferredHeight →
+  Island moduleSize for `notifications:flow`, `surfaceReserve` holds the max), snaps open past
+  `flowPullThreshold` → context buttons (sender actions, Reply, Dismiss); long press
+  (`flowLongPressMs`) = inline reply field (`Notification.sendInlineReply`, Exclusive keyboard
+  via `ModuleHost.wantsKeyboard`; no reply support → buttons). `ModuleHost.holdOpen` pauses
+  `flowAutoClose` and `shortenFlow`. ModuleHost `closeRequested` now only closes when the
+  requesting module is the active one (tap + sender close fired two closes). Verified with
+  temp/vmouse + wtype + dbus-monitor: drag → buttons, long press → field, Enter →
+  NotificationReplied, tap → ActionInvoked default, swipe up closes. NOT verified: window
+  focusing visually, launch path. The panel (label-fitted centred pills / reply field) is
+  `modules/notifications/NotificationActions.qml`, shared with the center: SwipeCard
+  (`actionable` = not a collapsed stack) grows by `extraHeight`, NotificationGroup lays tiles out
+  by the sum, NotificationCenter owns ONE open panel (`actionEntry/actionStage`, `wantsKeyboard`);
+  an action / reply there collapses the tile (center stays open). Center panel NOT live-tested.
 - Quick Settings (`modules/quicksettings/`, Oct 2026) = iOS Control Center: TABS (pages)
   of a 4-col grid of square cells (`Config.data.quicksettings`), island size/radius DERIVED
   in `QsMetrics.js` (radius = margins + unit/2; card radius = unit/2 → 1x1 circle, 1xN
@@ -236,12 +258,12 @@ Not a git repo. No tests, no linter, no formatter.
   `components/AudioBars.qml` (cava, pulse auto = output monitor, mono, `Config.visualizer`;
   runs only while shown + playing + visible). Mic filter: match cava by `node.name` —
   `application.name` arrives AFTER the node appears (app-only match lit the mic indicator).
-  Stub cards (Oct 2026, hidden by default, no backend): magnifier, voiceMemos, scanCode, notes,
+  Stub cards (Oct 2026, hidden by default, no backend): magnifier, voiceMemos, notes,
   translate (status = language pair), lowPower, airplane, cellular, dictation, stopwatch, timer,
-  localsend, calculator, mirroring, focus — one `stubComp` ButtonCard driven by
+  calculator, mirroring, focus — one `stubComp` ButtonCard driven by
   `QsCardFactory.stubs` (toggles flip a session-only local `on`); give a card a real Component
   in `componentFor` when it gets a service. Hotspot = «Режим модема», record = screen recording.
-  Screenshot/record cards go through `Island.runQuickAction` (close, wait
+  Screenshot/record/scanCode (capture mode `scan`) cards go through `Island.runQuickAction` (close, wait
   `actionDelayMs`, then capture — the grab must not show the open grid). The state file
   is read once at load (no watch): to test a hand-written layout, change it and force a
   reload with a real content change of a QML file (`touch` is ignored). Debug IPC:
@@ -278,9 +300,20 @@ Not a git repo. No tests, no linter, no formatter.
   срабатывает"). Rows
   that come fade in out of a blur, leaving rows dissolve (fast critically damped
   `remove*`), the rest FLIP-slide (row offsets itself by old−new y, springs to 0), one
-  selection plate springs between target slots; `listKey` change (plugin / "!" picker) =
-  whole-list FadeBlur out → swap → in. contentY springs ONLY for selection scrolls
-  (`scrollTo`, Behavior enabled per write): ListView shifts contentY itself on inserts
+  selection plate springs between target slots (VelocityDeform stretch in flight, user — velocity from the slot in LIST
+  coords via `useSource/sourceY`: a held key scrolls the list and the plate stands still on screen;
+  attenuated by the row height `sizeW/sizeH`, the list width cut it to ~9 %); `listKey` change (plugin / "!" picker) =
+  whole-list FadeBlur out → swap → in. scrolling is on the ROWS (user): `scrollTo` sets contentY at once and
+  emits `scrolled(d)`; every row (`LauncherItem.kickScroll`) and the plate offset themselves back by
+  d and spring to 0, rows farther from the selection softer (`launcher.scrollStagger`). Only OUR
+  scrolls kick (a Behavior on contentY was stopped by ListView's own writes; ListView shifts
+  contentY itself on inserts above the top row — animating that made the list jump); the row WINDOW is grow-only per list (`reach` =
+  furthest selection; shrinking it while scrolling back up made ListView clamp contentY itself
+  = an unanimated jump, verified in a scratch harness); scroll springs `launcher.scrollStiffness/
+  scrollDamping` (stiffer than motion*); while scrolling the window keeps maxShown extra rows AHEAD
+  (`baseCount`+, added with `quietAdd` = no new-result fade) and the view has display margins of a
+  list height (rows there are created synchronously, cacheBuffer incubates async) — lagging rows
+  never leave an empty band at the edges (harness gap metric: ≤2 px at 18 ms steps): ListView shifts contentY itself on inserts
   above the top row, animating that made the list jump up and back. Tunables `launcher.motion*/appear*/remove*/
   rowBlurMax/hoverHoldMs/windowExtra`. Verified frame by frame in a scratch overlay PanelWindow
   (`grabToImage` at 80/200/450 ms + row dumps) — a FloatingWindow off-screen on driftwm
@@ -449,6 +482,21 @@ Not a git repo. No tests, no linter, no formatter.
   by hand from the printed state).
   Verified via IPC + log only (centre on current wallpaper, thumbs, video init); visuals
   and keys NOT checked — the user checks visuals themselves (asked: no screenshots).
+- Session menu (Oct 2026, pShell `modules/session` port): `services/Session.qml` (Shell → Island
+  `session` → services map) + `modules/session/` (SessionModule / SessionButton / SessionActions.js
+  catalog: lock, logout, suspend, hibernate, reboot, poweroff). One row of bare glyph buttons, no
+  labels (user: per-button tiles + title looked clumsy) + ONE flat selection plate springing
+  between them (no rim/shadow, VelocityDeform stretch in flight like the OCR panel, radius = radius − padding, Theme.sessionPlate → accentRed when armed); idle
+  glyphs dimmed (`idleOpacity/idleScale`), selected white, armed + GlyphBump; island radius `session.radius` (user: less round).
+  Destructive actions arm on the first press, run on a second within `confirmMs`.
+  The service runs `actionDelayMs` after the module closed; lock = LockScope, others =
+  `Config.session.commands` (logout keyed by `Detect.backendName`: niri/drift/hyprland/default);
+  suspend/hibernate lock first + `lockSettleMs`. Exclusive keyboard (←/→/Tab, Enter/Space, Esc =
+  disarm, then close). IPC `island session`; in QS it is NOT a card: `QsSessionButton` (power disc)
+  sits in the tab-rail column, top = island radius (where the corner rounding ends, user), `quicksettings.sessionButton*` —
+  `QsMetrics.railWidth` keeps the column even with one page, `railHeight` reserves the button
+  slot top AND bottom so the tab icons stay centred. Verified via IPC + wtype + grim: render, arrow selection, Esc close. NOT
+  tested: the actions themselves, the armed state, mouse.
 - Polkit agent (Oct 2026, refs: DMS PolkitService, end-4 ii, caelestia): `services/Polkit.qml`
   (Quickshell `PolkitAgent` in a Loader, `Config.polkit.enabled`; ONE agent per session —
   a second pillShell / polkit-gnome just fails to register) → `started` opens module `polkit`
@@ -632,6 +680,109 @@ Not a git repo. No tests, no linter, no formatter.
   LOW BATTERY: right arc "wipers" (tempShell RadialSliderIcon connecting sweep) — fill sweeps
   level ↔ full, timed InOutCubic `arcs.wiperMs` (user exception like hideProgress), while
   `battery.low`; verified in a scratch harness (frames).
+- Timer (Oct 2026, user design after an iOS Live Activity reference): `services/Countdown.qml`
+  (NOT `Timer.qml` — would shadow QtQuick's Timer in that dir; phase idle|running|paused|done,
+  `progress` remaining 1→0 refreshed every ~0.5 px of a `perimeterPx` outline (16 ms..1 s),
+  alarm = `pw-play alarmSound` every alarmEveryMs ≤ alarmMaxSec, `openOnFinish` →
+  `Island.showTimerDone`) + `modules/timer/` (TimerModule / TimerRuler / TimerButton; island
+  `modules.timer` 380×172 r40) + bar ring `indicators/TimerRing.qml` (LEFTMOST in the row) + QS
+  card `timer` (real now, tap = module). Module = ONE spring driver `k` (0 setup, 1 live):
+  setup = minute ruler (EQUAL orange ticks, one per minute — a tick arriving on the triangle
+  flashes `Theme.timerTickFlash` near-white (fast spring in, flashHoldMs, soft spring out); ticks
+  RIGHT of the triangle blend to `Theme.timerTickDim` (trap hit: a tick prop named `right` =
+  "Cannot override FINAL property", whole shell failed to load — renamed `past`); number
+  every 5, 0..120, equilateral triangle pointer
+  whose top sits `triangleOffset` BELOW the module centre — the ruler is placed by it (user);
+  motion/wheel/touchpad/speed levels copied from the wallpaper carousel; keys ←/→ ±1 (Shift
+  ±5), ↑/↓ ±5, Home/End, Enter/Space start|pause, Delete cancel, Esc; numbers orange too) +
+  "Start timer" orange text PILL bottom-left (user: text, not a play glyph; TimerButton `label`,
+  width springs pill → disc when it turns into pause) +
+  rolling time bottom-right; live = time centred (same item, scaled), pause left, ✕ right, bell +
+  end time above, "Timer" below, perimeter progress. Keyboard: Exclusive in setup, OnDemand live.
+  Cancel = back to setup; done: ✕ / closing = dismiss (alarm off), left = restart.
+  Ring and perimeter are ONE item (`components/PerimeterProgress`: rounded-rect outline, radius
+  = size/2 → circle; `gap` = centred free top part — module: `perimeterGap` (1/3) of the island
+  width, user; ring: 0 = closed; the outline runs clockwise from the gap's right edge, the spent
+  part is eaten from its left end; gap/lineWidth/radius are in the shared contract;
+  inset from the island edge = the line width). The ring OWNER is `indicators/TimerHalo.qml`
+  (contract + restoreShared). With `indicators.musicTimerRing` (default) Music.qml is ONE
+  music+timer indicator (row slot right after the stand-alone timer's, i.e. leftmost): the
+  halo's OUTER edge = the plain cover's size (user), the cover shrinks inside it by
+  `musicTimerRingGap` + line, and a
+  player closing / appearing only scales the cover out / in while the ring springs between
+  "around the cover" and `timerRingSize` — no indicator swap (user). TimerRing is only used
+  with musicTimerRing off. On the cover with a timer: hover no longer opens the player, tap =
+  player (no player: timer), press + drag down past `musicTimerDragPx` = timer. Verified: ring
+  around the cover, stand-alone ring without a player, IPC flights; NOT seen: the live player
+  close/appear morph, mouse paths. flown by a SECOND TransitionLayer (`ringLayer`, payload `sharedRing`) while
+  the clock flies into slot "time" (ClockPlate contract `timer`, `hideLanded`: the docked label
+  hides, the module rolls its own digits). `Island.openTimer` launches flights only from the
+  visible bar; otherwise the module draws its own copies, and `sendTimerHome()` ADOPTS them on
+  close (`TransitionLayer.adopt` = dock into the slot with no flight, then returnHome) — so the
+  countdown always flies into the clock and the perimeter folds into the ring. TransitionLayer
+  changes for it: hidden elements refresh their props from the slot before flying home (else the
+  stale landing text flew back), returnHome keeps `slot.docked` (the module re-showed its own copy
+  → doubled in ContentSwap's ghost; fixes the player cover too), dockHome clears the slot
+  anchors. Cancel with the ring docked: `ringLayer.abort` via Qt.callLater — called inside the
+  phase-change chain it logged "QQmlVMEMetaObject: ... invalid context".
+  Verified live via IPC + wtype + grim frames: setup render, start morph, flights both ways
+  (incl. adopt), pause, done (auto-open, sound, dismiss), keys. NOT tested: mouse (ruler wheel /
+  touchpad, number taps, buttons), the QS card, multi-output.
+- Keyboard pill (Oct 2026, macOS input-source / Caps Lock indicator, ref solium
+  `crates/solium/qml/Solium/KeyboardPill.qml` + `lua/keyboard_indicator.lua`). User: NOT in the
+  bar — under the TEXT CARET, else under the mouse pointer; background = wallpaper accent
+  (`Theme.wallAccent`, SpringColor; ink by luminance); moves on springs; clamped inside the screen
+  (`keyboard.edgeMargin`), above the caret when no room below. Parts: `services/KeyboardIndicator`
+  (policy: `what` = "caps" held at the caret / `capsPointerMs` at the pointer, "layout" for
+  `layoutShowMs` after a switch; Caps Lock = keyboard LED `/sys/class/leds/*::capslock/brightness`
+  polled `capsPollMs` — no compositor reports locked mods, the kernel change raises NO inotify),
+  `services/Caret` + `scripts/keyboard/caret.py` (stdlib raw-Wayland client = the seat's INPUT
+  METHOD (zwp_input_method_v2, no keyboard grab) with one never-mapped input-popup surface:
+  smithay forwards every text-input-v3 cursor rectangle to it as `text_input_rectangle`, in the
+  focused SURFACE's local coords; global = focused window rect from `Compositor.windowRects` (+
+  zoom) + rect. Client-side margins (GTK shadow / resize border) shift it right/down by a
+  PER-WINDOW amount (zenity text window 10/20, dialog 20/20) that nothing exposes (IPC has only
+  geometry; AT-SPI GTK4 extents are container-relative, Text iface errors) → measured:
+  `services/CaretCalibration` + `scripts/keyboard/calibrate.py` = 7 `driftwm msg screenshot
+  window --id N -o -` captures (exactly the geometry, in memory) 200 ms apart, their difference =
+  the blinking caret, offset = rect centre − blink centre; once per window after the caret rests
+  `calibrateDelayMs`, discarded if the rect moved; window offset doubles as the app's first guess;
+  session-only; drift only; `keyboard.caretOffsets {app_id: [dx,dy]}` overrides. Verified: marks
+  land on the caret in both zenity kinds, live run → `#35 20 20`, pill centred under the caret.
+  NEVER start a second caret.py while the shell runs: it took the seat's input method from the
+  live one (live helper → `unavailable` until its 60 s retry). fcitx/ibus running → helper exits 3, pointer only.
+  While an island holds the keyboard Exclusive (`Island.takesKeyboard` → `IslandRegistry`) the
+  caret is ignored (it is relative to the island surface)), `modules/keyboard/KeyboardOverlay`
+  (per screen: Overlay surface, EMPTY mask, mapped only while shown; the capsule CENTRE springs —
+  a target reading the animated width restarts the spring per frame) + `KeyboardPill`. Pointer:
+  nothing reports it → `probe()` maps a second full-screen INPUT surface for a moment, the
+  compositor sends wl_pointer.enter ~17 ms after the map (verified on driftwm), `pointerSeen`
+  unmaps it; the pill shows only after the probe. Native text on a transparent surface leaves
+  subpixel colour fringes → `RollingText.renderType: Text.QtRendering`. The user's xkb has
+  `grp:caps_toggle`: Caps = layout switch, Shift+Caps = Caps Lock. Test: `temp/vkey.py`
+  (uinput keyboard: `42+58` = Shift+Caps, `58` = switch, `30` = a, `led`) — the whole sequence in
+  ONE vkey run (a vkey device leaving resets the compositor's Caps Lock); `zenity --entry` for a
+  caret; one-shot Timer: `running` is still true inside onTriggered (own flags). IPC
+  `island keyboardDemo layout|caps`, debugState `keyboard`. Verified live: caret follow while
+  typing, caps→EN→caps at the caret, launcher → pointer, bottom-right corner clamp. NOT tested:
+  niri (windowRects there NOT live-tested), multi-output, zoomed drift canvas.
+- Shazam (Oct 2026): `services/Shazam.qml` (Shell → Island `shazam` → services map, IslandIpc
+  `island shazam` = listen / cancel) runs `scripts/shazam/recognize.py` (uv script, shazamio +
+  audioop-lts, Python <3.14 — shazamio-core has no 3.14 wheels): parecord raw 16 kHz mono,
+  `source` auto = default MONITOR, switching to the mic when the first `--probe` s peak below
+  `--silence`; asks Shazam every `stepSec` (last ≤12 s, the reader keeps draining the pipe
+  meanwhile) up to `maxSec`; JSON lines listening/found/none/error; cover → `cachePath("shazam")`.
+  Run = uv DIRECTLY (offline, one online retry if it died silently): uv forwards SIGTERM, python
+  dies, parecord gets SIGPIPE — a bash wrapper kept them alive on cancel. Streams
+  `pillshell_rec_shazam` (monitor, hidden from the mic dot) / `pillshell_shazam_mic` (mic, dot
+  shows). Event key "shazam" with the new `hold` flag (Events: no life timer until a same-key
+  non-hold replacement) + `indicators/glyphs/ShazamGlyph` (breathes while `args.listening`, pops
+  on `found`; EventIcon now BINDS `item.args`, so in-place updates reach the glyph). Match =
+  notification via notify-send (`-A default=Open` → xdg-open shazam.com, `copy` → wl-copy) +
+  history in `statePath("shazam.json")`. QS card `shazam` (QsCatalog, hidden by default).
+  QV4 has no `String.trimEnd` (threw in the event text). Verified live via IPC: listening event,
+  mic fallback + privacy dot, real matches, notification with cover in history, cancel. NOT
+  tested: the card tap, the notification actions.
 - MPRIS multi-player: `services/Players.qml` picks `active` dms-style (prefer a playing
   player, remember the last playing one, a paused player beats registered-idle ones at
   cold start). Plain `players[0]` picks early-registrants like Telegram (registers
@@ -1017,7 +1168,7 @@ Simplified / not implemented yet (see pillShell.md for the intended behaviour):
   `CaptureSquare` (ContentSwap icon, glyph switches at the handover). Square/crosshair are
   ONE global state (`CaptureMotion`, global logical px) shifted per screen: size/radius
   springs to `squareSize`, flight = spring-driven quadratic bezier onto cursor+
-  `chaseOffset` (`arcBend`), then chase springs (seamless: chaseX follows the target
+  `chaseOffset` (control = `arcLead` along the chord + `arcBend`·length on the UPPER normal, +x for a straight drop — the old corner control (target.x, from.y) lay on the chord when the cursor was below the bar → straight flight; verified by polling debugState `square` during a launch), then chase springs (seamless: chaseX follows the target
   instantly while flying). Both hide while a selection exists.
   Tools (contract: `cutRect`, `dimmed`, `handleEscape()`, `handleKey(e)`, `confirm()`):
   `editor/RegionEditor` (shot/record/ai — flameshot editor split into EditorModel (rows +
@@ -1060,7 +1211,15 @@ Simplified / not implemented yet (see pillShell.md for the intended behaviour):
   them to the bubble centre (`capture.motion`, springs/opacity disabled), then springs
   (`birthSpring`/`birthDamping`) to their slots while fading in, along an ARC: per-axis
   stiffness, the axis with the shorter way springs harder (`× 1 + birthArc · other/(dx+dy)`),
-  so it lands first and the long axis trails (verified: mid-flight frame = an arch); the bubble lingers
+  so it lands first and the long axis trails (verified: mid-flight frame = an arch); while the frame is moved / resized the toolbar and audio chips stay up (`RegionEditor.toolsUp`) and the same springs carry them to their new slots (no hide/re-show; verified with temp/vmouse frames mid-drag); a press OUTSIDE an existing selection is `reselect` (nothing leaves yet):
+  a click morphs the frame to the new region (smart rect / whole screen; buttons glide along), a
+  drag past `minSelection` = `dismissForReselect`: hasSelection off (crosshair + bubble return),
+  the old frame FLOWS into the one being drawn and the toolbar / chips retract into the live
+  bubble (reverse birth, fade `squareHideDelayMs`), new ones are born on release. Frame motion =
+  FLIP: drawn rect `view*` = sel + `off*` (set to old − new, spring to 0 on `capture.frameSpring/
+  frameDamping`), so live drags stay exact; frame, dim cut, handles, size badge draw `view*`,
+  layout + hit tests read `sel*`. A fresh click selection grows out of the press point the same
+  way. Verified with vmouse + grim frames; the bubble lingers
   `squareHideDelayMs` before fading so they visibly leave it. Tools are below the bubble
   in z (overlay order), that is what hides them at birth.
   Recording: `services/Recorder` runs `scripts/capture/record.sh` (pShell port): audio
@@ -1098,7 +1257,11 @@ Simplified / not implemented yet (see pillShell.md for the intended behaviour):
   wallpaper-settings icon-tile look = `components/IconTile` (Theme `wallSettingsIcon*` gradient +
   `CardRim`, radius `capture.toolRadius`, hover veil `Theme.iconTileHover`, checked / `tileFill`
   = lighter→darker of that colour, glyph CurveRendering at the exact centre); the audio bar's
-  radius is concentric (toolRadius + toolSpacing). Verified on a grim frame (record chips).
+  radius is concentric (toolRadius + toolSpacing). Verified on a grim frame (record chips). The cursor bubble
+  (`CaptureSquare`) leaves as the island (black + island rim) and fades into the same IconTile while
+  it flies (`tileLevel` = motion.flight, 1 while chasing); `CardRim`/`IconTile` take a separate
+  `topLeftRadius` for its tip corner. Chase point clamped `chaseEdgeMargin` inside the cursor's
+  screen (right / bottom, pShell CursorGuide; screen found in `Quickshell.screens` by pointerAt).
   Non-tile IconButtons (stash) keep the GlowRim below:
   `components/IconButton` carries a barely-visible white glow
   (`components/GlowRim`: 1px border rings OUTSIDE the shape, alpha falling smoothly;
@@ -1134,15 +1297,14 @@ Simplified / not implemented yet (see pillShell.md for the intended behaviour):
   from the top edge with a spring (`started` flag in Island.qml), then morphs it
   into the bar on its spot (`startupMorph` timer + `timings.startupMorphDelayMs`);
   Capture reuses it for its second instance.
-- Timer indicator exists but no timer service feeds it.
 - (DONE Oct 2026) Stash = pShell file tray + LocalSend port. Services `services/Stash.qml`
   (tray dir model, diff-updated; drop copy|symlink; shell ops queued) and
   `services/LocalSend.qml` (outbound discover→pick→send, phase idle|scanning|ready|sending;
   inbound receive server, session toggle `receiving`, default `stash.receive`) — scripts
   in `scripts/localsend/` (stdlib python3, run directly). Modules: `stash` (payload.view
   tray|send|incoming; every view change = `openModule` via ModuleHost `openRequested`, so
-  the swap replays; `returnView: "tray"` = go back to the tray when done) — opened ONLY by
-  IPC `island stash` (toggle) or an incoming LocalSend request; `stash-drop` = the pShell
+  the swap replays; `returnView: "tray"` = go back to the tray when done) — opened by
+  IPC `island stash` (toggle), the QS `localsend` card (`services.openStash`) or an incoming LocalSend request; `stash-drop` = the pShell
   drop chooser (tray tile: dashed outline on hover; LocalSend tile: tinted) — opened by a
   file drag over the island: `Island.islandDrop` (DropArea BELOW the content, covers the
   island + the band above it + the Minimal zone; mask gets that band while the chooser is

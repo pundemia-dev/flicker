@@ -5,6 +5,7 @@ import "../services"
 import "../compositor"
 import "../modules/lock"
 import "../modules/capture"
+import "../modules/keyboard"
 
 Scope {
     id: root
@@ -25,9 +26,20 @@ Scope {
     EventBluetooth { events: eventsService; bluetooth: bluetoothService }
     EventUpdates { events: eventsService }
     Caffeine { id: caffeineService; events: eventsService }
+    // Music recognition (QS card `shazam`, IPC `island shazam`).
+    Shazam { id: shazamService; events: eventsService }
+    // Countdown timer: a finished one opens the module on the focused output.
+    Countdown {
+        id: countdownService
+        onFinished: if (Config.data.timer.openOnFinish ?? true)
+            islandRegistry.forOutput(compositorService.focusedOutput ?? "")?.showTimerDone()
+    }
     Recorder { id: recorderService }
     Dictation { id: dictationService; keyboardLayout: keyboardLayoutService }
     KeyboardLayout { id: keyboardLayoutService }
+    // Keyboard pill: layout / Caps Lock under the text caret (or pointer).
+    Caret { id: caretService; compositor: compositorService; registry: islandRegistry }
+    KeyboardIndicator { id: keyboardIndicatorService; keyboardLayout: keyboardLayoutService; caret: caretService }
     // Teleprompter: shows on the focused output (Island.openPrompter).
     Prompter {
         id: prompterService
@@ -65,6 +77,8 @@ Scope {
     }
 
     LockScope { id: lockScope }
+    // Session actions (lock / log out / sleep / restart / shut down).
+    Session { id: sessionService; lock: lockScope; compositor: compositorService }
 
     CaptureScope {
         id: captureService
@@ -97,6 +111,9 @@ Scope {
         battery: batteryService
         caffeine: caffeineService
         charging: eventChargingService
+        countdown: countdownService
+        keyboard: keyboardIndicatorService
+        shazam: shazamService
     }
 
     OsdWatcher {
@@ -144,6 +161,18 @@ Scope {
                 polkit: polkitService
                 prompter: prompterService
                 wallpaper: wallpaperService
+                countdown: countdownService
+                shazam: shazamService
+                session: sessionService
+                keyboard: keyboardIndicatorService
+            }
+
+            KeyboardOverlay {
+                targetScreen: modelData
+                keyboard: keyboardIndicatorService
+                theme: themeService
+                lock: lockScope
+                compositor: compositorService
             }
 
             Corners {

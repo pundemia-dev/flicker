@@ -40,8 +40,19 @@ Item {
     readonly property var current: root.rows[root.selected] ?? null
 
     // Rows handed to the view: the visible ones + windowExtra, and always
-    // a few past the selection (keyboard scrolling grows it).
-    readonly property int windowCount: Math.max(root.cfg.maxShown + root.cfg.windowExtra, root.selected + root.cfg.windowExtra + 1)
+    // a few past the FURTHEST selection of this list (grow-only until the
+    // rows change). Shrinking it while scrolling back up removed rows at
+    // the bottom, the content got shorter and ListView clamped contentY by
+    // itself — an unanimated jump.
+    property int reach: 0
+    // While scrolling, a whole list of rows stays created AHEAD of the
+    // selection: rows lagging on their scroll springs pull the next ones
+    // into view early, and those must already be there (no empty band at
+    // the edge). Rows past `baseCount` come only from this growth: they
+    // appear without the new-result fade (`quietAdd`).
+    readonly property int baseCount: root.cfg.maxShown + root.cfg.windowExtra
+    readonly property int windowCount: root.reach > 0
+        ? Math.max(root.baseCount, root.reach + root.cfg.windowExtra + root.cfg.maxShown + 1) : root.baseCount
     ScriptModel {
         id: windowModel
         values: root.rows.slice(0, root.windowCount)
@@ -91,6 +102,7 @@ Item {
 
     onRowsChanged: {
         const want = root.pendingSelection >= 0 ? root.pendingSelection : 0;
+        root.reach = 0;
         root.jumpScroll = true;
         root.selected = -1;
         root.selected = Math.min(want, Math.max(0, root.rows.length - 1));
@@ -103,6 +115,7 @@ Item {
     onSelectedChanged: {
         if (root.selected < 0)
             return;
+        root.reach = Math.max(root.reach, root.selected);
         const e = root.rows[root.selected];
         if (typeof e?.onSelected === "function")
             e.onSelected();
@@ -116,13 +129,21 @@ Item {
             root.scrollTo(0);
     }
 
-    // Only OUR scrolls spring. ListView shifts contentY itself when rows are
-    // inserted above the top one; animating that read as the whole list
-    // jumping up and back on the first letter.
+    // Scrolling moves contentY AT ONCE; the motion is on the ROWS: each
+    // row (and the selection plate) offsets itself back by the scroll step
+    // and springs that offset to 0 (LauncherItem.kickScroll), rows farther
+    // from the selection a bit softer (`scrollStagger`), so the list glides
+    // like elements on springs. Only OUR scrolls kick: ListView shifts
+    // contentY itself when rows are inserted above the top one, animating
+    // that read as the whole list jumping up and back on the first letter.
+    // (A Behavior on contentY was stopped by ListView's own writes.)
+    signal scrolled(real delta)
+
     function scrollTo(y: real): void {
-        scrollAnim.enabled = !root.jumpScroll;
+        const d = y - view.contentY;
         view.contentY = y;
-        scrollAnim.enabled = false;
+        if (!root.jumpScroll && Math.abs(d) > 0.01)
+            root.scrolled(d);
     }
 
     Timer {
@@ -142,13 +163,40 @@ Item {
 
             // Selection plate: springs to the TARGET slot of the selected
             // row (never to an animated y), shifted by the live scroll.
+            // Stretches along its flight (VelocityDeform, like the OCR panel)
+            // — measured on the slot in LIST coords, so a held key that
+            // scrolls the list (plate still on screen) stretches it too.
             Rectangle {
                 id: plate
+                transform: VelocityDeform {
+                    item: plate
+                    useSource: true
+                    sourceY: plate.slotY + plate.slotH / 2
+                    // Attenuate by the ROW height (the motion axis), not the
+                    // list width: 620 px wide cut the stretch to ~9 %.
+                    sizeW: plate.slotH
+                    sizeH: plate.slotH
+                }
                 property real slotY: Metrics.itemTop(root.cfg, root.rows, Math.max(0, root.selected))
                 property real slotH: Metrics.itemHeight(root.cfg, root.current)
                 Behavior on slotY { Spring { stiffness: root.cfg.motionStiffness; damp: root.cfg.motionDamping; eps: 0.25 } }
                 Behavior on slotH { Spring { stiffness: root.cfg.motionStiffness; damp: root.cfg.motionDamping; eps: 0.25 } }
-                y: plate.slotY - view.contentY
+                y: plate.slotY - view.contentY + plate.scrollShift
+                // Rides the scroll like the selected row (see scrollTo).
+                property real scrollShift: 0
+                Behavior on scrollShift {
+                    id: plateScroll
+                    Spring { id: plateScrollSpring; stiffness: root.cfg.scrollStiffness ?? 3; damp: root.cfg.scrollDamping ?? 0.5; eps: 0.25 }
+                }
+                Connections {
+                    target: root
+                    function onScrolled(d: real): void {
+                        plateScroll.enabled = false;
+                        plate.scrollShift += d;
+                        plateScroll.enabled = true;
+                        plate.scrollShift = 0;
+                    }
+                }
                 width: parent.width
                 height: plate.slotH
                 radius: root.cfg.itemRadius
@@ -165,6 +213,12 @@ Item {
             interactive: false
             // Keep every row of the window created (see header).
             cacheBuffer: Metrics.maxListHeight(root.cfg) * 2
+            // Rows lagging on their scroll springs show up to about a list
+            // height away from their slots: rows in these margins are
+            // created SYNCHRONOUSLY (cacheBuffer ones are incubated over
+            // several frames) so the lag zone is never an empty band.
+            displayMarginBeginning: Metrics.maxListHeight(root.cfg)
+            displayMarginEnd: Metrics.maxListHeight(root.cfg)
             // No ListView current item: the selection is `root.selected`. The
             // default currentIndex 0 kept the first row as a special item
             // whose remove/move never finished (it stuck in slot 0 over the
@@ -175,12 +229,7 @@ Item {
             onCountChanged: if (view.currentIndex !== -1) view.currentIndex = -1
             spacing: root.cfg.itemSpacing
             model: windowModel
-            readonly property bool gliding: scrollSpring.running || hoverHold.running
-            Behavior on contentY {
-                id: scrollAnim
-                enabled: false
-                Spring { id: scrollSpring; stiffness: root.cfg.motionStiffness; damp: root.cfg.motionDamping; eps: 0.25 }
-            }
+            readonly property bool gliding: plateScrollSpring.running || hoverHold.running
 
             // View transitions only flip row flags; the motion itself is the
             // row's own Behavior springs (LauncherItem). A SpringAnimation
@@ -199,10 +248,18 @@ Item {
             }
 
             delegate: LauncherItem {
+                id: row
                 width: ListView.view.width
                 theme: root.theme
                 cfg: root.cfg
                 current: index === root.selected
+                quietAdd: index >= root.baseCount
+                Connections {
+                    target: root
+                    function onScrolled(d: real): void {
+                        row.kickScroll(d, Math.abs(row.index - root.selected));
+                    }
+                }
                 onHovered: if (!view.gliding) root.selected = index
             }
         }

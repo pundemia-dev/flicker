@@ -33,22 +33,45 @@ Item {
     }
 
     // Birth like the toolbar: the bar starts under the chasing square and
-    // springs out to its slot while fading in (first appearance only).
+    // springs out to its slot while fading in (first appearance only); it
+    // retracts back into the bubble when the selection is dropped for a new one.
+    property bool shown: false
+    property bool retracting: false
     property bool born: false
     property bool springy: false
     property bool bornOnce: false
     property point origin: Qt.point(0, 0)
+    visible: root.shown || root.retracting
 
-    onVisibleChanged: {
-        if (!visible || root.bornOnce)
-            return;
+    function bubbleOrigin(): point {
         const m = root.ed.capture.motion;
-        root.origin = Qt.point(m.centerX - root.ed.ox - bar.width / 2, m.centerY - root.ed.oy - bar.height / 2);
-        root.springy = false;
-        root.born = false;
-        root.springy = true;
-        root.born = true;
-        root.bornOnce = true;
+        return Qt.point(m.centerX - root.ed.ox - bar.width / 2, m.centerY - root.ed.oy - bar.height / 2);
+    }
+
+    onShownChanged: {
+        if (root.shown) {
+            if (root.bornOnce)
+                return;
+            retractEnd.stop();
+            root.retracting = false;
+            root.origin = root.bubbleOrigin();
+            root.springy = false;
+            root.born = false;
+            root.springy = true;
+            root.born = true;
+            root.bornOnce = true;
+        } else if (!root.ed.hasSelection && root.born) {
+            root.origin = Qt.binding(() => root.bubbleOrigin());
+            root.retracting = true;
+            root.born = false;
+            retractEnd.restart();
+        }
+    }
+
+    Timer {
+        id: retractEnd
+        interval: root.cfg.squareHideDelayMs
+        onTriggered: root.retracting = false
     }
 
     Connections {
@@ -69,7 +92,7 @@ Item {
         readonly property real ady: Math.abs(root.py - root.origin.y)
         Behavior on x { enabled: root.springy; Spring { stiffness: root.cfg.birthSpring * (1 + root.cfg.birthArc * bar.ady / Math.max(1, bar.adx + bar.ady)); damp: root.cfg.birthDamping } }
         Behavior on y { enabled: root.springy; Spring { stiffness: root.cfg.birthSpring * (1 + root.cfg.birthArc * bar.adx / Math.max(1, bar.adx + bar.ady)); damp: root.cfg.birthDamping } }
-        Behavior on opacity { enabled: root.springy; NumberAnimation { duration: root.cfg.fadeInMs } }
+        Behavior on opacity { enabled: root.springy; NumberAnimation { duration: root.born ? root.cfg.fadeInMs : root.cfg.squareHideDelayMs } }
         width: row.implicitWidth + root.cfg.toolSpacing * 2
         height: root.cfg.toolButtonSize + root.cfg.toolSpacing * 2
         // Concentric with the chips' tile radius.

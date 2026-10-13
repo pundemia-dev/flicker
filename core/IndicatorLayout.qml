@@ -2,8 +2,8 @@ import QtQuick
 import "../components"
 import "../indicators"
 
-// Bar content: a single Row centered in the island, in spec order
-// [ privacy | music | dictation | clock | timer ]; an event's glyph / text
+// Bar content: a single Row centered in the island, in order
+// [ timer | music(+timer ring) | privacy | dictation | clock ]; an event's glyph / text
 // are pinned to the island's left / right edges outside it (eventSide).
 // Nothing in the row is pinned to
 // the island edges, so the clock shifts whenever an indicator grows (e.g.
@@ -28,6 +28,7 @@ Item {
     required property var recorder
     required property var dictation
     required property var theme
+    required property var countdown
     signal requestModule(string name, var payload)
 
     Registry { id: registry }
@@ -41,14 +42,15 @@ Item {
             recorder: root.recorder,
             dictation: root.dictation,
             theme: root.theme,
+            countdown: root.countdown,
             cfg: root.cfg,
             islandHeight: root.islandHeight
         })
 
-    // Visual order in the row (spec example); the clock sits between the
-    // left indicators and the timer. An event's glyph / text take the far
-    // left / far right.
-    readonly property var orderedNames: ["privacy", "music", "dictation", "timer"]
+    // Visual order in the row; the timer ring is the leftmost (user), the
+    // clock closes the row. An event's glyph / text take the far left / far
+    // right of the island, outside the row.
+    readonly property var orderedNames: ["timer", "music", "privacy", "dictation"]
     // Event halves sit OUTSIDE the row, pinned to the island edges (glyph
     // left, text right), and the island grows by the wider half on BOTH
     // sides — the row (and the clock) stays exactly centred on screen
@@ -70,6 +72,11 @@ Item {
     // Clock as a shared-element owner (null while the recording/hotspot
     // plate replaces the clock face).
     readonly property Item clockOwner: clockPlate.active ? null : clockPlate
+    // Timer ring as a shared-element owner (null while not loaded): around
+    // the music cover while a player shows, else the stand-alone ring.
+    // One music+timer indicator (Music.qml) when musicTimerRing is on.
+    readonly property bool timerOnCover: root.cfg.musicTimerRing ?? true
+    readonly property Item timerOwner: root.timerOnCover ? (musicLoader.item?.halo ?? null) : (timerLoader.item?.halo ?? null)
     // Clock centre in this item's coords (follows the row's springs).
     readonly property real clockCenterX: barRow.x + clockPlate.x + clockPlate.width / 2
     // Animated indicator widths (0 while hidden/evicted).
@@ -117,9 +124,11 @@ Item {
         if (name === "privacy")
             return root.privacy.active;
         if (name === "music")
-            return root.players.musicActive;
+            return root.players.musicActive || (root.timerOnCover && (root.countdown?.active ?? false));
         if (name === "dictation")
             return root.dictation.active && root.dictation.sink === "type";
+        if (name === "timer")
+            return (root.countdown?.active ?? false) && !root.timerOnCover;
         return false;
     }
 
@@ -189,7 +198,7 @@ Item {
         return out;
     }
 
-    // Order per spec: [ privacy | music | dictation | clock | timer ].
+    // Order: [ timer | music(+timer ring) | privacy | dictation | clock ].
     // Every child is vertically centered (pShell pattern): without it, Row
     // top-aligns children and short ones (the 8px mic dot next to the 24px
     // music cover) stick to the top edge.
@@ -212,21 +221,18 @@ Item {
         // Spring on movement: Row sets x from the (springing) widths, so each
         // child glides to its slot instead of jumping with the layout.
         Loader {
-            id: privacyLoader
+            id: timerLoader
             anchors.verticalCenter: parent.verticalCenter
             Behavior on x { Spring {} }
             width: item ? item.width : 0
             height: item ? item.height : 0
-            // Unload only after the item has collapsed (width glides down
-            // via its own spring while still loaded, in sync with the
-            // island — same Spring, same frame). Unloading instantly would
-            // snap the row and teleport the clock.
-            readonly property bool collapsing: item !== null && !root.indicatorActive("privacy") && item.width > 0.5
-            sourceComponent: registry.privacyIndicator
-            active: root.indicatorActive("privacy") || collapsing
+            readonly property bool collapsing: item !== null && !root.indicatorActive("timer") && item.width > 0.5
+            sourceComponent: registry.timerIndicator
+            active: root.indicatorActive("timer") || collapsing
             onLoaded: {
                 item.services = Qt.binding(() => root.servicesBundle);
-                item.evicted = Qt.binding(() => root.isEvicted("privacy"));
+                item.evicted = Qt.binding(() => root.isEvicted("timer"));
+                item.requestOpen.connect((n, p) => root.requestModule(n, p));
             }
         }
         Loader {
@@ -243,6 +249,24 @@ Item {
                 item.evicted = Qt.binding(() => root.isEvicted("music"));
                 if (item.requestOpen)
                     item.requestOpen.connect((n, p) => root.requestModule(n, p));
+            }
+        }
+        Loader {
+            id: privacyLoader
+            anchors.verticalCenter: parent.verticalCenter
+            Behavior on x { Spring {} }
+            width: item ? item.width : 0
+            height: item ? item.height : 0
+            // Unload only after the item has collapsed (width glides down
+            // via its own spring while still loaded, in sync with the
+            // island — same Spring, same frame). Unloading instantly would
+            // snap the row and teleport the clock.
+            readonly property bool collapsing: item !== null && !root.indicatorActive("privacy") && item.width > 0.5
+            sourceComponent: registry.privacyIndicator
+            active: root.indicatorActive("privacy") || collapsing
+            onLoaded: {
+                item.services = Qt.binding(() => root.servicesBundle);
+                item.evicted = Qt.binding(() => root.isEvicted("privacy"));
             }
         }
         Loader {
@@ -274,20 +298,6 @@ Item {
             onRequestModule: name => root.requestModule(name, {})
         }
 
-        Loader {
-            id: timerLoader
-            anchors.verticalCenter: parent.verticalCenter
-            Behavior on x { Spring {} }
-            width: item ? item.width : 0
-            height: item ? item.height : 0
-            readonly property bool collapsing: item !== null && !root.indicatorActive("timer") && item.width > 0.5
-            sourceComponent: registry.timerIndicator
-            active: root.indicatorActive("timer") || collapsing
-            onLoaded: {
-                item.services = Qt.binding(() => root.servicesBundle);
-                item.evicted = Qt.binding(() => root.isEvicted("timer"));
-            }
-        }
     }
 
     // Event halves, pinned to the island edges (see eventSide).

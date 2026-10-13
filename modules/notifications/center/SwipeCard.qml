@@ -5,7 +5,11 @@ import ".."
 // One iOS-style notification tile of the Notification Center: the shared
 // NotificationCard on a rounded plate. Swipe left past centerSwipeDistance
 // dismisses (the tile flies out, then `dismissRequested`), a tap emits
-// `tapped`, hovering shows the × button.
+// `tapped`, hovering shows the × button. With `actionable` (not a collapsed
+// stack) a drag down / long press opens the context panel under the card
+// like the flow card (NotificationActions); the tile then grows by
+// `extraHeight` (the group lays tiles out by it) — `stage` is owned by
+// the center (one open tile at a time), asked for via `stageRequested`.
 //
 // The tile accepts presses (it must, for swipes), so it also forwards the
 // module's swipe-up close itself — GestureZones below never sees presses
@@ -35,10 +39,21 @@ Item {
     property int plateLevel: 0
     // Group counter shown on the avatar (collapsed stack front tile).
     property int groupCount: 0
+    // Tile height without the panel (group cardH).
+    property real baseHeight: 84
+    property bool actionable: false
+    property string stage: ""
+    property bool pulling: false
+    property real pull: 0
+    // Target growth (live while pulling): the group sums it, not the
+    // animated height.
+    readonly property real extraHeight: root.actionable ? actions.extraFor(root.pulling, root.pull) : 0
+    readonly property real pullThreshold: root.cfg?.flowPullThreshold ?? 36
 
     signal tapped
     signal dismissRequested
     signal closeRequested
+    signal stageRequested(string stage)
 
     readonly property real swipeDistance: root.cfg?.centerSwipeDistance ?? 80
     readonly property real closeDistance: 30
@@ -93,9 +108,10 @@ Item {
         }
 
         NotificationCard {
-            anchors.fill: parent
-            anchors.margins: 12
-            anchors.rightMargin: 16
+            x: 12
+            y: 12
+            width: parent.width - 28
+            height: root.baseHeight - 24
             notif: root.entry
             cfg: root.cfg
             groupCount: root.groupCount
@@ -111,7 +127,9 @@ Item {
         enabled: root.interactive
         hoverEnabled: true
         acceptedButtons: Qt.LeftButton
+        pressAndHoldInterval: root.cfg?.flowLongPressMs ?? 450
 
+        property bool held: false
         property real pressX: 0
         property real pressY: 0
         property string axis: ""
@@ -122,13 +140,14 @@ Item {
             pressY = mouse.y;
             axis = "";
             fired = false;
+            held = false;
         }
         onPositionChanged: mouse => {
             if (!pressed)
                 return;
             const dx = mouse.x - pressX;
             const dy = mouse.y - pressY;
-            if (axis === "") {
+            if (axis === "" && !held) {
                 if (Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy))
                     axis = "x";
                 else if (Math.abs(dy) > 8)
@@ -137,22 +156,63 @@ Item {
             if (axis === "x") {
                 // Left follows the cursor; right is rubber-banded.
                 root.dragX = dx < 0 ? dx : dx * 0.25;
-            } else if (axis === "y" && !fired && dy < -root.closeDistance) {
-                fired = true;
-                root.closeRequested();
+            } else if (axis === "y") {
+                // Down (or back up while open) = pull the panel; up on a
+                // closed tile = close the module.
+                if (root.actionable && (dy > 0 || root.stage !== "")) {
+                    root.pulling = true;
+                    root.pull = dy;
+                } else if (!fired && dy < -root.closeDistance) {
+                    fired = true;
+                    root.closeRequested();
+                }
             }
         }
+        onPressAndHold: {
+            if (axis !== "" || !root.actionable)
+                return;
+            held = true;
+            root.stageRequested(root.entry?.canReply ? "reply" : "actions");
+        }
         onReleased: {
-            if (axis === "x") {
+            if (root.pulling) {
+                if (root.stage === "" && root.pull > root.pullThreshold)
+                    root.stageRequested("actions");
+                else if (root.stage !== "" && root.pull < -root.pullThreshold)
+                    root.stageRequested("");
+                root.pulling = false;
+                root.pull = 0;
+            } else if (axis === "x") {
                 if (-root.dragX > root.swipeDistance)
                     root.dismiss();
                 else
                     root.dragX = 0;
-            } else if (axis === "") {
+            } else if (axis === "" && !held) {
                 root.tapped();
             }
         }
-        onCanceled: root.dragX = 0
+        onCanceled: {
+            root.dragX = 0;
+            root.pulling = false;
+            root.pull = 0;
+        }
+    }
+
+    // Context panel (above the gesture area: its buttons take presses).
+    NotificationActions {
+        id: actions
+        x: root.dragX + 12
+        y: root.baseHeight - 12 + actions.spacing
+        width: root.width - 24
+        entry: root.entry
+        cfg: root.cfg
+        theme: root.theme
+        frost: root.frost
+        stage: root.actionable ? root.stage : ""
+        opacity: actions.reveal * tile.opacity
+        reveal: Math.max(0, Math.min(1, (root.height - root.baseHeight) / actions.panelExtra))
+        onStageRequested: s => root.stageRequested(s)
+        onFinished: root.stageRequested("")
     }
 
     // Hover × (macOS-style, top-left corner over the tile rim).

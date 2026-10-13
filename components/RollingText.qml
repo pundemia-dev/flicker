@@ -23,6 +23,9 @@ Item {
     // Tabular digits: every digit has the same advance, so a rolling digit
     // never changes the slot width (no horizontal jitter).
     property bool tabular: true
+    // Text.QtRendering on transparent surfaces: native subpixel AA leaves
+    // colour fringes there (keyboard pill).
+    property int renderType: Text.NativeRendering
     // 0 = auto (numeric compare); 1 = roll down; -1 = roll up.
     property int direction: 0
     // Roll distance as a fraction of the line height.
@@ -123,6 +126,7 @@ Item {
                     font.pixelSize: root.pixelSize
                     font.weight: root.weight
                     font.features: root.tabular ? { "tnum": 1 } : {}
+                    renderType: root.renderType
                 }
                 // Incoming glyph: arrives from the opposite side.
                 Text {
@@ -137,6 +141,7 @@ Item {
                     font.pixelSize: root.pixelSize
                     font.weight: root.weight
                     font.features: root.tabular ? { "tnum": 1 } : {}
+                    renderType: root.renderType
                 }
             }
         }

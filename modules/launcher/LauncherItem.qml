@@ -27,6 +27,8 @@ Item {
 
     // Set by the view's add/remove transitions (LauncherList).
     property bool entering: false
+    // Added by the scroll window growing (not a new result): no fade-in.
+    property bool quietAdd: false
     property bool leaving: false
     property real appear: 1
     Behavior on appear {
@@ -37,7 +39,9 @@ Item {
             eps: 0.005
         }
     }
-    onEnteringChanged: if (root.entering) {
+    onEnteringChanged: if (root.entering && root.quietAdd) {
+        root.entering = false;
+    } else if (root.entering) {
         appearAnim.enabled = false;
         root.appear = 0;
         appearAnim.enabled = true;
@@ -58,7 +62,28 @@ Item {
         id: shiftAnim
         Spring { stiffness: root.cfg.motionStiffness; damp: root.cfg.motionDamping; eps: 0.25 }
     }
-    transform: Translate { y: root.shift }
+    transform: Translate { y: root.shift + root.scrollShift }
+
+    // Scroll on springs (LauncherList.scrollTo moves contentY at once): the
+    // row offsets itself back by the step and springs to 0; `distance` =
+    // rows from the selection, softer farther away (`scrollStagger`).
+    property real scrollShift: 0
+    Behavior on scrollShift {
+        id: scrollAnim
+        Spring {
+            id: scrollSpring
+            stiffness: root.cfg.scrollStiffness ?? 3
+            damp: root.cfg.scrollDamping ?? 0.5
+            eps: 0.25
+        }
+    }
+    function kickScroll(d: real, distance: real): void {
+        scrollSpring.stiffness = (root.cfg.scrollStiffness ?? 3) / (1 + (root.cfg.scrollStagger ?? 0) * distance);
+        scrollAnim.enabled = false;
+        root.scrollShift += d;
+        scrollAnim.enabled = true;
+        root.scrollShift = 0;
+    }
     onYChanged: {
         if (!isNaN(root.lastY) && root.lastY !== root.y) {
             shiftAnim.enabled = false;

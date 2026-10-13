@@ -7,6 +7,7 @@ import "../modules/dashboard/DashMetrics.js" as DashMetrics
 import "../modules/stash/StashMetrics.js" as StashMetrics
 import "../modules/quicksettings/QsMetrics.js" as QsMetrics
 import "../modules/launcher/LauncherMetrics.js" as LauncherMetrics
+import "../modules/session/SessionActions.js" as SessionActions
 import "../components/Knockout.js" as Knockout
 
 PanelWindow {
@@ -47,6 +48,13 @@ PanelWindow {
     // Teleprompter (services/Prompter); shown as the `prompter` module.
     required property var prompter
     required property var wallpaper
+    // Countdown timer (services/Countdown); the `timer` module + bar ring.
+    required property var countdown
+    // Music recognition (services/Shazam): the QS `shazam` card.
+    required property var shazam
+    required property var session
+    // Keyboard pill policy (services/KeyboardIndicator): layout / Caps Lock.
+    required property var keyboard
     // Shared per-screen island registry (IPC routes to the focused output).
     required property var registry
 
@@ -63,9 +71,19 @@ PanelWindow {
     // focused text field left the search pill deaf. Notification center
     // mini-games: OnDemand (focus on click, never steals from windows).
     // Polkit prompt: Exclusive too (pkexec from a focused terminal).
-    WlrLayershell.keyboardFocus: root.state.activeModule === "launcher" || root.state.activeModule === "polkit" ? WlrKeyboardFocus.Exclusive
+    // Timer: Exclusive while setting it up (ruler keys right away), on
+    // demand once it runs (an open countdown must not hold the keyboard).
+    // Notification reply field (flow card long press): Exclusive while it is open.
+    // Session menu: Exclusive (arrows / Enter right away).
+    // Exclusive keyboard: a shell text field has it (the keyboard pill's
+    // caret then belongs to this surface, not to the focused app window).
+    readonly property bool takesKeyboard: root.state.activeModule === "launcher" || root.state.activeModule === "polkit"
+        || (root.state.activeModule === "timer" && !root.countdown.active)
+        || root.state.activeModule === "session"
+        || (root.state.activeModule === "notifications" && moduleHost.wantsKeyboard)
+    WlrLayershell.keyboardFocus: root.takesKeyboard ? WlrKeyboardFocus.Exclusive
         : ((root.state.activeModule === "notifications" && (root.state.activePayload?.mode ?? "") === "center")
-            || root.state.activeModule === "prompter")
+            || root.state.activeModule === "prompter" || root.state.activeModule === "timer")
         ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
     WlrLayershell.exclusionMode: ExclusionMode.Ignore
     // Own namespace so compositor rules can target the island (niri
@@ -133,7 +151,7 @@ PanelWindow {
     // island and the shared element flying home off at the bottom), and an
     // element in flight in the TransitionLayer.
     readonly property real paintBottom: Math.max(root.islandY + root.islandHeight,
-        islandRect.y + islandRect.height, transitionLayer.flightBottom, root.surfaceReserve)
+        islandRect.y + islandRect.height, transitionLayer.flightBottom, ringLayer.flightBottom, root.surfaceReserve)
     // The Notification Center resizes itself while open (group fan-out,
     // dismissals): reserve its cap height for the whole session so those
     // morphs never resize the layer surface mid-animation (a frame stall).
@@ -141,7 +159,11 @@ PanelWindow {
     readonly property real surfaceReserve: !root.moduleOpen ? 0
         : root.moduleKey === "notifications:center"
         ? root.islandY + ((root.config.modules ?? {})["notifications:center"]?.height ?? 0)
-        : root.moduleKey === "launcher" ? root.islandY + LauncherMetrics.maxHeight(root.config.launcher) : 0
+        : root.moduleKey === "launcher" ? root.islandY + LauncherMetrics.maxHeight(root.config.launcher)
+        // Flow card: its context panel (+ the rubber-band past it) is pulled
+        // out by hand — no surface resizes under the finger.
+        : root.moduleKey === "notifications:flow" ? root.islandY + ((root.config.modules ?? {})["notifications:flow"]?.height ?? 0)
+            + 2 * (root.config.notifications.flowActionHeight + root.config.notifications.flowActionSpacing) : 0
     // The surface must NOT follow paintBottom per frame: every layer-shell
     // resize reallocates the buffer and round-trips the compositor, which
     // froze collapse transitions. Grow at once (ratchet up), hold the peak
@@ -156,7 +178,7 @@ PanelWindow {
     }
     onPaintBottomChanged: if (root.paintBottom > root.heldBottom) root.heldBottom = root.surfaceStep(root.paintBottom)
     readonly property bool geometrySettled: Math.abs(islandRect.height - root.islandHeight) < 0.5
-        && Math.abs(islandRect.y - root.islandY) < 0.5 && transitionLayer.flightBottom === 0
+        && Math.abs(islandRect.y - root.islandY) < 0.5 && transitionLayer.flightBottom === 0 && ringLayer.flightBottom === 0
     onGeometrySettledChanged: if (root.geometrySettled) surfaceShrink.restart()
     Timer {
         id: surfaceShrink
@@ -286,6 +308,11 @@ PanelWindow {
                 ? moduleHost.preferredHeight : c.estimatedHeight;
             return { width: c.width, height: h, radius: c.padding + c.buttonHeight / 2 };
         }
+        // Session menu: one row of round buttons (count from config).
+        if (root.moduleKey === "session") {
+            const c = root.config.session;
+            return SessionActions.islandSize(c, SessionActions.known(c.actions).length);
+        }
         // Stash views fit their content (file / device / incoming counts).
         if (root.moduleKey.startsWith("stash:"))
             return StashMetrics.islandSize(root.config.stash, root.moduleKey.slice(6), {
@@ -298,6 +325,11 @@ PanelWindow {
         const all = root.config.modules ?? {};
         const size = all[root.moduleKey] ?? all[root.state.activeModule]
             ?? ({ width: root.islandCfg.moduleWidth, height: root.islandCfg.moduleHeight });
+        // Flow card: grows by its context panel / reply field (drag down,
+        // long press) once it is the rendered module.
+        if (root.moduleKey === "notifications:flow" && root.shownModule === "notifications"
+            && (root.hostPayload?.mode ?? "") === "flow" && moduleHost.preferredHeight > 0)
+            return { width: size.width, height: moduleHost.preferredHeight, radius: size.radius };
         return root.moduleKey === "notifications:center"
             ? ({ width: size.width, height: Math.min(size.height, root.centerFitHeight) })
             : size;
@@ -529,10 +561,17 @@ PanelWindow {
     function openModule(name: string, payload: var): void {
         if (root.polkitHolds && name !== "polkit")
             return;
+        if (name === "timer" && !payload?.timerRouted) {
+            openTimer(payload?.ring ?? null);
+            return;
+        }
         // Shared element (spec): an indicator handing its element over
-        // (payload.shared = contract holder) flies it into the module.
+        // (payload.shared = contract holder) flies it into the module;
+        // payload.sharedRing = a second one at the same time (timer ring).
         if (payload?.shared && transitionLayer.contractFor(payload.shared, name))
             transitionLayer.launch(payload.shared, name);
+        if (payload?.sharedRing && ringLayer.contractFor(payload.sharedRing, name))
+            ringLayer.launch(payload.sharedRing, name);
         state.openModule(name, payload);
         // Modules opened from Minimal return there after the idle timeout.
         if (state.currentState === state.module && state.previousState === state.minimal)
@@ -562,6 +601,9 @@ PanelWindow {
             return;
         if ((root.state.activePayload?.mode ?? "") !== "flow")
             return;
+        // Being answered / its buttons open: the newcomer waits its turn.
+        if (moduleHost.holdOpen)
+            return;
         const target = root.config.notifications.flowShowQueuedMs;
         const elapsed = Date.now() - root.flowShownAt;
         if (elapsed >= target)
@@ -576,6 +618,49 @@ PanelWindow {
     // (shared element) unless the recording/hotspot plate has replaced it.
     function flowPayload(notif: var): var {
         return { notification: notif, mode: "flow", shared: indicators.clockOwner };
+    }
+
+    // Timer: from the visible bar the clock flies into the timer's time and
+    // (while it runs) the ring unfolds into the perimeter; opened over
+    // another module / from Minimal the module draws both itself. Again
+    // while it is open (IPC toggle) = close.
+    function openTimer(ring: var): void {
+        if (root.moduleOpen && root.state.activeModule === "timer") {
+            closeModule();
+            return;
+        }
+        const fromBar = !root.moduleOpen && root.state.currentState === root.state.island && root.shownModule === "";
+        openModule("timer", {
+            timerRouted: true,
+            shared: fromBar ? indicators.clockOwner : null,
+            sharedRing: fromBar && root.countdown.active ? (ring ?? indicators.timerOwner) : null
+        });
+    }
+    // The countdown rang: show it (done state: ringing bell, repeat / ✕).
+    function showTimerDone(): void {
+        if (root.lock.locked || root.stolen || root.capture.active || root.capture.grabbing)
+            return;
+        if (!(root.moduleOpen && root.state.activeModule === "timer"))
+            openTimer(null);
+    }
+    // Closing the timer into the bar: the countdown flies into the clock and
+    // the perimeter folds into the ring even when they did not fly in
+    // (adopted from the module's slots first, then sent home).
+    function sendTimerHome(): void {
+        if (transitionLayer.phase === "" && indicators.clockOwner && transitionLayer.adopt(indicators.clockOwner, "timer"))
+            transitionLayer.returnHome();
+        if (ringLayer.phase === "" && root.countdown.active && indicators.timerOwner && ringLayer.adopt(indicators.timerOwner, "timer"))
+            ringLayer.returnHome();
+    }
+    // Cancelled inside the module: the ring has no home any more (its
+    // indicator collapses) — re-dock it there at once; the module's own
+    // perimeter takes over and un-draws.
+    Connections {
+        target: root.countdown
+        function onActiveChanged(): void {
+            if (!root.countdown.active && ringLayer.module === "timer")
+                Qt.callLater(ringLayer.abort);
+        }
     }
 
     // Dashboard: the bar clock flies into the header's time (shared element).
@@ -598,8 +683,8 @@ PanelWindow {
         openModule("quicksettings", {});
     }
 
-    // Quick Settings actions that grab the screen (screenshot, start
-    // recording): close first, act once the collapse has settled so the
+    // Quick Settings actions that grab the screen (screenshot, code scan,
+    // start recording): close first, act once the collapse has settled so the
     // frozen grab shows the clean bar, not the open grid.
     function runQuickAction(name: string): void {
         closeModule();
@@ -613,6 +698,8 @@ PanelWindow {
         onTriggered: {
             if (action === "screenshot")
                 root.openCapture("shot");
+            else if (action === "scan")
+                root.openCapture("scan");
             else if (action === "record" && !root.recorder.recording)
                 root.openCapture("record");
         }
@@ -727,7 +814,7 @@ PanelWindow {
         openModule("notifications", { mode: "center" });
     }
 
-    // Stash tray (IPC only). Lands on whatever flow is live: a pending
+    // Stash tray (IPC + the QS LocalSend card). Lands on whatever flow is live: a pending
     // incoming LocalSend card, a running pick/upload, else the tray.
     function openStash(view: string): void {
         // Never over a capture session (the island is stolen / overlays own
@@ -738,6 +825,14 @@ PanelWindow {
             : root.localSend.hasIncoming ? "incoming"
             : root.localSend.busy ? "send" : "tray";
         openModule("stash", { view: v, returnView: v === "tray" ? "" : "tray" });
+    }
+
+    // Session menu (lock / log out / sleep / restart / shut down): toggle.
+    function toggleSession(): void {
+        if (root.moduleOpen && root.state.activeModule === "session")
+            root.closeModule();
+        else
+            root.openModule("session", {});
     }
 
     function toggleStash(): void {
@@ -846,6 +941,9 @@ PanelWindow {
 
     function closeModule(): void {
         const closing = root.state.activeModule;
+        // A rung timer is dismissed by closing it (alarm off).
+        if (closing === "timer" && root.countdown.phase === "done")
+            root.countdown.cancel();
         if (closing !== "prompter" && root.prompterHere && root.prompter.open) {
             moduleIdle.stop();
             flowAutoClose.stop();
@@ -859,6 +957,8 @@ PanelWindow {
         moduleIdle.stop();
         flowAutoClose.stop();
         state.closeModule();
+        if (closing === "timer" && root.state.currentState === root.state.island)
+            sendTimerHome();
         if (closing === "prompter" && root.prompterHere)
             root.prompter.close();
         // previousState may be stale: fullscreen changes are ignored while a
@@ -994,8 +1094,15 @@ PanelWindow {
     Timer {
         id: flowAutoClose
         onTriggered: {
-            if (root.state.activeModule === "notifications" && (root.state.activePayload?.mode ?? "") === "flow")
-                root.closeModule();
+            if (root.state.activeModule !== "notifications" || (root.state.activePayload?.mode ?? "") !== "flow")
+                return;
+            // In use (pressed, buttons open, replying): check again later.
+            if (moduleHost.holdOpen) {
+                flowAutoClose.interval = root.config.notifications.flowShowQueuedMs;
+                flowAutoClose.restart();
+                return;
+            }
+            root.closeModule();
         }
     }
 
@@ -1070,6 +1177,8 @@ PanelWindow {
             // The shared element's module closed or was replaced: fly home.
             if (transitionLayer.module !== "" && root.state.activeModule !== transitionLayer.module)
                 transitionLayer.returnHome();
+            if (ringLayer.module !== "" && root.state.activeModule !== ringLayer.module)
+                ringLayer.returnHome();
             root.updateIslandBlur();
         }
     }
@@ -1401,6 +1510,7 @@ PanelWindow {
                     recorder: root.recorder
                     dictation: root.dictation
                     theme: root.theme
+                    countdown: root.countdown
                     onRequestModule: (name, payload) => root.openModule(name, payload)
                 }
             }
@@ -1435,7 +1545,11 @@ PanelWindow {
                         haptics: root.haptics,
                         polkit: root.polkit,
                         prompter: root.prompter,
+                        countdown: root.countdown,
+                        shazam: root.shazam,
+                        session: root.session,
                         quickAction: root.runQuickAction,
+                        openStash: root.openStash,
                         wallpaper: root.wallpaper,
                         // Launcher plugins: output + bar centre (normalized,
                         // y from the top) — the wallpaper "island" effect
@@ -1449,7 +1563,13 @@ PanelWindow {
                                 originY: (root.islandCfg.topMargin + root.islandCfg.height / 2) / Math.max(1, root.targetScreen?.height ?? 1)
                             })
                     })
-                onCloseRequested: root.closeModule()
+                // Only the module still on screen as the active one: a flow
+                // card tapped open is closed by its sender at the same time
+                // (onNotificationClosed) — a second close poisoned the state.
+                onCloseRequested: {
+                    if (root.moduleOpen && root.state.activeModule === root.shownModule)
+                        root.closeModule();
+                }
                 // Only the module that is still the active one may switch
                 // (a fading-out module must not reopen anything).
                 onOpenRequested: (name, payload) => {
@@ -1494,6 +1614,12 @@ PanelWindow {
     // Shared element transitions: above all island content (spec).
     TransitionLayer {
         id: transitionLayer
+        slotResolver: (name, key) => moduleHost.sharedSlot(name, key)
+    }
+    // Second simultaneous flight (payload.sharedRing): the timer ring
+    // unfolds into the perimeter while the clock flies into the time.
+    TransitionLayer {
+        id: ringLayer
         slotResolver: (name, key) => moduleHost.sharedSlot(name, key)
     }
 
@@ -1547,6 +1673,27 @@ PanelWindow {
                     cameraProcs: root.privacy.cameraProcs
                 },
                 caffeine: root.caffeine.active,
+                keyboard: {
+                    what: root.keyboard.what,
+                    label: root.keyboard.label,
+                    caps: root.keyboard.caps,
+                    led: root.keyboard.ledPath,
+                    pointer: root.keyboard.pointer,
+                    probing: root.keyboard.probing,
+                    caretActive: root.keyboard.caret.active,
+                    caretRect: root.keyboard.caret.rect,
+                    caretAnchor: root.keyboard.caret.anchor,
+                    caretUnavailable: root.keyboard.caret.unavailable,
+                    caretOffsets: root.keyboard.caret.calibration.offsets,
+                    caretTries: root.keyboard.caret.calibration.tries
+                },
+                timer: {
+                    phase: root.countdown.phase,
+                    left: root.countdown.remainingText,
+                    setup: root.countdown.setupMinutes,
+                    clockFlight: transitionLayer.phase,
+                    ringFlight: ringLayer.phase
+                },
                 events: {
                     current: root.events.current?.key ?? null,
                     queued: root.events.queue.map(e => e.key ?? "")

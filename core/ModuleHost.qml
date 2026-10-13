@@ -10,6 +10,8 @@ import "../modules/osd"
 import "../modules/player"
 import "../modules/polkit"
 import "../modules/prompter"
+import "../modules/timer"
+import "../modules/session"
 
 Item {
     id: root
@@ -39,6 +41,10 @@ Item {
     // A file drag over the module's own drop targets (stash drop chooser):
     // the island's drop area loses containsDrag under them.
     readonly property bool dragActive: host.item?.dragActive ?? false
+    // The module needs the keyboard right now (notification reply field).
+    readonly property bool wantsKeyboard: host.item?.wantsKeyboard ?? false
+    // The user is working with the module: auto-close timers wait.
+    readonly property bool holdOpen: host.item?.holdOpen ?? false
 
     Loader {
         id: host
@@ -72,6 +78,10 @@ Item {
                 return polkitComp;
             if (root.moduleName === "prompter")
                 return prompterComp;
+            if (root.moduleName === "timer")
+                return timerComp;
+            if (root.moduleName === "session")
+                return sessionComp;
             return null;
         }
     }
@@ -94,6 +104,7 @@ Item {
             cfg: root.services.config.notifications
             theme: root.services.theme
             frost: root.services.frost ?? null
+            flowHeight: (root.services.config.modules ?? {})["notifications:flow"]?.height ?? 90
             onCloseRequested: root.closeRequested()
         }
     }
@@ -194,6 +205,26 @@ Item {
             prompter: root.services.prompter
             theme: root.services.theme
             cfg: root.services.config.prompter
+            onCloseRequested: root.closeRequested()
+        }
+    }
+    Component {
+        id: timerComp
+        TimerModule {
+            countdown: root.services.countdown
+            theme: root.services.theme
+            haptics: root.services.haptics
+            cfg: root.services.config.timer
+            surfaceRadius: root.services.config.modules?.timer?.radius ?? root.services.config.island.radius
+            onCloseRequested: root.closeRequested()
+        }
+    }
+    Component {
+        id: sessionComp
+        SessionModule {
+            session: root.services.session
+            theme: root.services.theme
+            cfg: root.services.config.session
             onCloseRequested: root.closeRequested()
         }
     }

@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import "../../../components"
 import "../../../config"
 
 // Flameshot-style region editor on one screen (port of pShell
@@ -32,7 +33,7 @@ Item {
     readonly property int physH: Math.round(height * dpr)
 
     // ── Tool contract (CaptureOverlay) ──────────────────────────────
-    readonly property var cutRect: selVisible ? Qt.rect(selX, selY, selW, selH) : null
+    readonly property var cutRect: selVisible ? Qt.rect(viewX, viewY, viewW, viewH) : null
     readonly property bool dimmed: true
 
     property real cursorX: 0
@@ -42,9 +43,34 @@ Item {
     property real selY: 0
     property real selW: 0
     property real selH: 0
-    property string dragMode: ""   // select | move | resize | draw | moveObj
+    // reselect = pressed outside an existing selection, not decided yet:
+    // a click morphs the frame to the new region, a drag dismisses it.
+    property string dragMode: ""   // select | reselect | move | resize | draw | moveObj
     readonly property bool selVisible: hasSelection || dragMode === "select"
     readonly property bool interacting: dragMode !== ""
+    // Moving / resizing the frame (or a pending reselect): the toolbar and
+    // audio chips stay up and spring along to their new slots instead of
+    // hiding until release.
+    readonly property bool frameDrag: dragMode === "move" || dragMode === "resize" || dragMode === "reselect"
+    readonly property bool toolsUp: hasSelection && (dragMode === "" || frameDrag)
+
+    // Drawn frame = selection + FLIP offsets (frame, dim cut, handles). A
+    // morph sets the offsets to old − new and springs them to 0, so the
+    // frame flows from where it was while a live drag stays exact; layout
+    // (toolbar slots, hit tests) reads the target sel* directly.
+    property real offX: 0
+    property real offY: 0
+    property real offW: 0
+    property real offH: 0
+    property bool frameSprings: true
+    Behavior on offX { enabled: root.frameSprings; Spring { stiffness: root.cfg.frameSpring; damp: root.cfg.frameDamping; eps: 0.2 } }
+    Behavior on offY { enabled: root.frameSprings; Spring { stiffness: root.cfg.frameSpring; damp: root.cfg.frameDamping; eps: 0.2 } }
+    Behavior on offW { enabled: root.frameSprings; Spring { stiffness: root.cfg.frameSpring; damp: root.cfg.frameDamping; eps: 0.2 } }
+    Behavior on offH { enabled: root.frameSprings; Spring { stiffness: root.cfg.frameSpring; damp: root.cfg.frameDamping; eps: 0.2 } }
+    readonly property real viewX: selX + offX
+    readonly property real viewY: selY + offY
+    readonly property real viewW: Math.max(0, selW + offW)
+    readonly property real viewH: Math.max(0, selH + offH)
     property string activeTool: ""
     property bool paletteOpen: false
     property point palettePos: Qt.point(0, 0)
@@ -133,6 +159,47 @@ Item {
         root.hasSelection = r.width >= 2 && r.height >= 2;
         root.capture.claim(root.screenName);
         root.selectionReady();
+    }
+
+    function viewRect(): rect {
+        return Qt.rect(root.viewX, root.viewY, root.viewW, root.viewH);
+    }
+
+    // Call AFTER sel* changed: the frame springs from `old` to the new sel.
+    function flipFrom(old: rect): void {
+        root.frameSprings = false;
+        root.offX = old.x - root.selX;
+        root.offY = old.y - root.selY;
+        root.offW = old.width - root.selW;
+        root.offH = old.height - root.selH;
+        root.frameSprings = true;
+        root.offX = 0;
+        root.offY = 0;
+        root.offW = 0;
+        root.offH = 0;
+    }
+
+    // Click selections (smart region, whole screen, double-click snap):
+    // the frame flows from where it is (a fresh click: from the press point).
+    function morphSelection(r: rect): void {
+        const old = root.viewRect();
+        root.setSelection(r);
+        root.flipFrom(old);
+    }
+
+    // A drag outside the selection starts a new one: the old selection is
+    // dropped (aim visuals return, the toolbar / chips retract into the
+    // bubble) and its frame flows into the one being drawn from (x, y).
+    function dismissForReselect(x: real, y: real): void {
+        const old = root.viewRect();
+        root.hasSelection = false;
+        root.pendingRecord = false;
+        root.dragMode = "select";
+        root.selX = x;
+        root.selY = y;
+        root.selW = 0;
+        root.selH = 0;
+        root.flipFrom(old);
     }
 
     function selectAll(): void {
@@ -355,13 +422,13 @@ Item {
         id: toolbar
         anchors.fill: parent
         editor: root
-        visible: root.hasSelection && root.dragMode === "" && !root.committing && !root.pendingRecord
+        shown: root.toolsUp && !root.committing && !root.pendingRecord
     }
 
     AudioChooser {
         anchors.fill: parent
         editor: root
-        visible: root.hasSelection && root.pendingRecord && root.dragMode === ""
+        shown: root.toolsUp && root.pendingRecord
     }
 
     OcrPanel {

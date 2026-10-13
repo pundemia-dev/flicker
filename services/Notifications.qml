@@ -109,6 +109,32 @@ Item {
         return false;
     }
 
+    AppActivator {
+        id: activator
+        launchPrefix: Config.data.launcher?.apps?.launchPrefix ?? []
+    }
+
+    // Tap on a notification (iOS): the sender's default action (Telegram
+    // opens that chat), then its window is focused — or the app started
+    // when it has no window and no default action.
+    function open(entry: var): void {
+        if (!entry)
+            return;
+        // Read before invoking: the sender may close the notification.
+        const names = [entry.desktopEntry, entry.appName].filter(n => (n ?? "") !== "");
+        const handled = entry.invokeDefault();
+        if (!activator.activate(names)) {
+            if (handled)
+                activator.activateSoon(names);
+            else
+                activator.launch(names);
+        }
+        // Opened = read: out of the history (non-resident senders already
+        // closed it by invoking).
+        if (root.history.includes(entry))
+            entry.dismiss();
+    }
+
     Component {
         id: entryComp
         NotificationEntry {}
@@ -118,6 +144,11 @@ Item {
         keepOnReload: false
         persistenceSupported: true
         bodyMarkupSupported: true
+        // Senders only attach actions / an inline reply when the server
+        // advertises them (Telegram checks at its start).
+        actionsSupported: true
+        inlineReplySupported: true
+        imageSupported: true
         onNotification: notif => {
             // notifications.suppress: duplicates of what an event indicator
             // already shows (blueman "Connected") never become a card.

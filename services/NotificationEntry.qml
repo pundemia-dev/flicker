@@ -21,6 +21,16 @@ QtObject {
     property string summary: ""
     property string body: ""
     property int urgency: NotificationUrgency.Normal
+    // Sender actions shown as context buttons ({id, text}); "default" (=
+    // tap) and "inline-reply" (= the reply field) are not buttons.
+    property var actions: []
+    property bool hasDefault: false
+    // Inline reply (KDE extension, Telegram Desktop uses it when the
+    // server advertises "inline-reply").
+    property bool canReply: false
+    property string replyPlaceholder: ""
+    // desktop-entry hint (app id without ".desktop"), for focusing / launching.
+    property string desktopEntry: ""
     // Arrival time; bumped on in-place replacement (it is a fresh message).
     property double time: Date.now()
 
@@ -35,6 +45,13 @@ QtObject {
         entry.summary = n.summary;
         entry.body = n.body;
         entry.urgency = n.urgency;
+        const all = n.actions ?? [];
+        entry.hasDefault = all.some(a => a.identifier === "default");
+        entry.actions = all.filter(a => a.identifier !== "default" && a.identifier !== "inline-reply" && (a.text ?? "") !== "")
+            .map(a => ({ id: a.identifier, text: a.text }));
+        entry.canReply = n.hasInlineReply;
+        entry.replyPlaceholder = n.inlineReplyPlaceholder ?? "";
+        entry.desktopEntry = n.desktopEntry ?? "";
     }
 
     // Closes the server-side notification (sender gets NotificationClosed).
@@ -58,6 +75,24 @@ QtObject {
         return true;
     }
 
+    // Context button: runs the sender's action by identifier.
+    function invoke(id: string): bool {
+        const action = (entry.notification?.actions ?? []).find(a => a.identifier === id);
+        if (!action)
+            return false;
+        action.invoke();
+        return true;
+    }
+
+    // Answers in place (the sender gets NotificationReplied); the app is
+    // never focused.
+    function reply(text: string): bool {
+        if (!entry.canReply || !entry.notification || text.trim() === "")
+            return false;
+        entry.notification.sendInlineReply(text);
+        return true;
+    }
+
     Component.onCompleted: sync()
 
     property Connections conn: Connections {
@@ -69,5 +104,9 @@ QtObject {
         function onAppIconChanged(): void { entry.sync(); }
         function onImageChanged(): void { entry.sync(); }
         function onUrgencyChanged(): void { entry.sync(); }
+        function onActionsChanged(): void { entry.sync(); }
+        function onHasInlineReplyChanged(): void { entry.sync(); }
+        function onInlineReplyPlaceholderChanged(): void { entry.sync(); }
+        function onDesktopEntryChanged(): void { entry.sync(); }
     }
 }

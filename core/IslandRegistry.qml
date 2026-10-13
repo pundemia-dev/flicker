@@ -6,6 +6,9 @@ QtObject {
     id: root
     property var islands: []
 
+    // Some island holds the keyboard exclusively (launcher, polkit, ...).
+    readonly property bool takesKeyboard: root.islands.some(i => i?.takesKeyboard === true)
+
     function register(island: var): void {
         root.islands = [...root.islands, island];
     }

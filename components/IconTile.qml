@@ -27,6 +27,7 @@ Rectangle {
     Rectangle {
         anchors.fill: parent
         radius: root.radius
+        topLeftRadius: root.topLeftRadius
         color: root.theme.iconTileHover
         opacity: root.hovered ? 1 : 0
         Behavior on opacity { Spring { stiffness: 6; damp: 0.6; eps: 0.002 } }
@@ -35,6 +36,7 @@ Rectangle {
     CardRim {
         anchors.fill: parent
         radius: root.radius
+        topLeftRadius: root.topLeftRadius
         rimWidth: root.rimWidth
         topColor: root.theme.wallSettingsIconRimTop
         bottomColor: root.theme.wallSettingsIconRimBottom

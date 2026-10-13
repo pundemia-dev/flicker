@@ -13,7 +13,7 @@ QtObject {
         { name: "privacy", side: "left", priority: 3, source: privacyIndicator },
         { name: "music", side: "left", priority: 2, source: musicIndicator },
         { name: "dictation", side: "left", priority: 2, source: dictationIndicator },
-        { name: "timer", side: "right", priority: 1, source: timerIndicator },
+        { name: "timer", side: "left", priority: 1, source: timerIndicator },
         { name: "eventText", side: "right", priority: 4, source: eventTextIndicator },
         { name: "recording", side: "plate", priority: 3, source: recordingIndicator },
         { name: "hotspot", side: "plate", priority: 3, source: hotspotIndicator }
@@ -24,7 +24,7 @@ QtObject {
     property Component privacyIndicator: PrivacyDot {}
     property Component musicIndicator: Music {}
     property Component dictationIndicator: DictationWave {}
-    property Component timerIndicator: Timer {}
+    property Component timerIndicator: TimerRing {}
     property Component recordingIndicator: Recording {}
     property Component hotspotIndicator: Hotspot {}
 }

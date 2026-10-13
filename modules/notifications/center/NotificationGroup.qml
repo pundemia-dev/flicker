@@ -17,11 +17,15 @@ Item {
     property var cfg
     property var theme
     property var frost: null
+    // The center's one open context panel (NotificationActions).
+    property var actionEntry: null
+    property string actionStage: ""
 
     signal expandRequested(bool on)
     signal activated(var entry)
     signal dismissGroup
     signal closeRequested
+    signal stageRequested(var entry, string stage)
 
     // Frost knockouts in group coords (cards' live, scaled geometry).
     readonly property var knockouts: {
@@ -45,10 +49,20 @@ Item {
     readonly property int depth: root.cfg?.centerStackDepth ?? 2
     readonly property real headerH: 34
 
+    // Context panel growth of the tiles before index i (target values).
+    function extraBefore(i: int): real {
+        void cardRepeater.count;
+        let h = 0;
+        for (let j = 0; j < i; j++)
+            h += cardRepeater.itemAt(j)?.extraHeight ?? 0;
+        return h;
+    }
+    readonly property real extraTotal: root.extraBefore(root.count)
+
     // Target (not animated) height: the center sums these for the island size.
     readonly property real targetHeight: root.fanned
-        ? root.headerH + root.count * root.cardH + (root.count - 1) * root.gap
-        : root.cardH + Math.min(root.count - 1, root.depth) * root.peek
+        ? root.headerH + root.count * root.cardH + (root.count - 1) * root.gap + root.extraTotal
+        : root.cardH + Math.min(root.count - 1, root.depth) * root.peek + root.extraTotal
 
     height: root.targetHeight
     Behavior on height { Spring {} }
@@ -101,7 +115,13 @@ Item {
             readonly property int level: Math.min(card.index, root.depth)
 
             width: root.width
-            height: root.cardH
+            baseHeight: root.cardH
+            height: root.cardH + card.extraHeight
+            Behavior on height { Spring {} }
+            // A collapsed stack keeps tap = fan out; panels only on real tiles.
+            actionable: !root.stacked
+            stage: card.modelData === root.actionEntry ? root.actionStage : ""
+            onStageRequested: s => root.stageRequested(card.modelData, s)
             z: root.count - card.index
             entry: card.modelData
             cfg: root.cfg
@@ -123,7 +143,7 @@ Item {
             // Bottom-anchored scale: a plate's bottom edge stays at y + h,
             // so exactly `peek` px of each layer shows below the one above.
             transformOrigin: Item.Bottom
-            y: root.fanned ? root.headerH + card.index * (root.cardH + root.gap)
+            y: root.fanned ? root.headerH + card.index * (root.cardH + root.gap) + root.extraBefore(card.index)
                 : card.level * root.peek
             scale: root.fanned ? 1 : 1 - 0.05 * card.level
             opacity: root.fanned || card.index <= root.depth ? 1 : 0

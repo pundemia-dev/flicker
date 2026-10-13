@@ -1,6 +1,7 @@
 import QtQuick
 
-// Passive visuals of the region editor: selection frame + physical size
+// Passive visuals of the region editor (drawn at the springing view* rect,
+// RegionEditor.flipFrom): selection frame + physical size
 // readout + 8 resize handles, the smart-region candidate under the cursor,
 // the selected-object outline and the thickness hint bubble.
 Item {
@@ -13,8 +14,8 @@ Item {
 
     function handlePos(i: int): point {
         const e = root.ed;
-        const xs = [e.selX, e.selX + e.selW / 2, e.selX + e.selW];
-        const ys = [e.selY, e.selY + e.selH / 2, e.selY + e.selH];
+        const xs = [e.viewX, e.viewX + e.viewW / 2, e.viewX + e.viewW];
+        const ys = [e.viewY, e.viewY + e.viewH / 2, e.viewY + e.viewH];
         const map = [[0, 0], [1, 0], [2, 0], [0, 1], [2, 1], [0, 2], [1, 2], [2, 2]];
         return Qt.point(xs[map[i][0]], ys[map[i][1]]);
     }
@@ -34,10 +35,10 @@ Item {
 
     Rectangle {
         visible: root.ed.selVisible
-        x: root.ed.selX
-        y: root.ed.selY
-        width: root.ed.selW
-        height: root.ed.selH
+        x: root.ed.viewX
+        y: root.ed.viewY
+        width: root.ed.viewW
+        height: root.ed.viewH
         color: "transparent"
         border.width: root.cfg.selectionBorder
         border.color: root.theme.captureSelection
@@ -45,8 +46,8 @@ Item {
 
     Rectangle {
         visible: root.ed.selVisible
-        x: Math.max(0, Math.min(root.ed.selX + root.ed.selW - width, root.width - width))
-        y: Math.min(root.ed.selY + root.ed.selH + root.cfg.toolSpacing, root.height - height)
+        x: Math.max(0, Math.min(root.ed.viewX + root.ed.viewW - width, root.width - width))
+        y: Math.min(root.ed.viewY + root.ed.viewH + root.cfg.toolSpacing, root.height - height)
         width: dims.implicitWidth + root.cfg.panelPad
         height: dims.implicitHeight + root.cfg.toolSpacing
         radius: height / 2
@@ -69,7 +70,7 @@ Item {
         Rectangle {
             required property int index
             readonly property point p: root.handlePos(index)
-            visible: root.ed.hasSelection && root.ed.activeTool === "" && (root.ed.dragMode === "" || root.ed.dragMode === "resize")
+            visible: root.ed.hasSelection && root.ed.activeTool === "" && (root.ed.dragMode === "" || root.ed.dragMode === "resize" || root.ed.dragMode === "reselect")
             x: p.x - width / 2
             y: p.y - height / 2
             width: root.cfg.handleSize
