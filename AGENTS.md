@@ -1166,6 +1166,11 @@ Simplified / not implemented yet (see pillShell.md for the intended behaviour):
   via `contentItem` opacity (`stolen`, springs disabled so the reset jumps; never unmap)
   and replays appearFromEdge (= the spec's "second instance"). Grab-before-animation
   matters: the frozen frame must show the clean bar, not a mid-fade island.
+  The second instance stays a Minimal strip for the whole session (`Island.captureMinimal`
+  blocks the startup morph / minimalIdle / fs-exit lift; released on `capture.closing` or
+  end), and once stolen the backdrop FILLS the live hole with the frozen frame
+  (`CaptureBackdrop.holeFilled`, springs in; fades out on close over the bar re-expanding
+  live) — the region preview shows the bar exactly as the screenshot will (user, Oct 2026).
   Overlay layers: `CaptureBackdrop` (frozen grab, drawn as 3 clipped pieces around a LIVE
   hole = `Island.captureHole()` band, so the steal + second instance stay visible) →
   `CaptureDim` (cut = tool's `cutRect`) → global crosshair → mode tool (Loader) →
