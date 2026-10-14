@@ -732,6 +732,40 @@ PanelWindow {
 
     // Global band the capture backdrop keeps LIVE (frozen elsewhere): the
     // island now and as the bar it re-appears as, up to the screen top.
+    // Screen-local island rect for the lock screen: the password field
+    // starts as a copy of the island right here and flies down (LockField).
+    function lockRect(): var {
+        return {
+            x: islandRect.x,
+            y: islandRect.y,
+            width: islandRect.width,
+            height: islandRect.height,
+            radius: islandRect.radius,
+            visible: root.visible && islandRect.width > 0,
+            clock: root.lockClock()
+        };
+    }
+
+    // The bar clock label (window coords = screen-local) when the bar shows
+    // it: the lock clock starts on it and flies to its own spot (LockClock).
+    function lockClock(): var {
+        const home = indicators.clockOwner?.sharedHome;
+        const label = indicators.clockOwner?.sharedElement;
+        if (!home || !label || root.state.currentState !== root.state.island || root.contentKey !== "bar")
+            return null;
+        const p = home.mapToItem(null, 0, 0);
+        return {
+            x: p.x,
+            y: p.y,
+            width: home.width,
+            height: home.height,
+            pixelSize: label.font.pixelSize,
+            weight: label.font.weight,
+            family: label.font.family,
+            color: String(label.color)
+        };
+    }
+
     function captureHole(): var {
         const pad = root.config.capture.holePad + root.haloPad;
         const w = Math.max(islandRect.width, Math.min(root.barFittedWidth, root.islandCfg.maxWidth)) + pad * 2;

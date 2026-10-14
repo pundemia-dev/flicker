@@ -14,13 +14,16 @@ import "../modules/launcher/plugins/wallpapers/WallrArgs.js" as WallrArgs
 //   setHidden() — renames to ".name" and back (hidden files show in the
 //     carousel only on request; random never picks them);
 //   video pause — `wallr ipc pause/resume -m <output>` while a window is
-//     fullscreen there (pauseOnFullscreen) or on battery (pauseOnBattery);
+//     fullscreen there (pauseOnFullscreen), on battery (pauseOnBattery) or
+//     while the session is locked (wallr's video loop dies under a lock);
 //   slideshow (WallpaperSlideshow) and the thumbnail warm-up
 //     (WallpaperWarmup) live in their own files.
 Scope {
     id: root
     required property var compositor
     required property var battery
+    // LockScope (Shell): video playback is paused while the session is locked.
+    property var lock: null
     // services/Theme: wallAccent is set from the wallpaper (accentFromWallpaper).
     property var theme: null
 
@@ -416,8 +419,35 @@ Scope {
 
     readonly property bool discharging: !!root.battery?.present && !root.battery?.charging
 
+    // wallr 0.6.4 bug (measured: 4 s pause → resume plays, 7 s → dead): its
+    // video loop does not refresh "last uploaded frame" while paused, so the
+    // first resumed iteration without a ready frame sees > 5 s and stops
+    // playback for good ("Video playback stalled"); `resume` / `reload`
+    // can't revive it, only a new `set` — and a set of the SAME path with
+    // the SAME effect is an idempotent no-op in wallr, hence two instant
+    // sets with different effects (wipe, then fade). So a pause longer than
+    // `wallrStallMs` ends with the same video set again (no transition, no
+    // theme run; it restarts from its first frame). GIFs have no such check.
+    property var pausedAt: ({})
     function setPaused(output: string, paused: bool): void {
-        Quickshell.execDetached(["wallr", "ipc", paused ? "pause" : "resume", "-m", output]);
+        if (paused) {
+            root.pausedAt[output] = Date.now();
+            Quickshell.execDetached(["wallr", "ipc", "pause", "-m", output]);
+            return;
+        }
+        const since = root.pausedAt[output];
+        delete root.pausedAt[output];
+        if (since !== undefined && Date.now() - since > (root.cfg.wallrStallMs ?? 4000))
+            root.revive(output);
+        else
+            Quickshell.execDetached(["wallr", "ipc", "resume", "-m", output]);
+    }
+    function revive(output: string): void {
+        Quickshell.execDetached(["bash", "-c",
+            'p=$(cat "$HOME/.cache/wallr/last_wallpaper/$1" 2>/dev/null); case "${p,,}" in '
+            + '*.mp4|*.webm|*.mkv|*.mov|*.avi|*.m4v) wallr set "$p" -m "$1" -e wipe -d 0ms --no-theme; '
+            + 'wallr set "$p" -m "$1" -e fade -d 0ms --no-theme ;; '
+            + '*) wallr ipc resume -m "$1" ;; esac', "_", output]);
     }
 
     Variants {
@@ -425,8 +455,15 @@ Scope {
 
         delegate: QtObject {
             required property ShellScreen modelData
+            // Locked: wallr presents with Vulkan FIFO and ignores frame
+            // callbacks; under a session lock its surface is never shown, the
+            // present blocks, and after 5 s without an uploaded frame its
+            // playback loop gives up for good ("Video playback stalled,
+            // stopping" — frozen until `wallr ipc reload`, seen after a
+            // lock). A pause takes its idle branch instead (no 5 s check).
             readonly property bool shouldPause: ((root.cfg.pauseOnFullscreen ?? true) && (root.compositor?.fullscreenOn(modelData.name) ?? false))
                 || ((root.cfg.pauseOnBattery ?? false) && root.discharging)
+                || (root.lock?.locked ?? false)
             onShouldPauseChanged: root.setPaused(modelData.name, shouldPause)
             // Start from a known state (a shell restart may have left it paused).
             Component.onCompleted: root.setPaused(modelData.name, shouldPause)

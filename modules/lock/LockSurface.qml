@@ -3,12 +3,14 @@ import Quickshell
 import Quickshell.Wayland
 
 // One lock surface per screen. Contract for the skin item (initial props):
-// lock (WlSessionLock), pam (Pam scope), screen (ShellScreen).
+// lock (WlSessionLock), pam (Pam scope), scope (LockScope: grabPath, cfg),
+// screen (ShellScreen).
 WlSessionLockSurface {
     id: root
 
     required property WlSessionLock lock
     required property Pam pam
+    required property var scope
 
     // Opaque base: the session-lock protocol expects full output coverage;
     // transparent lets the compositor's "client not drawing" backdrop show.
@@ -28,6 +30,7 @@ WlSessionLockSurface {
         skinItem = skinComp.createObject(contentItem, {
             lock: root.lock,
             pam: root.pam,
+            scope: root.scope,
             screen: root.screen
         });
         if (skinItem)

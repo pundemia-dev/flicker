@@ -208,7 +208,10 @@ Singleton {
             // keyboard LED in sysfs, polled every capsPollMs. caretOffsets:
             // {app_id: [dx, dy]} overrides the measured offset. Background
             // = the wallpaper accent (Theme.wallAccent, keyboardPillBg without).
+            // lockGap: on the lock screen the pill sits this far under the
+            // password field.
             property var keyboard: ({
+                    lockGap: 14,
                     enabled: true,
                     layout: true,
                     caps: true,
@@ -1099,6 +1102,10 @@ Singleton {
                             randomFrom: "all",
                             pauseOnFullscreen: true,
                             pauseOnBattery: false,
+                            // A pause longer than this ends with a re-set of the
+                            // video, not `resume` (wallr 0.6.4 kills playback
+                            // after > 5 s paused — see services/Wallpaper).
+                            wallrStallMs: 4000,
                             // Slideshow (services/WallpaperSlideshow): step,
                             // order random | sequential, recent paths a random
                             // step avoids, only still images on battery.
@@ -1243,6 +1250,100 @@ Singleton {
             // placed by its triangle (top = module centre + triangleOffset). Alarm: pw-play
             // alarmSound every alarmEveryMs for at most alarmMaxSec;
             // openOnFinish opens the module on the focused output.
+            // Lock screen (modules/lock). dissolve: grab every output before
+            // locking (grim, grabTimeoutMs; on failure lock from black) and
+            // dissolve the regions that differ from the wallpaper
+            // (scripts/lock/diff.py: diffGrid columns, diffThreshold per-cell
+            // max channel difference, diffMaxCoverage → one whole region,
+            // diffTimeoutMs → whole grab only blurs; a GIF / video wallpaper plays
+            // as the lock background and the regions are the window rects;
+            // the dissolve waits ≤ wallWaitMs for its first frame) largest first, one at a
+            // time (the next starts overlapIn / overlapOut of a step before
+            // the previous ends, + gapMs), after startDelayMs; a chain longer than
+            // sequenceMaxMs shortens every step. Tile: grown by tileMarginPx, blur
+            // builds over the first blurLead of its spring (blurMax px), fades
+            // below fadeFrom. Timed (user: smoother than a spring): dissolveMs
+            // into the blur, returnMs out of it, `easing` = a QML Easing name
+            // (tiles, base grab, black cover). unlockFallbackMs force-unlocks
+            // if the reverse never reports back. avatar: image / GIF / WebP /
+            // video path ("" = ~/.face, ~/.face.icon, AccountsService), kind by
+            // MIME; avatarSize px, blur-fades in (avatarBlurMax) once the media
+            // decoded or avatarWaitMs passed; fallback disc + initial colours.
+            // field*: the password field = the island's copy (LockField):
+            // lands in a fieldWidth × fieldHeight slot under the date,
+            // fieldDelayMs after the dissolve starts (the bar crop blurs out
+            // first), on fieldStiffness/Damping springs; wrong password =
+            // shakePx kick on an under-damped spring; the island (rect +
+            // holeMarginPx: halo, side arcs) is painted out of the grab by
+            // diff.py — the inpaintStripPx rows below it, stretched + Gaussian
+            // inpaintBlur — and the field's bar crop covers it at first;
+            // dot*: password dots pop in as a random MorphShape (dotShapeScale ×
+            // fieldDotSize) on dotStiffness/Damping, morph to the dot after
+            // dotMorphDelayMs on dotMorph*; a removed slot lives dotExitMs.
+            // clock*: the lock clock (clockFontSize) starts on the bar clock and
+            // flies out clockDelayMs after the dissolve starts, on
+            // clockStiffness/Damping; back into the bar on unlock.
+            // fieldFallbackWidth = start width when no island was mapped.
+            property var lock: ({
+                    dissolve: true,
+                    grabTimeoutMs: 400,
+                    diffTimeoutMs: 1500,
+                    wallWaitMs: 1500,
+                    diffGrid: 240,
+                    diffThreshold: 20,
+                    diffMaxCoverage: 0.85,
+                    startDelayMs: 120,
+                    gapMs: 0,
+                    overlapIn: 0.6,
+                    overlapOut: 0.6,
+                    sequenceMaxMs: 2000,
+                    tileMarginPx: 24,
+                    blurMax: 64,
+                    blurLead: 0.5,
+                    fadeFrom: 0.7,
+                    dissolveMs: 400,
+                    returnMs: 300,
+                    easing: "InOutSine",
+                    unlockFallbackMs: 4000,
+                    avatar: "",
+                    avatarSize: 384,
+                    avatarWaitMs: 2000,
+                    avatarBlurMax: 48,
+                    avatarFallbackColor: "#2A2D33",
+                    avatarFallbackInk: "#C7D0DE",
+                    fieldWidth: 360,
+                    fieldHeight: 52,
+                    fieldDelayMs: 300,
+                    fieldStiffness: 3.5,
+                    fieldDamping: 0.4,
+                    shakePx: 14,
+                    shakeStiffness: 6,
+                    shakeDamping: 0.12,
+                    fieldColor: "#000000",
+                    fieldRim: "#26FFFFFF",
+                    fieldPlaceholderColor: "#8B93A3",
+                    fieldFontSize: 17,
+                    fieldDotSize: 10,
+                    fieldDotSpacing: 10,
+                    fieldMaxDots: 16,
+                    fieldDotColor: "#EDF1F8",
+                    fieldFallbackWidth: 78,
+                    holeMarginPx: 14,
+                    inpaintStripPx: 3,
+                    inpaintBlur: 8,
+                    dotShapeScale: 1.7,
+                    dotStiffness: 5,
+                    dotDamping: 0.42,
+                    dotMorphStiffness: 3.5,
+                    dotMorphDamping: 0.55,
+                    dotMorphDelayMs: 140,
+                    dotExitMs: 450,
+                    clockFontSize: 64,
+                    clockDelayMs: 0,
+                    clockStiffness: 3,
+                    clockDamping: 0.45,
+                    caretGap: 4
+                })
             // Session menu (services/Session, modules/session). actions =
             // buttons in order (lock logout suspend hibernate reboot
             // poweroff), defaultAction = selected on open; confirm = a second

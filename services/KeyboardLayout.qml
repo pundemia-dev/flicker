@@ -10,7 +10,9 @@ import "../config"
 //
 // drift: one-shot `driftwm msg --json state` for the initial value, then a
 // long-lived `driftwm msg subscribe --json` tail (snapshots carry
-// layout/layout_short; window traffic is parsed but ignored).
+// layout/layout_short; window traffic is parsed but ignored). Snapshots only
+// go out after a rendered frame — poll() re-reads `state` (the lock does it
+// after non-text keys).
 // niri: long-lived `niri msg --json event-stream`; the stream replays
 // KeyboardLayoutsChanged on connect, then KeyboardLayoutSwitched per tap.
 // Anything else (hyprland/…) is untracked: lang stays "" and dictation
@@ -84,6 +86,14 @@ Item {
                 niriSub.running = true;
             }
         }
+    }
+
+    // Ask again now (drift only; niri pushes every switch). driftwm sends its
+    // subscribe snapshots only after a RENDERED frame, so a layout switch on
+    // a static screen (the lock) stays unreported until something redraws.
+    function poll(): void {
+        if (root._backend === "drift" && !driftInit.running)
+            driftInit.running = true;
     }
 
     Component.onCompleted: {

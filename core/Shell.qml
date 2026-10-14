@@ -76,7 +76,7 @@ Scope {
         recorder: recorderService
     }
 
-    LockScope { id: lockScope }
+    LockScope { id: lockScope; registry: islandRegistry; keyboard: keyboardIndicatorService; theme: themeService; compositor: compositorService }
     // Session actions (lock / log out / sleep / restart / shut down).
     Session { id: sessionService; lock: lockScope; compositor: compositorService }
 
@@ -94,6 +94,7 @@ Scope {
         id: wallpaperService
         compositor: compositorService
         battery: batteryService
+        lock: lockScope
         theme: themeService
     }
 

@@ -155,6 +155,74 @@ Not a git repo. No tests, no linter, no formatter.
   `Config.data.<group>.<key>`. Pure visual tokens live in `services/Theme.qml`.
 - Lock is shell-level, not an island module: `modules/lock/LockScope.qml` (WlSessionLock +
   `Pam.qml` + PAM config `assets/pam.d/pillshell`). Island hides while locked.
+  Lock-in / unlock animation (user design, Oct 2026): `activate()` grabs every output FIRST
+  (grim PPM → `$XDG_RUNTIME_DIR/pillShell/lock`, 700, deleted on unlock; `grabTimeoutMs` /
+  failure → lock anyway, from black), THEN locks — the surface's first frame is the grab (no
+  seam; driftwm shows a blank Pending frame until our first commit). `LockBackdrop` runs
+  `scripts/lock/regions.sh` (wallpaper wallr shows on that output — the fill-blur composite
+  itself — + `diff.py`: grid diff vs the cover-fitted wallpaper, row-run union-find boxes,
+  ~0.25 s) and every region that differs (windows, island, notifications) dissolves as a
+  `LockTile` (ShaderEffectSource crop of the base grab → blur then fade), LARGEST first,
+  one after another with an overlap (`overlapIn`/`overlapOut` of a step, `gapMs`; the chain is capped by `sequenceMaxMs` — steps shorten), wallpaper showing through; base grab fades under them. TIMED, not springs
+  (user exception: smoother into / out of the blur) — `dissolveMs`/`returnMs`, `easing` = Easing name. GIF/video wallpaper
+  (`regions.sh` kind by extension → `diff.py --no-diff`, inpaint only): the lock background PLAYS
+  that media (AnimatedImage / MediaPlayer, muted, looped, PreserveAspectCrop like wallr "fill";
+  starts at frame 0 — the base grab crossfades into it) and the regions are the compositor's window
+  rects snapshotted at lock time (`LockScope.windowRectsFor`, + the island) grown by tileMarginPx;
+  dissolve waits ≤ `wallWaitMs` for the first frame. No wallpaper → one whole region that only
+  blurs. The wallpaper Loader picks its Component from `info` directly (via derived props an mp4
+  was tried as an Image once). Unlock = exact reverse (smallest back first),
+  then `finishUnlock()` — the live desktop may differ from the grab (user accepted the jump).
+  Tunables `Config.lock`. Verified in a scratch overlay harness (PanelWindow + fake scope,
+  grim frames): regions match the windows, wallpaper vs grab outside regions < 1/255. NOT
+  tested in a real session lock (needs the password): first-frame seam, multi-output.
+  Placeholder clock/dots in `LockSkin` until the real lock UI.
+  Password field = the ISLAND's copy (`LockField`, user): `LockScope.activate()` snapshots every
+  island's `lockRect()` (Island.qml, screen-local islandRect; Shell injects `registry`) BEFORE the
+  grab; the field starts exactly there showing the RAW grab's crop of it (+ `holeMarginPx`, so the
+  side arcs come along) — no seam; on dissolve start the crop blur-fades, then (`fieldDelayMs`)
+  the black body flies on springs into `fieldSlot` (column placeholder under the date), dots /
+  "Enter Password" blur in; wrong password = under-damped `kick()`. Unlock: flies home, crop
+  returns, `arrivedHome`; the skin finishes when BOTH that and the backdrop reverse are done
+  (~0.8 s measured). The grab's own island is painted out by `diff.py --hole` (strip below it
+  stretched + Gaussian) into `<grab>-inpaint.ppm`, which the BASE (= tile texture) switches to —
+  a QML inpaint item nested inside the tiles' ShaderEffectSource source did NOT reach the tiles
+  on the way back (old island reappeared), and a wallpaper patch read as a light block over a
+  dark window. Starting from Minimal works too (verified: strip → field → strip). Timing
+  measurements with `grabToImage` frames lie (5.9 s vs 0.8 s) — use grim for frames.
+  Password dots (`LockDots`, user: like caelestia's MaterialShape input): each char pops in as a
+  random shape and morphs into the dot; a deleted slot shrinks away (a ListModel trails the count
+  by `dotExitMs`, appended/removed at the end — an INT Repeater model rebuilt every delegate, so
+  all dots replayed the pop-in on each keystroke). M3Shapes is a hand-installed C++ plugin (/usr/lib/qt6/qml, no package) — NOT
+  used: `components/MorphShape.js` = polar r(θ) shapes (cookie/sunny/burst/star/n-gon, max r 1),
+  morph = per-angle lerp; `components/MorphDot.qml` = CurveRenderer PathPolyline of it. Verified
+  with harness frames (shapes, morph, collapse).
+  Lock clock = flown out of the bar clock (`LockClock`, user): `Island.lockClock()` (part of
+  lockRect: ClockPlate `sharedHome` box + label font, only while the bar shows) → drawn at
+  `clockFontSize`, scaled to the bar size, crossfades with the field's bar crop on the spot, then
+  centre + scale spring to `clockSlot` (invisible same-font Text in the column); bar weight until
+  half way, then Light; no home (Minimal / module) = just blur-fades in at the slot. Unlock waits
+  for it too (`clockHome`). Time from Quickshell SystemClock ("hh:mm" like services/Clock).
+  Verified with grim frames in the harness. Wrong-password lag = failure delays of BOTH pam_unix
+  and pam_faillock (1.5.x+ has its own) → `nodelay` on every line of assets/pam.d/pillshell
+  (measured 1.9 s → 4 ms with a PamContext for user `nobody` — Quickshell refuses unknown users,
+  and `nobody` never touches the real user's faillock tally).
+  Keyboard pill on the lock (`LockKeyboardPill`, user): the session lock hides KeyboardOverlay,
+  so the skin draws the same `KeyboardPill` `keyboard.lockGap` under the password field's CARET
+  (`LockField.caretX` = just past the last dot, `caretGap`; centre while empty — it follows the
+  dot row): Caps Lock for as long as it is on, a layout switch while `KeyboardIndicator.
+  flashing`; no pointer probe. driftwm sends subscribe snapshots
+  only after a RENDERED frame, so a layout switch on the static lock arrived late or not at all
+  ("not always shown") → the skin calls `KeyboardLayout.poll()` (re-reads `driftwm msg --json
+  state`) 20 ms after every key without text. Shell injects `keyboard` + `theme` into LockScope; the column keeps
+  a spacer under `fieldSlot` so the status line sits below the pill. Verified in the harness.
+  Avatar `LockAvatar` (top of the placeholder column, above the clock, 384 px; own FadeBlur that
+  waits for `settled` = media decoded / none / `avatarWaitMs`): still image / GIF·WebP·APNG
+  (AnimatedImage) / video (MediaPlayer, no audioOutput = silent, looped) — kind by MIME via
+  `scripts/lock/avatar.sh` (`lock.avatar` "" = ~/.face → ~/.face.icon → AccountsService;
+  ~/.face has no extension); RoundedImage-style circle (CurveRenderer Shape, fillItem = hidden
+  layered wrapper — GIF/video frames update through it); fallback = initial on a disc.
+  Verified in a scratch PanelWindow (grabToImage ×2: GIF + video frames change).
 - IslandState: openModule over an already-open module must NOT overwrite `previousState`
   with "module" (closeModule would then re-enter a module-less "module" state → island
   stuck as an empty module-sized rect; `setIsland`/`setMinimal` refuse to leave "module").
@@ -365,7 +433,16 @@ Not a git repo. No tests, no linter, no formatter.
   new name → source to `gio trash`, a different one → "<stem>-<n>"; the user's folder had 53
   byte-identical name/.name twins where `mv -n` silently did nothing — cards "came back"),
   random skips hidden; hide/fav chords ignore auto-repeat, video pause `wallr ipc pause/resume -m <out>` per screen on
-  fullscreen (`pauseOnFullscreen`) / battery (`pauseOnBattery`). Plugin split: WallKeys.js
+  fullscreen (`pauseOnFullscreen`) / battery (`pauseOnBattery`) / SESSION LOCK (wallr 0.6.4 presents
+  via Vulkan FIFO, ignores frame callbacks; under a lock the present blocks and its play_video loop
+  stops for good after 5 s without an uploaded frame — "Video playback stalled, stopping"). A PAUSE
+  > 5 s kills it too: last_frame_at is not refreshed while paused, the first resumed iteration
+  without a ready frame stops playback (measured via wallr CPU: 4 s pause → plays, 7 s → dead, also
+  after every fullscreen window > 5 s). `resume`/`reload` can't revive it; `set` of the same path
+  with the same effect is a no-op → `Wallpaper.setPaused(false)` after > `wallrStallMs` runs
+  `revive()`: two instant sets (`-e wipe -d 0ms`, then `-e fade`, --no-theme; video restarts from
+  frame 0). Source: github programmersd21/wallr v0.6.4, daemon/mod.rs play_video / set_wallpaper.
+  Check playback = wallr's CPU ticks (/proc/<pid>/stat), not screenshots (windows move). Plugin split: WallKeys.js
   (Ctrl+A/E ends, Ctrl+R random card, Ctrl+Shift+A/D fav, Ctrl+H hidden view normal→include→only (pill on top, eye-off badge on
   hidden cards), Ctrl+Shift+H hide/unhide, Ctrl+[/] history —
   Ctrl combos also match xkb keycodes so they work on the ru layout), WallFilter.js (prefixes

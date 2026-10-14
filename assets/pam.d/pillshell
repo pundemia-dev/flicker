@@ -1,6 +1,8 @@
 #%PAM-1.0
+# nodelay everywhere: pam_unix AND pam_faillock each impose their own ~2 s
+# failure delay (measured: 1.9 s → 4 ms); faillock still limits the tries.
 
-auth    required                    pam_faillock.so     preauth
-auth    [success=1 default=bad]     pam_unix.so         nullok
-auth    [default=die]               pam_faillock.so     authfail
-auth    required                    pam_faillock.so     authsucc
+auth    required                    pam_faillock.so     preauth nodelay
+auth    [success=1 default=bad]     pam_unix.so         nullok nodelay
+auth    [default=die]               pam_faillock.so     authfail nodelay
+auth    required                    pam_faillock.so     authsucc nodelay
