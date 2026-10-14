@@ -169,6 +169,8 @@ Item {
         // zoom-sized Image (physW × zoom ≈ 20k px) inside a clip/layer rendered
         // NOTHING here, not even its siblings.
         readonly property int span: Math.ceil(width / zoom)
+        // On-screen size of one grab pixel (= zoom when it divides the size).
+        readonly property real texel: width / span
         readonly property int px: Math.round(root.cursorX * root.dpr)
         readonly property int py: Math.round(root.cursorY * root.dpr)
 
@@ -205,6 +207,10 @@ Item {
                 strokeColor: "transparent"
                 fillColor: "white"
                 fillItem: lens
+                // fillItem paints the texture at its NATURAL size (span×span
+                // px from the shape origin, edge texels clamped beyond) — the
+                // lens showed the sample's bottom-right corner in the centre.
+                fillTransform: PlanarTransform.fromScale(loupe.texel, loupe.texel)
                 PathRectangle {
                     width: loupe.width
                     height: loupe.height
@@ -215,8 +221,8 @@ Item {
 
         // Centre cell = the pixel that will be picked.
         Rectangle {
-            width: loupe.zoom
-            height: loupe.zoom
+            width: loupe.texel
+            height: loupe.texel
             x: (loupe.width - width) / 2
             y: (loupe.height - height) / 2
             color: "transparent"
