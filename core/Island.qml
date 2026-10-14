@@ -329,6 +329,11 @@ PanelWindow {
         const all = root.config.modules ?? {};
         const size = all[root.moduleKey] ?? all[root.state.activeModule]
             ?? ({ width: root.islandCfg.moduleWidth, height: root.islandCfg.moduleHeight });
+        // Recording controls: width fits the row so the side gaps equal
+        // the top/bottom gap (the module reports it once rendered).
+        if (root.moduleKey === "recording-actions" && root.shownModule === "recording-actions"
+            && moduleHost.preferredWidth > 0)
+            return { width: moduleHost.preferredWidth, height: size.height, radius: size.radius };
         // Flow card: grows by its context panel / reply field (drag down,
         // long press) once it is the rendered module.
         if (root.moduleKey === "notifications:flow" && root.shownModule === "notifications"
@@ -1472,7 +1477,13 @@ PanelWindow {
             : root.theme.islandRim
         clip: true
 
-        Behavior on width { enabled: !root.stolen; Spring {} }
+        Behavior on width {
+            enabled: !root.stolen
+            Spring {
+                stiffness: moduleHost.widthSpring?.stiffness ?? 4
+                damp: moduleHost.widthSpring?.damping ?? 0.35
+            }
+        }
         Behavior on height { enabled: !root.stolen; Spring {} }
         Behavior on radius { enabled: !root.stolen; Spring {} }
         Behavior on y { enabled: !root.stolen; Spring {} }

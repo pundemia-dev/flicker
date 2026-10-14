@@ -17,6 +17,9 @@ Item {
     property bool recording: false
     property bool paused: false
     property string audio: "none"
+    // Playback speed picked on the recording controls' ruler (session-only,
+    // reset per recording). Not applied to the file yet.
+    property real speed: 1
     // "auto" default memory: the last audio choice, session-only.
     property string lastAudio: "none"
     property string file: ""
@@ -77,6 +80,7 @@ Item {
             cmd.push("--hw", root.cfg.hwDevice);
         recProc.command = cmd;
         recProc.running = true;
+        root.speed = 1;
         root.recording = true;
         root.paused = false;
         root.pausedAccum = 0;

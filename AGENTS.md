@@ -135,7 +135,8 @@ Not a git repo. No tests, no linter, no formatter.
   silent); QS edit entry = deep, layout snap during drag-move =
   click, tab switch / resize snap = release (ControlCenter.setPage/beginEdit/setPreview); QS slider reaching 0/100 and SeekBar
   crossing an end = release; wallpaper carousel = click per card passing the centre
-  (`haptics.wallpapers`, haptics reach plugins via `LauncherPlugin.host.haptics`). Explicitly NOT wanted: GestureZones swipes, dashboard drawer
+  (`haptics.wallpapers`; recording speed ruler = click per value passing the centre while scrolled /
+  dragged, `haptics.recordSpeed`, haptics reach plugins via `LauncherPlugin.host.haptics`). Explicitly NOT wanted: GestureZones swipes, dashboard drawer
   threshold, notification swipe, QS tab rubber band. Probe/CLI tools in `temp/haptic/`.
 - `Process.signal(2)` sends SIGINT (pShell pattern); `terminate("SIGINT")` does NOT work —
   use `signal()` for graceful stops (see Dictation).
@@ -1290,7 +1291,7 @@ Simplified / not implemented yet (see pillShell.md for the intended behaviour):
   `out-<screen>.png` → deliver)); `color/ColorLoupe` + `ColorPanel` (pipette: 1×1 Canvas
   sampling, loupe = ShaderEffectSource `sourceRect` (span = size/zoom px of a hidden 1:1 grab
   Image, opacity 0 — an INVISIBLE ShaderEffectSource never renders, fillItem Shape drew nothing)
-  filling a CurveRenderer circle; the old zoom-sized Image (physW×zoom ≈ 20k px) in a clip/
+  filling a CurveRenderer circle — `ShapePath.fillItem` paints the texture at its NATURAL size (span×span px from the origin, edges clamped), so it needs `fillTransform: PlanarTransform.fromScale(texel)` (without it the lens centre showed the pixel +span/2 right/down; verified in a harness with coordinate-coded pixels); the old zoom-sized Image (physW×zoom ≈ 20k px) in a clip/
   MultiEffect-masked layer rendered NOTHING, loupe looked empty (fixed Oct 2026) — under a 2px ring, HSL sliders, formats,
   recent colours — memories are session-only on CaptureActions, never written to config);
   `window/WindowPicker` (rects from `compositor.windowRects(screen)`; click → selection
@@ -1340,8 +1341,19 @@ Simplified / not implemented yet (see pillShell.md for the intended behaviour):
   "none" so concat stays compatible). Region = `-o <output> -F crop=w:h:x:y` (physical px, even
   w/h), NOT `-g`: driftwm 0.19 screencopy ignores the region offset (always the top-left
   corner, verified Oct 2026; IPC `Compositor.startRecording(region)` still uses `-g`). All its PipeWire nodes are `pillshell_rec*` →
-  ignored by the mic indicator. Island controls: `RecordingActionsModule` (timer, discard,
-  audio cycle, pause, stop) on the red plate click / IPC recordControls.
+  ignored by the mic indicator. Island controls: `RecordingActionsModule` (dot, h:mm:ss, speed drum
+  `SpeedRuler` → `Recorder.speed` (`recorder.speeds`/`ruler`; NOT applied to the file yet), discard,
+  audio cycle, pause, stop; layout copied from the user's iOS reference shot, scaled 96/182 —
+  gaps in `recorder.controls`, island width = module `preferredWidth`; at rest only pause + stop and
+  the ruler is centred, hovering the buttons (root HoverHandler, zone measured from the RIGHT edge
+  by the live `reveal` — from the left it flapped as the centred island grew) widens the island and
+  discard + audio fade/scale in, anchored to the live width; `hoverHoldMs` before closing). No
+  auto-open on opening: armed only after the rest width and positive evidence (pointer off the zone
+  `armDelayMs`, left the island, or entered within `entryEdge` of an edge; enter events can carry a
+  stale scene 0,0 → points outside the module are skipped). Pointer x from the WINDOW position
+  (`point.position` is stale while the island grows under a still pointer). Logic verified with a
+  scripted harness overriding `pointerIn/pointerSceneX/Y` — uinput pointer tests on driftwm were
+  unreliable (pushing the cursor into a screen edge stops the hover events). on the red plate click / IPC recordControls.
   uv scripts (`regions.py` opencv smart regions, niri `nudge.py`) run via
   `CaptureActions.uvScript()` = `uv run --offline ... || uv run ...`: online `uv run
   --script` re-resolved deps on every start (~55s vs 1.6s offline).

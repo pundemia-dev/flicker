@@ -109,6 +109,16 @@ QtObject {
     readonly property color timerTickFlash: "#FFF4D6"
     readonly property color timerTickDim: "#6B4307"
     readonly property color timerPaused: "#8E8E93"
+    // Recording speed ruler (modules/capture/SpeedRuler): grey minor ticks,
+    // red ticks at the speed values.
+    readonly property color speedRulerTick: "#A7A7A7"
+    readonly property color speedRulerMark: "#903E42"
+    // Recording controls (RecordingActionsModule): live dot, buttons.
+    readonly property color recDot: "#F84330"
+    readonly property color recButtonInk: "#FDFDFD"
+    readonly property color recButtonBg: "#2B2B2D"
+    readonly property color recStopInk: "#FA4039"
+    readonly property color recStopBg: "#39090C"
     readonly property color timerTrack: "#2EFFFFFF"
     readonly property color timerDim: "#8E8E93"
     readonly property color timerButton: "#3A3A3C"

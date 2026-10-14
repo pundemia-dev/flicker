@@ -124,6 +124,8 @@ Singleton {
                     wallpapers: true,
                     // Timer ruler: click per minute passing the triangle.
                     timer: true,
+                    // Recording speed ruler: click per speed value passing the centre.
+                    recordSpeed: true,
                     intensity: { click: 1, deep: 1, release: 1, tick: 1 },
                     backendOptions: {}
                 })
@@ -672,7 +674,50 @@ Singleton {
                     recordDir: "~/Videos",
                     audioDefault: "auto",
                     hwAccel: true,
-                    hwDevice: "/dev/dri/renderD128"
+                    hwDevice: "/dev/dri/renderD128",
+                    // Speed ruler on the recording controls (modules/capture/SpeedRuler).
+                    speeds: [0.25, 0.5, 0.75, 1, 1.5, 2, 2.5, 3, 4],
+                    ruler: ({
+                            width: 112,
+                            tickSpacing: 9.3,
+                            minorTicks: 4,
+                            minorLength: 10,
+                            majorLength: 17,
+                            minorWidth: 1.6,
+                            majorWidth: 2.8,
+                            labelSize: 16,
+                            fadeStart: 1,
+                            fadeEnd: 4.6,
+                            dragThreshold: 6,
+                            stiffness: 5,
+                            damping: 0.5
+                        }),
+                    // Recording controls layout (RecordingActionsModule), px at island height 96.
+                    controls: ({
+                            buttonSize: 55,
+                            buttonSpacing: 9,
+                            buttonsGap: 18,
+                            dotSize: 15,
+                            dotCenter: 44,
+                            dotGap: 5,
+                            rulerGap: 27,
+                            timeSize: 16,
+                            timeLetterSpacing: 1,
+                            iconSize: 22,
+                            pauseBarWidth: 6.3,
+                            pauseBarHeight: 18,
+                            pauseGap: 5.3,
+                            pauseBarRadius: 2,
+                            stopSize: 18.5,
+                            stopRadius: 4,
+                            hoverHoldMs: 300,
+                            armDelayMs: 200,
+                            zoneSlack: 12,
+                            entryEdge: 12,
+                            revealStiffness: 9,
+                            revealDamping: 0.75,
+                            revealFadeFrom: 0.35
+                        })
                 })
             property var dictation: ({
                     captureFile: "/tmp/pillShell-dictation.wav",
@@ -1241,7 +1286,7 @@ Singleton {
                     "notifications:center": ({ width: 520, height: 460 }),
                     osd: ({ width: 340, height: 60, radius: 20 }),
                     dictation: ({ width: 480, height: 132 }),
-                    "recording-actions": ({ width: 440, height: 96 }),
+                    "recording-actions": ({ width: 434, height: 96, radius: 48 }),
                     "hotspot-actions": ({ width: 360, height: 84 }),
                     timer: ({ width: 380, height: 172, radius: 40 })
                 })

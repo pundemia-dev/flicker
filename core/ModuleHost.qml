@@ -36,6 +36,9 @@ Item {
     // height, the launcher both.
     readonly property real preferredWidth: host.item?.preferredWidth ?? -1
     readonly property real preferredHeight: host.item?.preferredHeight ?? -1
+    // Optional island width spring of the module ({stiffness, damping}),
+    // e.g. the recording controls' quick button reveal; null = default.
+    readonly property var widthSpring: host.item?.widthSpring ?? null
     // Frost knockouts (components/Knockout.js) in module = island coords.
     readonly property var knockouts: host.item?.knockouts ?? []
     // A file drag over the module's own drop targets (stash drop chooser):
@@ -232,6 +235,7 @@ Item {
         id: recordingActionsComp
         RecordingActionsModule {
             recorder: root.services.recorder
+            haptics: root.services.haptics
             theme: root.services.theme
             cfg: root.services.config.capture
             onCloseRequested: root.closeRequested()

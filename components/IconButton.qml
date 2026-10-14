@@ -18,6 +18,12 @@ Rectangle {
     property color accent: root.theme.cardBlue
     property bool tile: false
     property color tileFill: "transparent"
+    // false = a flat disc without the GlowRim haze (recording controls).
+    property bool glow: true
+    // true = centre the glyph's INK (tight bounds), not its line box, drawn
+    // as a vector at the exact fractional spot (box-centred Tabler glyphs
+    // read shifted right/down in the recording controls).
+    property bool inkCentred: false
     signal clicked
 
     radius: root.tile ? height * root.theme.iconTileRadius : height / 2
@@ -36,7 +42,7 @@ Rectangle {
     }
 
     GlowRim {
-        visible: !root.tile
+        visible: !root.tile && root.glow
         radius: root.radius
         color: root.theme.buttonGlow
         spread: root.theme.buttonGlowWidth
@@ -44,13 +50,22 @@ Rectangle {
         rings: root.theme.buttonGlowRings
     }
 
+    TextMetrics {
+        id: ink
+        font: glyphText.font
+        text: root.glyph
+    }
+
     Text {
+        id: glyphText
         // Tile: vector glyph at the exact (fractional) centre, like the
         // wallpaper settings tiles; otherwise the pixel-snapped default.
-        anchors.centerIn: root.tile ? undefined : parent
-        x: (parent.width - implicitWidth) / 2
-        y: (parent.height - implicitHeight) / 2
-        renderType: root.tile ? Text.CurveRendering : Text.NativeRendering
+        anchors.centerIn: root.tile || root.inkCentred ? undefined : parent
+        x: root.inkCentred ? parent.width / 2 - (ink.tightBoundingRect.x + ink.tightBoundingRect.width / 2)
+            : (parent.width - implicitWidth) / 2
+        y: root.inkCentred ? parent.height / 2 - (baselineOffset + ink.tightBoundingRect.y + ink.tightBoundingRect.height / 2)
+            : (parent.height - implicitHeight) / 2
+        renderType: root.tile || root.inkCentred ? Text.CurveRendering : Text.NativeRendering
         text: root.glyph
         color: root.fg
         font.family: root.theme.iconFamily
