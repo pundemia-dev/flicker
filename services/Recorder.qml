@@ -9,7 +9,10 @@ import "../config"
 // scripts/capture/record.sh (port of pShell's capture_record.sh):
 //   audio none | system | mic | both ("both" mixes mic + system through a
 //   temporary null sink); pause = segment split (SIGUSR1), live audio switch
-//   = "<file>.audioctl" + SIGUSR2, stop = SIGINT (finalize + lossless concat).
+//   = "<file>.audioctl" + SIGUSR2, speed = "<file>.speedctl" + SIGUSR2 (from
+//   that moment on: the segment restarts, record.sh re-times it), stop =
+//   SIGINT (finalize + concat). `recording` drops at stop; the file is
+//   assembled in the background (`saving`, re-timing can take a while).
 Item {
     id: root
 
@@ -17,9 +20,12 @@ Item {
     property bool recording: false
     property bool paused: false
     property string audio: "none"
-    // Playback speed picked on the recording controls' ruler (session-only,
-    // reset per recording). Not applied to the file yet.
+    // Playback speed picked on the recording controls' ruler (reset per
+    // recording); applied from the moment it settles (speedApplyMs).
     property real speed: 1
+    property real appliedSpeed: 1
+    // Stopped, record.sh still assembling the file.
+    property bool saving: false
     // "auto" default memory: the last audio choice, session-only.
     property string lastAudio: "none"
     property string file: ""
@@ -62,6 +68,10 @@ Item {
     function start(region: string, audio: string, output: string, crop: var): void {
         if (root.recording)
             return;
+        if (recProc.running) {
+            Quickshell.execDetached(["notify-send", "-a", "pillShell", I18n.tr("Still saving the previous recording")]);
+            return;
+        }
         const a = root.audioModes.includes(audio) ? audio : root.defaultAudio();
         root.audio = a;
         root.lastAudio = a;
@@ -78,9 +88,11 @@ Item {
         }
         if (root.cfg.hwAccel && root.cfg.hwDevice)
             cmd.push("--hw", root.cfg.hwDevice);
+        cmd.push("--max-fps", String(root.cfg.maxFps ?? 60));
         recProc.command = cmd;
         recProc.running = true;
         root.speed = 1;
+        root.appliedSpeed = 1;
         root.recording = true;
         root.paused = false;
         root.pausedAccum = 0;
@@ -89,8 +101,33 @@ Item {
     }
 
     function stop(): void {
-        if (root.recording)
-            recProc.signal(2);
+        if (!root.recording)
+            return;
+        root.finish();
+    }
+
+    // The plate / controls leave at once; record.sh keeps assembling.
+    function finish(): void {
+        speedApply.stop();
+        root.recording = false;
+        root.paused = false;
+        root.saving = true;
+        recProc.signal(2);
+    }
+
+    onSpeedChanged: if (root.recording)
+        speedApply.restart()
+    // Debounced: scrolling the ruler through values must not restart the
+    // segment for each one.
+    Timer {
+        id: speedApply
+        interval: root.cfg.speedApplyMs ?? 600
+        onTriggered: {
+            if (!root.recording || root.speed === root.appliedSpeed)
+                return;
+            root.appliedSpeed = root.speed;
+            Quickshell.execDetached(["bash", "-c", `printf '%s' ${root.shq(String(root.speed))} > ${root.shq(root.file + ".speedctl")} && kill -USR2 ${recProc.processId}`]);
+        }
     }
 
     // Stop AND delete the result.
@@ -98,7 +135,9 @@ Item {
         if (!root.recording)
             return;
         root.discardRequested = true;
-        recProc.signal(2);
+        // record.sh skips re-timing / assembly when this flag exists.
+        Quickshell.execDetached(["bash", "-c", `: > ${root.shq(root.file + ".discard")}`]);
+        root.finish();
     }
 
     function togglePause(): void {
@@ -132,6 +171,7 @@ Item {
             const discard = root.discardRequested;
             root.recording = false;
             root.paused = false;
+            root.saving = false;
             root.discardRequested = false;
             if (discard)
                 Quickshell.execDetached(["bash", "-c", `rm -f ${f}; notify-send -a pillShell ${root.shq(I18n.tr("Recording discarded"))}`]);

@@ -5,8 +5,11 @@
 # audio-mode: none | system | mic | both
 #   system — the default sink's monitor (what the speakers play)
 #   mic    — the default input source
-#   both   — mic + system mixed into a temporary null sink (module-null-sink
-#            + 2× loopback); its monitor is recorded.
+#   both   — the sink monitor and the mic recorded by two parecords, mixed
+#            by ffmpeg (amix) per segment. The old null sink + 2 loopbacks
+#            mix recorded DIGITAL SILENCE in ~1 of 4 runs whenever another
+#            stream started meanwhile (graph linked fine, zeros came out —
+#            reproduced on the old script too, Oct 2026).
 #
 # Video and audio are captured SEPARATELY and muxed per segment:
 # wf-recorder 0.6 here drops the video stream whenever --audio is used
@@ -23,6 +26,16 @@
 #   SIGUSR2 — re-read "<out-file>.audioctl" and restart the segment with the
 #             new audio source (live audio switching, same segment trick).
 #   SIGINT/SIGTERM — stop: finalize, concat, clean up.
+#
+# Speed: "<out-file>.speedctl" holds the playback speed for the NEXT
+# segment (the shell writes it + SIGUSR2, like the audio switch), so a
+# speed applies from the moment it was picked. A segment with speed ≠ 1 is
+# re-timed after its mux (setpts + atempo, pitch kept; libx264 re-encode,
+# frame rate capped at --max-fps via a 1/fps encoder time base: ffmpeg 9
+# rejects -r / -fpsmax together with -fps_mode vfr) in the BACKGROUND (niced)
+# while the next segment records. With any speed used the final concat
+# re-encodes through the concat filter (copy otherwise).
+# "<out-file>.discard" present at stop = skip the assembly.
 set -u
 
 mode="$1"
@@ -33,10 +46,14 @@ shift 2
 # (silent CPU fallback otherwise). Cross-GPU encode is broken in
 # wf-recorder, so only pass the compositor's node here.
 hwdev=""
+maxfps=60
 extra=()
 while [ $# -gt 0 ]; do
     if [ "$1" = "--hw" ] && [ $# -ge 2 ]; then
         hwdev="$2"
+        shift 2
+    elif [ "$1" = "--max-fps" ] && [ $# -ge 2 ]; then
+        maxfps="$2"
         shift 2
     else
         extra+=("$1")
@@ -45,6 +62,8 @@ while [ $# -gt 0 ]; do
 done
 
 ctl="$out.audioctl"
+speedctl="$out.speedctl"
+discardflag="$out.discard"
 outdir="$(dirname "$out")"
 mkdir -p "$outdir"
 segdir="$outdir/.pillshell_rec_$$"
@@ -58,35 +77,17 @@ base_args=("${enc_args[@]}" "${extra[@]}")
 
 seg_modules=()
 audio_dev=""
+mic_dev=""
 
 # Unload pillshell_rec leftovers from a crashed session.
 pactl list short modules 2>/dev/null | grep pillshell_rec | cut -f1 | while read -r m; do
     pactl unload-module "$m" 2>/dev/null
 done
 
-# WirePlumber may promote a freshly created null sink to the DEFAULT sink,
-# silently stealing every new audio stream. Snapshot the default and
-# re-assert it over the ~1s promotion window.
-load_mix_sink() {
-    local prev sink_id
-    prev="$(pactl get-default-sink 2>/dev/null)"
-    sink_id="$(pactl load-module module-null-sink sink_name=pillshell_rec sink_properties='device.description=pillShell-recording priority.session=0 priority.driver=0')"
-    seg_modules+=("$sink_id")
-    if [ -n "$prev" ] && [ "$prev" != pillshell_rec ]; then
-        pactl set-default-sink "$prev" 2>/dev/null
-        (
-            for _ in 1 2 3 4 5 6; do
-                sleep 0.15
-                [ "$(pactl get-default-sink 2>/dev/null)" = pillshell_rec ] &&
-                    pactl set-default-sink "$prev" 2>/dev/null
-            done
-        ) &
-    fi
-}
-
 setup_audio() {
-    local m="$1" sink src lp
+    local m="$1" sink
     audio_dev=""
+    mic_dev=""
     case "$m" in
     system)
         sink="$(pactl get-default-sink 2>/dev/null)"
@@ -96,15 +97,9 @@ setup_audio() {
         audio_dev="$(pactl get-default-source 2>/dev/null)"
         ;;
     both)
-        load_mix_sink
-        lp="$(pactl load-module module-loopback source=@DEFAULT_SOURCE@ sink=pillshell_rec latency_msec=20 source_output_properties=node.name=pillshell_rec_mic)"
-        seg_modules+=("$lp")
         sink="$(pactl get-default-sink 2>/dev/null)"
-        if [ -n "$sink" ]; then
-            lp="$(pactl load-module module-loopback source="$sink.monitor" sink=pillshell_rec latency_msec=20 source_output_properties=node.name=pillshell_rec_sys)"
-            seg_modules+=("$lp")
-        fi
-        audio_dev="pillshell_rec.monitor"
+        [ -n "$sink" ] && audio_dev="$sink.monitor"
+        mic_dev="$(pactl get-default-source 2>/dev/null)"
         ;;
     esac
 }
@@ -117,18 +112,42 @@ teardown_audio() {
     seg_modules=()
 }
 
+# atempo takes 0.5..2 per stage (older ffmpeg): chain stages for the rest.
+atempo_chain() {
+    awk -v s="$1" 'BEGIN { c = ""; while (s > 2) { c = c "atempo=2,"; s /= 2 } while (s < 0.5) { c = c "atempo=0.5,"; s *= 2 } printf "%satempo=%.6f", c, s }'
+}
+
+# Re-time "$1" by speed "$2" into "$3".
+retime() {
+    ffmpeg -y -i "$1" -filter:v "setpts=PTS/$2" -af "$(atempo_chain "$2")" \
+        -fps_mode vfr -enc_time_base "1/$maxfps" -c:v libx264 -preset veryfast -crf 20 -pix_fmt yuv420p \
+        -c:a aac -b:a 160k -ar 48000 -ac 2 "$3" < /dev/null > /dev/null 2>&1
+}
+
 segs=()
+finishers=()
+audio_mode_cur=""
+sped=0
+seg_speed=1
 seg_i=0
 pid=""
 apid=""
+mpid=""
 cur=""
 
 start_seg() {
     local m
     m="$(cat "$ctl" 2>/dev/null || true)"
     [ -n "$m" ] || m="$mode"
-    teardown_audio
-    setup_audio "$m"
+    seg_speed="$(cat "$speedctl" 2>/dev/null || true)"
+    [ -n "$seg_speed" ] || seg_speed=1
+    # Same source as the running segment: keep the modules (the previous
+    # parecord may still be flushing from them).
+    if [ "$m" != "$audio_mode_cur" ]; then
+        teardown_audio
+        setup_audio "$m"
+        audio_mode_cur="$m"
+    fi
     seg_i=$((seg_i + 1))
     cur="$segdir/seg_$seg_i"
     wf-recorder "${base_args[@]}" -f "$cur.video.mp4" &
@@ -137,27 +156,58 @@ start_seg() {
         # client-name lets the shell's mic indicator ignore this stream;
         # low latency: on SIGINT parecord drops its unflushed buffer (the
         # default ~2s buffer lost most of a short segment).
-        parecord --device="$audio_dev" --client-name=pillshell_rec_audio --latency-msec=50 --file-format=wav "$cur.wav" &
+        parecord --device="$audio_dev" --client-name=pillshell_rec_audio --latency-msec=50 --rate=48000 --file-format=wav "$cur.wav" &
         apid=$!
+    fi
+    if [ -n "$mic_dev" ]; then
+        parecord --device="$mic_dev" --client-name=pillshell_rec_mic --latency-msec=50 --rate=48000 --file-format=wav "$cur.mic.wav" &
+        mpid=$!
     fi
 }
 
+# Mux (+ re-time) one finished segment into "$1.final.mp4". Runs in the
+# background: done inline it left a capture gap as long as the re-encode
+# (measured 1.4 s for a 3.5 s segment) before the next segment started.
+finalize_seg() {
+    local c="$1" sp="$2"
+    [ -s "$c.video.mp4" ] || return
+    local ain=(-f lavfi -i anullsrc=r=48000:cl=stereo) af="[1:a]apad[a]"
+    if [ -s "$c.wav" ] && [ -s "$c.mic.wav" ]; then
+        ain=(-i "$c.wav" -i "$c.mic.wav")
+        af="[1:a][2:a]amix=inputs=2:duration=longest:normalize=0,apad[a]"
+    elif [ -s "$c.wav" ]; then
+        ain=(-i "$c.wav")
+    elif [ -s "$c.mic.wav" ]; then
+        ain=(-i "$c.mic.wav")
+    fi
+    ffmpeg -y -i "$c.video.mp4" "${ain[@]}" -filter_complex "$af" -map 0:v:0 -map "[a]" -c:v copy -c:a aac -b:a 160k -ar 48000 -ac 2 -shortest \
+        "$c.mp4" < /dev/null > /dev/null 2>&1 || return
+    if [ "$sp" != 1 ] && [ ! -e "$discardflag" ] && retime "$c.mp4" "$sp" "$c.r.mp4"; then
+        mv "$c.r.mp4" "$c.final.mp4"
+    else
+        mv "$c.mp4" "$c.final.mp4"
+    fi
+}
+
+# Signal the segment's recorders and hand them to a background finisher
+# that waits for them to exit, then muxes / re-times. NOT waited here: a
+# wf-recorder took ~2.4 s to exit (VAAPI) — the next segment (speed / audio
+# switch, resume) must start at once instead of leaving a capture gap.
+# (bash reaps its exited children itself, so `kill -0` turns false.)
 end_seg() {
     [ -n "$pid" ] || return
     kill -INT "$pid" 2>/dev/null
     [ -n "$apid" ] && kill -INT "$apid" 2>/dev/null
-    wait "$pid" 2>/dev/null
-    [ -n "$apid" ] && wait "$apid" 2>/dev/null
+    [ -n "$mpid" ] && kill -INT "$mpid" 2>/dev/null
+    segs+=("$cur.final.mp4")
+    [ "$seg_speed" != 1 ] && sped=1
+    nice -n 10 bash -c "$(declare -f finalize_seg retime atempo_chain)
+        for p in $pid $apid $mpid; do while kill -0 \$p 2>/dev/null; do sleep 0.05; done; done
+        discardflag=$(printf %q "$discardflag") maxfps=$maxfps finalize_seg $(printf %q "$cur") $seg_speed" &
+    finishers+=($!)
     pid=""
     apid=""
-    if [ -s "$cur.video.mp4" ]; then
-        local ain=(-f lavfi -i anullsrc=r=48000:cl=stereo)
-        [ -s "$cur.wav" ] && ain=(-i "$cur.wav")
-        if ffmpeg -y -i "$cur.video.mp4" "${ain[@]}" -map 0:v:0 -map 1:a:0 -c:v copy -af apad -c:a aac -b:a 160k -ar 48000 -ac 2 -shortest \
-            "$cur.mp4" < /dev/null > /dev/null 2>&1; then
-            segs+=("$cur.mp4")
-        fi
-    fi
+    mpid=""
 }
 
 want=run
@@ -191,8 +241,20 @@ while :; do
     wait $! 2>/dev/null
 done
 
+# Wait for the background finishers, keep the segments that made it.
+for f in "${finishers[@]}"; do
+    while kill -0 "$f" 2>/dev/null; do wait "$f" 2>/dev/null; done
+done
+done_segs=()
+for f in "${segs[@]}"; do
+    [ -s "$f" ] && done_segs+=("$f")
+done
+segs=("${done_segs[@]}")
+
 # Assemble the final file.
-if [ "${#segs[@]}" -eq 1 ]; then
+if [ -e "$discardflag" ]; then
+    :
+elif [ "${#segs[@]}" -eq 1 ]; then
     mv "${segs[0]}" "$out"
 elif [ "${#segs[@]}" -gt 1 ]; then
     list="$segdir/list.txt"
@@ -200,10 +262,25 @@ elif [ "${#segs[@]}" -gt 1 ]; then
     for s in "${segs[@]}"; do
         printf "file '%s'\n" "$s" >> "$list"
     done
-    ffmpeg -y -f concat -safe 0 -i "$list" -c copy "$out" < /dev/null > /dev/null 2>&1
+    if [ "$sped" = 1 ]; then
+        # Any speed used: the concat DEMUXER mis-times segments of different
+        # time bases (measured: video 2.7 s vs audio 5.8 s) — the concat
+        # FILTER re-times every input.
+        ins=()
+        pads=""
+        for i in "${!segs[@]}"; do
+            ins+=(-i "${segs[i]}")
+            pads="$pads[$i:v:0][$i:a:0]"
+        done
+        ffmpeg -y "${ins[@]}" -filter_complex "${pads}concat=n=${#segs[@]}:v=1:a=1[v][a]" -map "[v]" -map "[a]" \
+            -fps_mode vfr -enc_time_base "1/$maxfps" -c:v libx264 -preset veryfast -crf 20 -pix_fmt yuv420p \
+            -c:a aac -b:a 160k -ar 48000 -ac 2 "$out" < /dev/null > /dev/null 2>&1
+    else
+        ffmpeg -y -f concat -safe 0 -i "$list" -c copy "$out" < /dev/null > /dev/null 2>&1
+    fi
 fi
 rm -rf "$segdir"
-rm -f "$ctl"
+rm -f "$ctl" "$speedctl" "$discardflag"
 
 teardown_audio
 

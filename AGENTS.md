@@ -1332,7 +1332,9 @@ Simplified / not implemented yet (see pillShell.md for the intended behaviour):
   `squareHideDelayMs` before fading so they visibly leave it. Tools are below the bubble
   in z (overlay order), that is what hides them at birth.
   Recording: `services/Recorder` runs `scripts/capture/record.sh` (pShell port): audio
-  none|system|mic|both (null-sink mix + loopbacks), pause = segment split (SIGUSR1), live
+  none|system|mic|both (both = two parecords — sink monitor + mic — amixed by ffmpeg per segment; the
+  old null-sink + 2 loopbacks mix recorded DIGITAL SILENCE in ~1 of 4 runs when another stream
+  started meanwhile, graph linked fine — reproduced with pw-play, Oct 2026), pause = segment split (SIGUSR1), live
   audio switch (`.audioctl` + SIGUSR2), discard, VAAPI via `recorder.hwDevice`.
   wf-recorder 0.6 HERE drops the video with `--audio` (pulse) and the audio with
   `--audio-backend=pipewire` — so record.sh captures video (wf-recorder) and audio
@@ -1342,7 +1344,7 @@ Simplified / not implemented yet (see pillShell.md for the intended behaviour):
   w/h), NOT `-g`: driftwm 0.19 screencopy ignores the region offset (always the top-left
   corner, verified Oct 2026; IPC `Compositor.startRecording(region)` still uses `-g`). All its PipeWire nodes are `pillshell_rec*` →
   ignored by the mic indicator. Island controls: `RecordingActionsModule` (dot, h:mm:ss, speed drum
-  `SpeedRuler` → `Recorder.speed` (`recorder.speeds`/`ruler`; NOT applied to the file yet), discard,
+  `SpeedRuler` → `Recorder.speed` (`recorder.speeds`/`ruler`), discard,
   audio cycle, pause, stop; layout copied from the user's iOS reference shot, scaled 96/182 —
   gaps in `recorder.controls`, island width = module `preferredWidth`; at rest only pause + stop and
   the ruler is centred, hovering the buttons (root HoverHandler, zone measured from the RIGHT edge
@@ -1361,7 +1363,19 @@ Simplified / not implemented yet (see pillShell.md for the intended behaviour):
   backdrop + live hole, dim math (×0.65), shot commit 3/3 (PNG from the frozen grab, no
   overlay), AI → OCR panel, record → audio chips → recording (h264+aac, pause/stop via
   IPC), window highlight → editor preset, pipette loupe, recording controls render,
-  record.sh modes none/system(+pause+switch to mic)/both standalone. NOT live-tested (no
+  record.sh modes none/system(+pause+switch to mic)/both standalone.
+  Speed (Oct 2026): a ruler change (debounced `recorder.speedApplyMs`) writes `<file>.speedctl` +
+  SIGUSR2 = new segment from that moment; each finished segment is muxed + re-timed (setpts +
+  atempo chain, libx264, `-fps_mode vfr -enc_time_base 1/maxFps` — ffmpeg 9 rejects -r/-fpsmax
+  with vfr) by a niced BACKGROUND finisher while the next segment already records (waiting for
+  wf-recorder to exit left multi-second capture gaps); any speed used → final concat through the
+  concat FILTER (the demuxer mis-timed mixed time bases: video 2.7 s vs audio 5.8 s). Audio
+  modules are kept across segments of the same source. `Recorder.recording` drops at stop, the
+  file is assembled in the background (`saving`; start refused meanwhile); discard = `<file>.discard`
+  flag → no re-time / assembly. TEST TRAP: wf-recorder only writes frames on DAMAGE — on a still
+  screen a segment gets no frames (no file) and SIGINT waits for the next frame (12 s seen); run
+  an animated overlay while testing. Verified standalone (all speeds 0.25–4×: durations exact, A/V
+  ≤0.07 s) and through the Recorder service; NOT tested from the live island. NOT live-tested (no
   mouse/keyboard tool): drawing tools, text annotations, palette, toolbar clicks, resize
   handles, colour panel editing, OCR language chips, Lens upload, Esc chain, multi-monitor.
   Selections are per screen (pShell parity); only aim visuals span monitors.

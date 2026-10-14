@@ -675,6 +675,11 @@ Singleton {
                     audioDefault: "auto",
                     hwAccel: true,
                     hwDevice: "/dev/dri/renderD128",
+                    // Speed: a ruler change applies after it rests this long
+                    // (each change restarts the segment); re-timed segments
+                    // are capped at maxFps.
+                    speedApplyMs: 600,
+                    maxFps: 60,
                     // Speed ruler on the recording controls (modules/capture/SpeedRuler).
                     speeds: [0.25, 0.5, 0.75, 1, 1.5, 2, 2.5, 3, 4],
                     ruler: ({
