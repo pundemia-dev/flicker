@@ -34,6 +34,28 @@ Item {
     implicitWidth: root.cfg.avatarSize ?? 96
     implicitHeight: root.cfg.avatarSize ?? 96
 
+    // Soft drop shadow OUTSIDE the circle (no shader — KeyboardPill's
+    // stacked rings): each ring a pixel wider and fainter, shifted down.
+    // `shadowMargin` = how far it reaches past the avatar (callers that
+    // layer it, like a FadeBlur, must be that much larger).
+    readonly property int shadowSize: root.cfg.avatarShadowSize ?? 36
+    readonly property real shadowOffset: root.cfg.avatarShadowOffset ?? 10
+    readonly property real shadowMargin: root.shadowSize + Math.abs(root.shadowOffset)
+    Repeater {
+        model: root.shadowSize
+        Rectangle {
+            id: ring
+            required property int index
+            readonly property real t: (ring.index + 1) / root.shadowSize
+            anchors.centerIn: parent
+            anchors.verticalCenterOffset: root.shadowOffset
+            width: root.width + 2 * (ring.index + 1)
+            height: root.height + 2 * (ring.index + 1)
+            radius: width / 2
+            color: Qt.rgba(0, 0, 0, (root.cfg.avatarShadowStrength ?? 0.05) * (1 - ring.t) * (1 - ring.t))
+        }
+    }
+
     Process {
         running: true
         command: ["bash", Quickshell.shellDir + "/scripts/lock/avatar.sh", root.cfg.avatar ?? ""]

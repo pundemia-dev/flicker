@@ -29,15 +29,9 @@ Scope {
     property var keyboard: null
     property var theme: null
     property var islandRects: ({})
-    // Window rects per output at lock time (Compositor.windowRects, logical,
-    // output-local): the dissolve regions when the wallpaper moves (GIF /
-    // video) and a pixel diff against it is impossible.
-    property var compositor: null
-    property var windowRectsByOutput: ({})
-
-    function windowRectsFor(name: string): var {
-        return root.windowRectsByOutput[name] ?? [];
-    }
+    // services/Wallpaper: its `clock` (WallrClock) re-syncs a video wallpaper
+    // after unlock (wallr falls behind under the lock).
+    property var wallpaper: null
 
     function islandRect(name: string): var {
         return root.islandRects[name] ?? null;
@@ -54,17 +48,19 @@ Scope {
     function activate(): void {
         if (sessionLock.locked || root.grabbing)
             return;
-        const rects = {};
-        for (const i of root.registry?.islands ?? []) {
-            const r = i?.lockRect?.();
-            if (r?.visible && i.screen?.name)
-                rects[i.screen.name] = r;
+        // Snapshots for the animation only: whatever throws here must never
+        // keep the session from locking.
+        try {
+            const rects = {};
+            for (const i of root.registry?.islands ?? []) {
+                const r = i?.lockRect?.();
+                if (r?.visible && i.screen?.name)
+                    rects[i.screen.name] = r;
+            }
+            root.islandRects = rects;
+        } catch (e) {
+            console.warn("[lock] preparing the lock animation failed:", e);
         }
-        root.islandRects = rects;
-        const wins = {};
-        for (const sc of Quickshell.screens)
-            wins[sc.name] = (root.compositor?.windowRects(sc.name) ?? []).map(r => ({ x: r.x, y: r.y, width: r.width, height: r.height }));
-        root.windowRectsByOutput = wins;
         if (!(root.cfg.dissolve ?? true)) {
             root.stamp = "";
             sessionLock.locked = true;
@@ -73,7 +69,11 @@ Scope {
         root.stamp = Date.now().toString();
         root.grabbing = true;
         const dir = root.shq(root.shotDir);
-        const shots = Quickshell.screens.map(s => `grim -t ppm -o ${root.shq(s.name)} ${root.shq(root.grabPath(s.name))} &`).join(" ");
+        // With the grab: wallr's video position (regions.sh extracts that
+        // frame of a video wallpaper as the lock's background).
+        const ctl = root.shq(Quickshell.shellDir + "/scripts/wallpapers/wallrctl.sh");
+        const shots = Quickshell.screens.map(s => `grim -t ppm -o ${root.shq(s.name)} ${root.shq(root.grabPath(s.name))} & `
+            + `${ctl} pos ${root.shq(s.name)} > ${root.shq(root.grabPath(s.name).replace(/\.ppm$/, ".pos"))} &`).join(" ");
         grabProc.command = ["bash", "-c", `mkdir -p ${dir} && chmod 700 ${dir} && rm -f ${dir}/grab-* ; ${shots} wait`];
         grabProc.running = true;
         grabTimeout.restart();
@@ -121,8 +121,10 @@ Scope {
         }
 
         // The grabs show screen contents: gone as soon as the lock is.
-        onLockedChanged: if (!locked)
-            Quickshell.execDetached(["bash", "-c", `rm -f ${root.shq(root.shotDir)}/grab-*`])
+        onLockedChanged: if (!locked) {
+            Quickshell.execDetached(["bash", "-c", `rm -f ${root.shq(root.shotDir)}/grab-*`]);
+            root.wallpaper?.clock?.lockEnded();
+        }
 
         // WlSessionLock instantiates this per screen itself (no Variants:
         // its modelData broke creation and aborted the lock -> black screen).

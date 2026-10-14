@@ -5,9 +5,8 @@
 # Usage: regions.sh <grab.ppm|-> <output> [diff.py options...]  (- = no grab:
 # only the wallpaper, no regions)
 # Prints one JSON line: diff.py's object + "wallpaper" (path, "" = none) +
-# "kind" (image | animated | video). A moving wallpaper (GIF / video) can't be
-# compared with a grab — diff.py only inpaints (--no-diff) and the lock takes
-# the regions from the compositor's window geometry instead.
+# "kind" (image | animated | video; a moving one only when no frame could be
+# extracted — diff.py then only inpaints (--no-diff) and the lock blurs all).
 set -u
 grab=$1 out=$2
 shift 2
@@ -19,6 +18,21 @@ case "${wall,,}" in
 *.mp4 | *.webm | *.mkv | *.mov | *.avi | *.m4v) kind=video ;;
 esac
 [ -n "$wall" ] && [ ! -r "$wall" ] && wall=""
+# Moving wallpaper → the frame wallr showed at the grab: a video at the
+# position read together with the grab (<grab>.pos, LockScope), a GIF's
+# first frame (wallr exposes no GIF position) — extracted like the carousel
+# thumbnails (ffmpeg) and then handled as a still image. No frame → kind
+# stays moving and the lock just blurs the whole grab.
+if [ "$kind" != image ] && [ -n "$wall" ] && [ "$grab" != "-" ]; then
+    frame="${grab%.ppm}-wall.jpg"
+    seek=""
+    [ "$kind" = video ] && seek=$(cat "${grab%.ppm}.pos" 2>/dev/null)
+    ffmpeg -nostdin -loglevel error -y ${seek:+-ss "$seek"} -i "$wall" -frames:v 1 -q:v 2 "$frame" 2>/dev/null
+    if [ -s "$frame" ]; then
+        wall=$frame
+        kind=image
+    fi
+fi
 if [ "$grab" = "-" ]; then
     json='{"w": 0, "h": 0, "coverage": 0, "whole": false, "regions": []}'
 elif [ -z "$wall" ]; then

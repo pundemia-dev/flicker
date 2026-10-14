@@ -165,13 +165,16 @@ Not a git repo. No tests, no linter, no formatter.
   `LockTile` (ShaderEffectSource crop of the base grab → blur then fade), LARGEST first,
   one after another with an overlap (`overlapIn`/`overlapOut` of a step, `gapMs`; the chain is capped by `sequenceMaxMs` — steps shorten), wallpaper showing through; base grab fades under them. TIMED, not springs
   (user exception: smoother into / out of the blur) — `dissolveMs`/`returnMs`, `easing` = Easing name. GIF/video wallpaper
-  (`regions.sh` kind by extension → `diff.py --no-diff`, inpaint only): the lock background PLAYS
-  that media (AnimatedImage / MediaPlayer, muted, looped, PreserveAspectCrop like wallr "fill";
-  starts at frame 0 — the base grab crossfades into it) and the regions are the compositor's window
-  rects snapshotted at lock time (`LockScope.windowRectsFor`, + the island) grown by tileMarginPx;
-  dissolve waits ≤ `wallWaitMs` for the first frame. No wallpaper → one whole region that only
-  blurs. The wallpaper Loader picks its Component from `info` directly (via derived props an mp4
-  was tried as an Image once). Unlock = exact reverse (smallest back first),
+  (user): `regions.sh` extracts the frame wallr showed (ffmpeg, like the carousel thumbs) — a video
+  at the position `wallrctl.sh pos` read TOGETHER with the grab (`<grab>.pos`, written by the
+  LockScope grab command), a GIF's first frame (no GIF position in wallr) — into `<grab>-wall.jpg`
+  and reports it as a still image, so the normal pixel diff + dissolve applies (~150 ms extra). No
+  frame → kind stays moving → `diff.py --no-diff` (inpaint only) and one screen-wide tile that only
+  blurs. No wallpaper → the same blur. Tried and DROPPED (Oct 2026): a playing copy of the video /
+  GIF on the lock synced to wallr (live position via `wallr ipc info`, GIF clock + wallr's frame
+  delays) and wallr paused for the lock with a resume/revive + seek hand-back — wallr's picture can't
+  advance under the lock, so its catch-up after unlock always showed (fast forward), and IPC that
+  renders (set) stalls while locked. Unlock = exact reverse (smallest back first),
   then `finishUnlock()` — the live desktop may differ from the grab (user accepted the jump).
   Tunables `Config.lock`. Verified in a scratch overlay harness (PanelWindow + fake scope,
   grim frames): regions match the windows, wallpaper vs grab outside regions < 1/255. NOT
@@ -216,7 +219,26 @@ Not a git repo. No tests, no linter, no formatter.
   ("not always shown") → the skin calls `KeyboardLayout.poll()` (re-reads `driftwm msg --json
   state`) 20 ms after every key without text. Shell injects `keyboard` + `theme` into LockScope; the column keeps
   a spacer under `fieldSlot` so the status line sits below the pill. Verified in the harness.
-  Avatar `LockAvatar` (top of the placeholder column, above the clock, 384 px; own FadeBlur that
+  wallr playback state = `services/WallrClock` (child of Wallpaper, `Wallpaper.clock`): per-output
+  pause (fullscreen — incl. a window exactly the output size, drift `coversOutput` — / battery);
+  ONE Process per output runs the commands in order, only the one needed to reach `want` (`applied`
+  unknown|paused|playing): separate pause/resume processes raced (pause + position read is slower,
+  so a quick fullscreen toggle left a GIF paused) and a command sent while one ran was dropped.
+  Every wallr call through `scripts/wallpapers/wallrctl.sh` (pos /
+  pause→pos / resume [revive] [seek] / resync; never seek while paused — corrupts wallr's pause
+  bookkeeping; positions only in `wallr ipc info` text "State: playing @ 71.62s"); a revive after a
+  long pause seeks back to the frozen position; at shell start every output is revived in place
+  (`resume here 1`) — a plain resume killed a wallr left paused > 5 s by an earlier shell (every hot
+  reload did). Lock: wallr plays on but falls behind (surface hidden → Vulkan FIFO present blocks;
+  sampled) and after unlock played the missed frames through (~4 s fast forward after a 2 min lock);
+  a plain seek right at unlock KILLED it (loop wakes to a flushed decoder, last upload > 5 s old) →
+  `lockEnded()` runs `wallrctl.sh resync` (re-set the video + seek to its own clock + re-set time).
+  Same trap anywhere wallr is HIDDEN while it seeks/re-sets: a test overlay covering the screen
+  plus a second WallrClock (its start-up revive) killed it — never instantiate WallrClock in harnesses.
+  Sampled after a real lock + resync: wallr decoding again at once.
+  Avatar shadow = stacked translucent rings outside the circle (`avatarShadow*`; 0.05 picked on a
+  flat-grey comparison); its FadeBlur is larger by `shadowMargin` inside an avatar-sized slot (a
+  layer the avatar's size cut the shadow while fading). Avatar `LockAvatar` (top of the placeholder column, above the clock, 384 px; own FadeBlur that
   waits for `settled` = media decoded / none / `avatarWaitMs`): still image / GIF·WebP·APNG
   (AnimatedImage) / video (MediaPlayer, no audioOutput = silent, looped) — kind by MIME via
   `scripts/lock/avatar.sh` (`lock.avatar` "" = ~/.face → ~/.face.icon → AccountsService;
@@ -439,9 +461,9 @@ Not a git repo. No tests, no linter, no formatter.
   > 5 s kills it too: last_frame_at is not refreshed while paused, the first resumed iteration
   without a ready frame stops playback (measured via wallr CPU: 4 s pause → plays, 7 s → dead, also
   after every fullscreen window > 5 s). `resume`/`reload` can't revive it; `set` of the same path
-  with the same effect is a no-op → `Wallpaper.setPaused(false)` after > `wallrStallMs` runs
-  `revive()`: two instant sets (`-e wipe -d 0ms`, then `-e fade`, --no-theme; video restarts from
-  frame 0). Source: github programmersd21/wallr v0.6.4, daemon/mod.rs play_video / set_wallpaper.
+  with the same effect is a no-op → WallrClock's resume after > `wallrStallMs` runs
+  a revive (wallrctl.sh resume … 1): two instant sets (`-e wipe -d 0ms`, then `-e fade`,
+  --no-theme), then a seek back to the position frozen at the pause. Source: github programmersd21/wallr v0.6.4, daemon/mod.rs play_video / set_wallpaper.
   Check playback = wallr's CPU ticks (/proc/<pid>/stat), not screenshots (windows move). Plugin split: WallKeys.js
   (Ctrl+A/E ends, Ctrl+R random card, Ctrl+Shift+A/D fav, Ctrl+H hidden view normal→include→only (pill on top, eye-off badge on
   hidden cards), Ctrl+Shift+H hide/unhide, Ctrl+[/] history —

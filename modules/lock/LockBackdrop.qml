@@ -1,7 +1,6 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
-import QtMultimedia
 import "../../components"
 
 // Lock-screen background (user design, Oct 2026): the lock starts on the grab
@@ -28,16 +27,15 @@ Item {
     property var info: null
     property bool dissolved: false
     property bool unlocking: false
-    readonly property bool hasWallPath: (root.info?.wallpaper ?? "") !== ""
-    // image | animated (GIF) | video — the background is the same media,
-    // playing (muted, looped) when it moves.
-    readonly property string wallKind: root.info?.kind ?? "image"
-    readonly property bool moving: root.wallKind === "video" || root.wallKind === "animated"
-    readonly property bool hasWall: root.hasWallPath && (wallMedia.item?.ready ?? false)
+    // A moving wallpaper (GIF / video, user decision): no copy of it — the
+    // whole grab just blurs (one screen-wide tile that never fades).
+    readonly property bool moving: (root.info?.kind ?? "image") !== "image"
+    readonly property bool hasWallPath: (root.info?.wallpaper ?? "") !== "" && !root.moving
+    readonly property bool hasWall: root.hasWallPath && wallMedia.ready
     // Dissolve once the wallpaper is on (or failed / took > wallWaitMs).
     property bool wallTimedOut: false
     readonly property bool ready: root.info !== null
-        && (!root.hasWallPath || root.hasWall || (wallMedia.item?.failed ?? false) || root.wallTimedOut)
+        && (!root.hasWallPath || root.hasWall || wallMedia.failed || root.wallTimedOut)
     Timer {
         running: root.info !== null && root.hasWallPath && !root.hasWall
         interval: root.cfg.wallWaitMs ?? 1500
@@ -71,18 +69,8 @@ Item {
         if (!i || !(i.w > 0) || root.width <= 0)
             return [];
         const m = root.cfg.tileMarginPx ?? 24;
-        // Moving wallpaper: no pixel diff possible — the compositor's window
-        // rects at lock time (+ the island), largest first.
-        if (root.moving) {
-            const rs = [...(root.scope?.windowRectsFor(root.screen?.name ?? "") ?? [])];
-            if (root.hole)
-                rs.push(root.hole);
-            return rs.map(r => {
-                const x0 = Math.max(0, Math.floor(r.x - m)), y0 = Math.max(0, Math.floor(r.y - m));
-                const x1 = Math.min(root.width, Math.ceil(r.x + r.width + m)), y1 = Math.min(root.height, Math.ceil(r.y + r.height + m));
-                return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
-            }).filter(t => t.w > 0 && t.h > 0).sort((a, b) => b.w * b.h - a.w * a.h);
-        }
+        if (root.moving)
+            return [{ x: 0, y: 0, w: Math.ceil(root.width), h: Math.ceil(root.height) }];
         const sx = root.width / i.w, sy = root.height / i.h;
         return (i.regions ?? []).map(r => {
             const x0 = Math.max(0, Math.floor(r.x * sx - m));
@@ -114,65 +102,17 @@ Item {
         color: "black"
     }
 
-    // The wallpaper as wallr shows it ("fill" = cover crop): a still image,
-    // a GIF or a video (muted, looped — it starts from its first frame, so
-    // the base grab crossfades into it).
-    Loader {
+    // The still wallpaper as wallr shows it ("fill" = cover crop).
+    Image {
         id: wallMedia
+        readonly property bool ready: status === Image.Ready
+        readonly property bool failed: status === Image.Error
         anchors.fill: parent
-        // Read `info` directly: through hasWallPath/wallKind the path could
-        // update a step before the kind (an mp4 tried as an Image once).
-        sourceComponent: {
-            const i = root.info;
-            if (!(i?.wallpaper ?? ""))
-                return null;
-            return i.kind === "video" ? wallVideo : i.kind === "animated" ? wallAnim : wallStill;
-        }
-    }
-    Component {
-        id: wallStill
-        Image {
-            readonly property bool ready: status === Image.Ready
-            readonly property bool failed: status === Image.Error
-            source: "file://" + root.info.wallpaper
-            sourceSize: Qt.size(Math.round(root.width * root.dpr), Math.round(root.height * root.dpr))
-            fillMode: Image.PreserveAspectCrop
-            asynchronous: true
-            cache: false
-        }
-    }
-    Component {
-        id: wallAnim
-        AnimatedImage {
-            readonly property bool ready: status === AnimatedImage.Ready
-            readonly property bool failed: status === AnimatedImage.Error
-            source: "file://" + root.info.wallpaper
-            fillMode: Image.PreserveAspectCrop
-            asynchronous: true
-            cache: false
-            playing: true
-        }
-    }
-    Component {
-        id: wallVideo
-        Item {
-            // First decoded frame on screen (no black flash under the dissolve).
-            readonly property bool ready: player.playbackState === MediaPlayer.PlayingState && player.position > 0
-            readonly property bool failed: player.error !== MediaPlayer.NoError
-            MediaPlayer {
-                id: player
-                source: "file://" + root.info.wallpaper
-                loops: MediaPlayer.Infinite
-                videoOutput: output
-                // No audioOutput: silent.
-                Component.onCompleted: play()
-            }
-            VideoOutput {
-                id: output
-                anchors.fill: parent
-                fillMode: VideoOutput.PreserveAspectCrop
-            }
-        }
+        source: root.hasWallPath ? "file://" + root.info.wallpaper : ""
+        sourceSize: Qt.size(Math.round(root.width * root.dpr), Math.round(root.height * root.dpr))
+        fillMode: Image.PreserveAspectCrop
+        asynchronous: true
+        cache: false
     }
 
     // The grab, loaded synchronously so the lock's FIRST frame already shows

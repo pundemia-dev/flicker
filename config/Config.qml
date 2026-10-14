@@ -1106,6 +1106,10 @@ Singleton {
                             // video, not `resume` (wallr 0.6.4 kills playback
                             // after > 5 s paused — see services/Wallpaper).
                             wallrStallMs: 4000,
+                            // After unlock a video is re-set and seeked to its own
+                            // clock + the re-set time + this lead (wallr fell
+                            // behind under the lock).
+                            catchupLeadMs: 20,
                             // Slideshow (services/WallpaperSlideshow): step,
                             // order random | sequential, recent paths a random
                             // step avoids, only still images on battery.
@@ -1255,9 +1259,8 @@ Singleton {
             // dissolve the regions that differ from the wallpaper
             // (scripts/lock/diff.py: diffGrid columns, diffThreshold per-cell
             // max channel difference, diffMaxCoverage → one whole region,
-            // diffTimeoutMs → whole grab only blurs; a GIF / video wallpaper plays
-            // as the lock background and the regions are the window rects;
-            // the dissolve waits ≤ wallWaitMs for its first frame) largest first, one at a
+            // diffTimeoutMs or a GIF / video wallpaper → the whole grab only
+            // blurs; the dissolve waits ≤ wallWaitMs for the wallpaper) largest first, one at a
             // time (the next starts overlapIn / overlapOut of a step before
             // the previous ends, + gapMs), after startDelayMs; a chain longer than
             // sequenceMaxMs shortens every step. Tile: grown by tileMarginPx, blur
@@ -1268,7 +1271,8 @@ Singleton {
             // if the reverse never reports back. avatar: image / GIF / WebP /
             // video path ("" = ~/.face, ~/.face.icon, AccountsService), kind by
             // MIME; avatarSize px, blur-fades in (avatarBlurMax) once the media
-            // decoded or avatarWaitMs passed; fallback disc + initial colours.
+            // decoded or avatarWaitMs passed; fallback disc + initial colours;
+            // avatarShadow*: soft drop shadow (rings, px / offset / peak alpha).
             // field*: the password field = the island's copy (LockField):
             // lands in a fieldWidth × fieldHeight slot under the date,
             // fieldDelayMs after the dissolve starts (the bar crop blurs out
@@ -1309,6 +1313,9 @@ Singleton {
                     avatarSize: 384,
                     avatarWaitMs: 2000,
                     avatarBlurMax: 48,
+                    avatarShadowSize: 36,
+                    avatarShadowOffset: 10,
+                    avatarShadowStrength: 0.05,
                     avatarFallbackColor: "#2A2D33",
                     avatarFallbackInk: "#C7D0DE",
                     fieldWidth: 360,

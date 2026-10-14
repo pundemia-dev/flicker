@@ -84,17 +84,27 @@ Item {
 
             // Own blur-fade: waits for the media (GIF / video decode late),
             // so it blurs in once instead of popping in after the column.
-            FadeBlur {
+            // The column keeps the avatar's own size; the blur layer is larger
+            // by the shadow, or the shadow would be cut while it fades in.
+            Item {
                 anchors.horizontalCenter: parent.horizontalCenter
                 width: avatar.implicitWidth
                 height: avatar.implicitHeight
-                blurMax: root.scope?.cfg?.avatarBlurMax ?? 48
-                shown: backdrop.dissolved && !backdrop.unlocking && avatar.settled
 
-                LockAvatar {
-                    id: avatar
-                    anchors.fill: parent
-                    cfg: root.scope?.cfg ?? ({})
+                FadeBlur {
+                    anchors.centerIn: parent
+                    width: parent.width + 2 * avatar.shadowMargin
+                    height: parent.height + 2 * avatar.shadowMargin
+                    blurMax: root.scope?.cfg?.avatarBlurMax ?? 48
+                    shown: backdrop.dissolved && !backdrop.unlocking && avatar.settled
+
+                    LockAvatar {
+                        id: avatar
+                        anchors.centerIn: parent
+                        width: implicitWidth
+                        height: implicitHeight
+                        cfg: root.scope?.cfg ?? ({})
+                    }
                 }
             }
 
