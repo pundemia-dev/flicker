@@ -666,6 +666,8 @@ Singleton {
                 })
             property var network: ({
                     pollMs: 4000,
+                    // Network list refresh while the Wi‑Fi panel is open.
+                    scanMs: 4000,
                     hotspotName: "Hotspot"
                 })
             // Screen recording (services/Recorder + scripts/capture/record.sh):
@@ -696,6 +698,29 @@ Singleton {
                             dragThreshold: 6,
                             stiffness: 5,
                             damping: 0.5
+                        }),
+                    // Region recording marker (RecordRegionOverlay): everything
+                    // OUTSIDE the recorded crop dims by `dim`, a frame of `frameWidth`
+                    // sits `frameGap` px outside it (never inside the video); it
+                    // grows out of the editor's selection frame (colour / dashes).
+                    // `pausedOpacity` = frame opacity while paused.
+                    region: ({
+                            show: true,
+                            dim: 0.22,
+                            frameWidth: 2,
+                            frameGap: 2,
+                            frameRadius: 4,
+                            // Dashes in stroke widths (the frame starts solid as the
+                            // editor's selection frame, the gap springs open).
+                            dashLength: 4,
+                            dashGap: 3,
+                            // Marker shown at the capture hand-over; dropped if the
+                            // recording has not started by then.
+                            pendingMaxMs: 3000,
+                            frameOpacity: 0.85,
+                            pausedOpacity: 0.35,
+                            stiffness: 3,
+                            damping: 1
                         }),
                     // Recording controls layout (RecordingActionsModule), px at island height 96.
                     controls: ({
@@ -915,7 +940,48 @@ Singleton {
                     // Media card: the player module's px sizes times this
                     // (cards/MediaLayout.js) — 4x2 = the player at card scale
                     // (unit 80: 4x2 card 356x172 ≈ player module 360x170).
-                    playerScale: 1
+                    playerScale: 1,
+                    // Edit-mode button, bottom-right corner of the rail column
+                    // (mirrors the session button; same disc/glyph sizes).
+                    editButton: true,
+                    // Expanded card (QsExpander, long press on a card with a
+                    // panel): the card shrinks into a drop (diameter = its
+                    // short side x dropScale), the drop flies over the grid to
+                    // the panel centre (the card centre moved just enough for
+                    // the panel to fit inside the island margins), then grows
+                    // into the panel. Each phase is a spring; the next starts
+                    // when the previous reaches `handoff`. Panel sizes are free
+                    // px (not grid cells); radius 0 = concentric (unit / 2).
+                    // The rest of the grid stays; it is cut out under the
+                    // shape (mask inset cutInset px). fadeStiffness = content
+                    // blur-fades (card out / panel in).
+                    expand: ({
+                        dropScale: 0.9,
+                        handoff: 0.5,
+                        dropStiffness: 14,
+                        dropDamping: 0.5,
+                        flyStiffness: 12,
+                        flyDamping: 0.45,
+                        growStiffness: 12,
+                        growDamping: 0.45,
+                        fadeStiffness: 12,
+                        cutInset: 1.5,
+                        panelRadius: 0,
+                        panels: ({
+                            wifi: ({ width: 340, height: 300 })
+                        })
+                    }),
+                    // Wi‑Fi panel (panels/WifiPanel): side padding, header and
+                    // row heights, title / row text sizes, signal glyph size.
+                    wifiPanel: ({
+                        padding: 18,
+                        headerHeight: 54,
+                        rowHeight: 42,
+                        titleSize: 17,
+                        textSize: 14,
+                        glyphSize: 20,
+                        fieldHeight: 34
+                    })
                 })
             // Seek bar (modules/player/SeekBar: player module + QS media
             // card). Dragging past an end stretches the bar toward it (iOS
@@ -963,9 +1029,12 @@ Singleton {
             // × scale, capped at maxStretch, × size attenuation
             // full / (full + (max(w, h) − full) · sizeStrength), floored at sizeFloor;
             // settles on a spring (stiffness/damping, explicit Euler sub-steps).
+            // diagonal: share of the stretch kept along a 45° motion (also
+            // scales its skew); axis-aligned motion is unaffected. 1 = pShell.
             property var deform: ({
                     scale: 0.0004,
                     maxStretch: 0.35,
+                    diagonal: 0.25,
                     stiffness: 200,
                     damping: 16,
                     sizeFull: 250,

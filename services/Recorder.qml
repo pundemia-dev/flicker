@@ -30,6 +30,39 @@ Item {
     property string lastAudio: "none"
     property string file: ""
     property bool discardRequested: false
+    // Region being recorded (RecordRegionOverlay): output name + the EXACT
+    // crop in its physical px (after the even-size rounding). "" / null =
+    // whole output or `-g` geometry, no overlay.
+    property string regionOutput: ""
+    property var regionCrop: null
+    // Capture handed over a region (its overlay is fading out, the start
+    // follows): the marker shows already, so the selection frame turns into it.
+    property bool regionPending: false
+
+    // Even sizes: yuv420p / h264 need them.
+    function evenCrop(crop: var): var {
+        return {
+            x: crop.x,
+            y: crop.y,
+            width: Math.max(2, crop.width - crop.width % 2),
+            height: Math.max(2, crop.height - crop.height % 2)
+        };
+    }
+
+    function prepareRegion(output: string, crop: var): void {
+        if (root.recording || recProc.running || !crop || output.length === 0)
+            return;
+        root.regionOutput = output;
+        root.regionCrop = root.evenCrop(crop);
+        root.regionPending = true;
+        pendingGuard.restart();
+    }
+    // A handover that never started (capture cancelled meanwhile).
+    Timer {
+        id: pendingGuard
+        interval: root.cfg.region?.pendingMaxMs ?? 3000
+        onTriggered: root.regionPending = false
+    }
     // Elapsed = time before the current segment + time since it started.
     property double startedAt: 0
     property double pausedAccum: 0
@@ -69,6 +102,7 @@ Item {
         if (root.recording)
             return;
         if (recProc.running) {
+            root.regionPending = false;
             Quickshell.execDetached(["notify-send", "-a", "pillShell", I18n.tr("Still saving the previous recording")]);
             return;
         }
@@ -79,12 +113,15 @@ Item {
         root.file = root.recordPath();
         const cmd = [`${Quickshell.shellDir}/scripts/capture/record.sh`, a, root.file];
         if (output.length > 0 && crop) {
-            // yuv420p / h264 need even sizes.
-            const w = Math.max(2, crop.width - crop.width % 2);
-            const h = Math.max(2, crop.height - crop.height % 2);
-            cmd.push("-o", output, "-F", `crop=${w}:${h}:${crop.x}:${crop.y}`);
-        } else if (region.length > 0) {
-            cmd.push("-g", region);
+            const c = root.evenCrop(crop);
+            cmd.push("-o", output, "-F", `crop=${c.width}:${c.height}:${c.x}:${c.y}`);
+            root.regionOutput = output;
+            root.regionCrop = c;
+        } else {
+            root.regionOutput = "";
+            root.regionCrop = null;
+            if (region.length > 0)
+                cmd.push("-g", region);
         }
         if (root.cfg.hwAccel && root.cfg.hwDevice)
             cmd.push("--hw", root.cfg.hwDevice);
@@ -94,6 +131,8 @@ Item {
         root.speed = 1;
         root.appliedSpeed = 1;
         root.recording = true;
+        // After `recording`: the marker stays shown through the hand-over.
+        root.regionPending = false;
         root.paused = false;
         root.pausedAccum = 0;
         root.startedAt = Date.now();

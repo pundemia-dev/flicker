@@ -26,11 +26,15 @@ function gridRows(rows, editing) {
     return Math.max(1, rows + (editing ? 1 : 0));
 }
 
+// Corner buttons of the rail column: session (top) / edit (bottom).
+function cornerButtons(m) {
+    return !!(m.sessionButton || m.editButton);
+}
+
 // railIcons = icons on the rail (pages, + the "+" in edit mode), 0 = no
-// tabs. The session button (top-right corner, same column) keeps the
-// column even without tabs.
+// tabs. The corner buttons keep the column even without tabs.
 function railWidth(m, railIcons) {
-    return railIcons > 0 || m.sessionButton ? m.spacing + m.railWidth : 0;
+    return railIcons > 0 || cornerButtons(m) ? m.spacing + m.railWidth : 0;
 }
 // Session button top (island coords): where the island's right edge stops
 // curving (y = island radius), so it sits in the straight part.
@@ -38,9 +42,13 @@ function sessionTop(m) {
     return m.margins + m.unit / 2;
 }
 // Its slot from the body top (button + gap); the tab icons stay centred,
-// so the slot is reserved at the bottom too.
+// so the slot is reserved at the bottom too (the edit button sits there,
+// mirrored: its bottom where the right edge starts curving).
 function sessionSlot(m) {
-    return m.sessionButton ? sessionTop(m) - m.margins + m.sessionButtonSize + m.railSpacing : 0;
+    return cornerButtons(m) ? sessionTop(m) - m.margins + m.sessionButtonSize + m.railSpacing : 0;
+}
+function editTop(m, bodyH) {
+    return 2 * m.margins + bodyH - sessionTop(m) - m.sessionButtonSize;
 }
 function railHeight(m, railIcons) {
     const icons = railIcons * m.railIcon + Math.max(0, railIcons - 1) * m.railSpacing;

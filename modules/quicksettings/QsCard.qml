@@ -6,7 +6,9 @@ import "../../components"
 // is a circle and 1xN a pill), the content Loader and all card input.
 // Geometry comes from the module; this file only reports gestures.
 //
-// Normal mode: tap → `tapped`, long press → `holdRequested` (edit mode),
+// Normal mode: tap → `tapped`, long press → `holdRequested` (the module
+// expands the card if it has a panel — never edit mode: that is a long
+// press on empty space or the rail's edit button),
 // vertical drag → swipe* (the module pages tabs, or closes when the swipe
 // started in its bottom close zone — the card grabs presses, so it forwards
 // them; GestureZones below never sees QS presses). Swipe coords are in
@@ -65,13 +67,18 @@ Item {
         return root.spanW > root.spanH ? "panorama" : "tall";
     }
     readonly property bool lifted: body.moving || handle.pressed
+    // Lifted into the QsExpander: it draws the content (contentLayer as a
+    // hideSource texture) and the surface itself, the card only leaves its
+    // slot.
+    property bool expandedOut: false
+    readonly property Item contentLayer: loader
 
     // Slider cards paint their own surface (fill | gap | track, OSD look).
     Rectangle {
         anchors.fill: parent
         radius: root.radius
         color: root.frost?.surface(root.theme?.qsCardBg ?? "#000000") ?? (root.theme?.qsCardBg ?? "#000000")
-        opacity: loader.item?.ownSurface === true ? 0 : 1
+        opacity: loader.item?.ownSurface === true || root.expandedOut ? 0 : 1
     }
 
     // Tap: the content's own action (activate()), then the signal.

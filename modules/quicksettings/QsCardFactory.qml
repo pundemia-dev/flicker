@@ -1,5 +1,6 @@
 import QtQuick
 import "./cards"
+import "./panels"
 import "../../config"
 import "QsCatalog.js" as QsCatalog
 
@@ -28,6 +29,17 @@ Item {
             shazam: shazamComp,
             timer: timerComp
         })[id] ?? (root.stubs[id] ? stubComp : null);
+    }
+
+    // Expanded view of a card (QsExpander, long press); null = none.
+    function panelFor(id: string): Component {
+        return ({
+            wifi: wifiPanelComp
+        })[id] ?? null;
+    }
+    Component {
+        id: wifiPanelComp
+        WifiPanel {}
     }
 
     // Placeholder cards (no backend yet): toggles flip a session-only local

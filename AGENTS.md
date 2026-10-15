@@ -34,7 +34,7 @@ Not a git repo. No tests, no linter, no formatter.
 - IPC: `quickshell -p $PWD ipc call <target> <fn>` (with the user's instance running,
   address yours via `quickshell ipc --id <by-id dir> call ...`). `island` is ONE handler
   (`core/IslandIpc.qml`) routed via `core/IslandRegistry.qml` to the island on
-  `compositor.focusedOutput` — never put an IpcHandler in per-screen Island. Targets: `island` (launcher (toggle), launcherPlugin <id> (apps|clipboard|wallpapers, toggle), quicksettings, quicksettingsEdit/Page/Resize,
+  `compositor.focusedOutput` — never put an IpcHandler in per-screen Island. Targets: `island` (launcher (toggle), launcherPlugin <id> (apps|clipboard|wallpapers, toggle), quicksettings, quicksettingsEdit/Page/Resize/Expand,
   notifications, stash (tray toggle), capture (again while open = next mode), captureMode(shot|record|color|
   window|ai|scan), captureScreen (= Enter in the active tool), captureCancel, session (session menu toggle), screenshot
   (instant, no overlay), record (toggle), recordPause, recordControls, dashboard, player, lock, close, minimal, island, osd, debugState,
@@ -328,9 +328,37 @@ Not a git repo. No tests, no linter, no formatter.
   wheel, a rail tap. CLOSE (user): tap on empty space, or swipe up STARTING in the bottom
   `closeZone`. The module owns ALL its presses (background MouseArea below the cards) —
   deliberate exception to "module content stays press-transparent"; GestureZones never
-  sees QS presses. Edit mode: long press (or IPC) → drag body = move (over a rail icon =
+  sees QS presses. Edit mode (user, Oct 2026): ONLY a long press on EMPTY space, the rail's
+  bottom-right edit button (`QsRailButton` "+", a check while editing, mirrors the session
+  button; `quicksettings.editButton`) or IPC — a long press on a CARD never edits → drag body =
+  move (over a rail icon =
   flip to that tab, over "+" = new tab), bottom-right arc = resize (nearest allowed size),
   "−" = hide, footer chips add back, «Готово»/tap on empty/module close saves.
+  Expanded card (Oct 2026, user design): long press on a card with a panel
+  (`QsCardFactory.panelFor`, now only wifi) → `QsExpander` (on top of the module): ONE shape in
+  three spring phases chained by `expand.handoff` (next starts when the previous reaches it):
+  card rect → drop (circle, short side × dropScale, on the card centre) → flight to the panel
+  centre (VelocityDeform stretch) → grow to the panel. Panel size = free px
+  (`expand.panels.<id>`, user: NOT grid cells), centre = card centre CLAMPED per axis into the
+  GRID area minus margins (`boundsW` = viewport + margins; user: never over the rail column)
+  (= the shortest move that fits). Card content = hideSource
+  ShaderEffectSource of `QsCard.contentLayer` (card keeps its slot, `expandedOut` drops its
+  surface), card-size layer scaled into the shape, blur-fades out; panel laid out at its final
+  size, scaled with the shape, blur-fades in on grow (FadeBlur). Fill = card look (accent × onP)
+  → `Theme.qsPanelBg` (a touch darker than frostButton). The rest of QS does NOT change
+  (user: no dim/blur): the module's `backdrop` layer is cut out under the shape by an inverted
+  binary MultiEffect mask (`cutout`, inset `cutInset`, follows the flight deform), so nothing
+  in the same window reads through the translucent panel. Frost: the shape is NOT a hole —
+  the module's `knockoutClear` ({x,y,w,h,r,m,inset} via ModuleHost) makes Island cut its tint
+  out under the shape with the same inverted mask (`frostClearMask`); card holes stay as they
+  are (dropping / cutting the holes of partly covered cards recoloured them — the "artifacts"). Fast springs (user): drop 14, fly / grow / fades 12, handoff 0.5. Tap outside = the
+  same phases backwards (card content returns while the drop flies home). Wi‑Fi panel
+  (`panels/WifiPanel` + `WifiRow`): header disc toggles Wi‑Fi, list from `Network.networks`
+  (`setScanning` while the panel exists, `scanMs`; ListModel synced in place, order current →
+  saved → signal bars → name), tap joins saved/open, a new secured one opens a password field
+  in its row (`wantsKeyboard` → Island Exclusive for quicksettings). Debug IPC
+  `quicksettingsExpand <id>` ("" folds back). Verified via that IPC + grim frames (both ways).
+  NOT tested: the real long press, password join, Bluetooth panel (not built yet).
   Slider cards (`cards/SliderCard.qml`, volume/brightness) = the OSD look: the card IS the
   capsule (`ownSurface` → QsCard drops its bg so the gap shows the island), fill | gap |
   track with `Config.osd.gap/innerRadius/fill*` springs, glyph + title drawn twice (light
@@ -592,7 +620,7 @@ Not a git repo. No tests, no linter, no formatter.
   The service runs `actionDelayMs` after the module closed; lock = LockScope, others =
   `Config.session.commands` (logout keyed by `Detect.backendName`: niri/drift/hyprland/default);
   suspend/hibernate lock first + `lockSettleMs`. Exclusive keyboard (←/→/Tab, Enter/Space, Esc =
-  disarm, then close). IPC `island session`; in QS it is NOT a card: `QsSessionButton` (power disc)
+  disarm, then close). IPC `island session`; in QS it is NOT a card: `QsRailButton` (power disc)
   sits in the tab-rail column, top = island radius (where the corner rounding ends, user), `quicksettings.sessionButton*` —
   `QsMetrics.railWidth` keeps the column even with one page, `railHeight` reserves the button
   slot top AND bottom so the tab icons stay centred. Verified via IPC + wtype + grim: render, arrow selection, Esc close. NOT
@@ -1039,7 +1067,9 @@ Not a git repo. No tests, no linter, no formatter.
   along the motion / compresses across (area-preserving, cap `deform.maxStretch`, attenuated by
   size like pShell Liquid.deformSizeScale), 2×2 matrix on an under-damped spring (Euler
   sub-steps ≤ 1/240 s); FrameAnimation runs only while moving/settling (woken by x/y changes).
-  Tunables `Config.data.deform` (pShell Liquid values). Used by the capture ColorPanel crawl
+  Tunables `Config.data.deform` (pShell Liquid values) + `diagonal` (user, Oct 2026: 0.25 —
+  the stretch fades toward 45° motion by |sin 2θ| and the skew term is scaled by it; axis
+  motion unchanged; 1 = pShell). Used by the capture ColorPanel crawl
   + grow-out-of-the-live-chip on open (pShell: `growT` 0→1 on a Spring, box lerps chip rect →
   panel incl. pill→panel radius, content scaled to the width + fades in, bg opaque at once,
   close fades) and the OcrPanel glide (verified on the colour panel with temp/vmouse.py frames).
@@ -1371,7 +1401,17 @@ Simplified / not implemented yet (see pillShell.md for the intended behaviour):
   wf-recorder to exit left multi-second capture gaps); any speed used → final concat through the
   concat FILTER (the demuxer mis-timed mixed time bases: video 2.7 s vs audio 5.8 s). Audio
   modules are kept across segments of the same source. `Recorder.recording` drops at stop, the
-  file is assembled in the background (`saving`; start refused meanwhile); discard = `<file>.discard`
+  file is assembled in the background (`saving`; start refused meanwhile); region marker =
+  `modules/capture/RecordRegionOverlay` (per screen, Top layer, empty mask): dim outside +
+  frame `frameGap` outside `Recorder.regionCrop` (exact even-rounded phys crop, logical rect
+  rounded OUTWARD) — never inside the video; `recorder.region` tunables. It maps when the
+  capture overlay STARTS fading (`Recorder.prepareRegion` → `regionPending`, guard
+  `pendingMaxMs`) in the editor's selection-frame look, then one spring `k` morphs it (user:
+  the same frame, only recoloured): colour → `recordFrame`, width, dash gap 0 → `dashGap`
+  (CurveRenderer `DashLine` verified in a harness), radius. Hand-over = `CaptureScope.handover`:
+  the WHOLE capture overlay incl. the frozen backdrop fades with dimLevel (the marker below
+  crossfades in) — an opaque backdrop that only lost its dim and then unmapped = dim + frame
+  blink (user); `regionPending` drops only AFTER `recording` (else the marker re-showed); discard = `<file>.discard`
   flag → no re-time / assembly. TEST TRAP: wf-recorder only writes frames on DAMAGE — on a still
   screen a segment gets no frames (no file) and SIGINT waits for the next frame (12 s seen); run
   an animated overlay while testing. Verified standalone (all speeds 0.25–4×: durations exact, A/V

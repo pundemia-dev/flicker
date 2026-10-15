@@ -16,6 +16,9 @@ QtObject {
     readonly property real minimalOpacity: 0.35
     readonly property color subtleFg: "#B9C0CB"
     readonly property color accentRed: "#E4483E"
+    // Region recording: dim outside the recorded zone + frame around it.
+    readonly property color recordDim: "#000000"
+    readonly property color recordFrame: "#E4483E"
     readonly property color accentGreen: "#3DBD4E"
     readonly property color accentYellow: "#D8BE52"
     readonly property color accentOrange: "#E58B4D"
@@ -135,6 +138,9 @@ QtObject {
     // Frosted button surface, straight on the blur (the tint is knocked
     // out under it): #1C1C1C at 0.435 = fit of the samples (wall·0.565+12).
     readonly property color frostButton: "#6F1C1C1C"
+    // Expanded QS card (QsExpander) on the frost: a touch darker than a
+    // button (the grid under it is cut out, nothing reads through).
+    readonly property color qsPanelBg: "#8C141416"
     // Teleprompter body over the compositor blur (frost path with this
     // tint instead of frostBody): dark glass, white text stays readable
     // over bright windows. Read words / notes / reading-line marker. Text

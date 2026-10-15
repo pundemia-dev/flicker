@@ -79,6 +79,8 @@ Scope {
             cc?.commit();
             cc?.save();
         }
+        // Debug: long-press expansion of a QS card ("" = fold it back).
+        function quicksettingsExpand(id: string): void { root.island?.moduleItem?.expandCard?.(id); }
         function notifications(): void { root.island?.openNotificationCenter(); }
         function capture(): void { root.island?.openCapture(""); }
         // shot | record | color | window | ai | scan (while open: switch to it).

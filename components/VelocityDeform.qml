@@ -4,7 +4,9 @@ import "../config"
 // Liquid stretch while an item moves (port of pShell's BlobRect deform):
 // each frame the item's CENTRE velocity sets a target deform — stretch
 // 1 + m along the motion, 1 / (1 + m) across it (area-preserving),
-// m = min(speed · scale, maxStretch) · size attenuation — and the 2×2 matrix
+// m = min(speed · scale, maxStretch) · size attenuation (· diagonal damping,
+// deform.diagonal: 1 = full stretch at any angle, lower = barely any along
+// a diagonal and no skew) — and the 2×2 matrix
 // chases it on an under-damped spring, so a stop wobbles back to identity.
 // Usage: `transform: VelocityDeform { item: <the transformed item> }`.
 // Frames run only while the item moves or the spring is still settling.
@@ -88,11 +90,16 @@ Matrix4x4 {
 
         let t00 = 1, t01 = 0, t11 = 1;
         if (speed > 5) {
-            const s = 1 + Math.min(speed * root.cfg.scale, root.cfg.maxStretch) * root.atten;
-            const c = 1 / s;
             const ca = vx / speed, sa = vy / speed;
+            // Diagonal damping (deform.diagonal, 1 = plain rotated stretch):
+            // the stretch fades toward 45° (|sin 2θ| = 1) and its skew
+            // (off-diagonal term) is scaled down — axis motion unchanged.
+            const dg = root.cfg.diagonal ?? 1;
+            const k = 1 - Math.abs(2 * ca * sa) * (1 - dg);
+            const s = 1 + Math.min(speed * root.cfg.scale, root.cfg.maxStretch) * root.atten * k;
+            const c = 1 / s;
             t00 = s * ca * ca + c * sa * sa;
-            t01 = (s - c) * ca * sa;
+            t01 = (s - c) * ca * sa * dg;
             t11 = s * sa * sa + c * ca * ca;
         }
 

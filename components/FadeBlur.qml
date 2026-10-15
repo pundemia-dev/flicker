@@ -10,8 +10,10 @@ import QtQuick
 BlurSurface {
     id: root
     property bool shown: true
+    property real stiffness: 4
+    property real damp: 0.5
     property real p: root.shown ? 1 : 0
-    Behavior on p { Spring { stiffness: 4; damp: 0.5; eps: 0.005 } }
+    Behavior on p { Spring { stiffness: root.stiffness; damp: root.damp; eps: 0.005 } }
 
     amount: root.p > 0.01 ? 1 - root.p : 0
     opacity: root.p

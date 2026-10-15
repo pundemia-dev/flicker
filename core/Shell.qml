@@ -175,6 +175,13 @@ Scope {
                 compositor: compositorService
             }
 
+            RecordRegionOverlay {
+                targetScreen: modelData
+                recorder: recorderService
+                theme: themeService
+                lock: lockScope
+            }
+
             Corners {
                 targetScreen: modelData
                 visible: !lockScope.locked

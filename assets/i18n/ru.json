@@ -295,5 +295,9 @@
   "Tap to listen": "Нажмите, чтобы распознать",
   "Open": "Открыть",
   "Shazam": "Shazam",
-  "Enter Password": "Введите пароль"
+  "Enter Password": "Введите пароль",
+  "Wi‑Fi is off": "Wi‑Fi выключен",
+  "Connecting…": "Подключение…",
+  "Couldn't connect": "Не удалось подключиться",
+  "Join": "Подключить"
 }

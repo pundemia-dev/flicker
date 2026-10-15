@@ -34,6 +34,11 @@ Scope {
     property bool grabbed: false
     property bool active: false
     property bool closing: false
+    // Closing into a region recording: the WHOLE overlay (frozen backdrop
+    // included) fades, so the live RecordRegionOverlay below crossfades in —
+    // its frame takes over the selection frame (a backdrop that stayed opaque
+    // and then unmapped made the dim + frame blink).
+    property bool handover: false
     // The island background has been handed over (square on screen).
     property bool stolen: false
     property string mode: "shot"
@@ -239,6 +244,8 @@ Scope {
     // recording starts once the overlay is gone.
     function startRecording(r: rect, audio: string, output: string, phys: var): void {
         const geo = `${Math.round(r.x)},${Math.round(r.y)} ${Math.max(1, Math.round(r.width))}x${Math.max(1, Math.round(r.height))}`;
+        root.recorder.prepareRegion(output, phys);
+        root.handover = root.recorder.regionPending;
         root.finish(() => root.recorder.start(geo, audio, output, phys));
     }
 
@@ -317,6 +324,7 @@ Scope {
         onTriggered: {
             root.active = false;
             root.closing = false;
+            root.handover = false;
             root.stolen = false;
             root.editScreen = "";
             root.hasSelection = false;

@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Shapes
+import QtQuick.Effects
 import Quickshell
 import Quickshell.Wayland
 import "../components"
@@ -73,14 +74,15 @@ PanelWindow {
     // Polkit prompt: Exclusive too (pkexec from a focused terminal).
     // Timer: Exclusive while setting it up (ruler keys right away), on
     // demand once it runs (an open countdown must not hold the keyboard).
-    // Notification reply field (flow card long press): Exclusive while it is open.
+    // Notification reply field (flow card long press), QS Wi‑Fi password
+    // field: Exclusive while it is open.
     // Session menu: Exclusive (arrows / Enter right away).
     // Exclusive keyboard: a shell text field has it (the keyboard pill's
     // caret then belongs to this surface, not to the focused app window).
     readonly property bool takesKeyboard: root.state.activeModule === "launcher" || root.state.activeModule === "polkit"
         || (root.state.activeModule === "timer" && !root.countdown.active)
         || root.state.activeModule === "session"
-        || (root.state.activeModule === "notifications" && moduleHost.wantsKeyboard)
+        || ((root.state.activeModule === "notifications" || root.state.activeModule === "quicksettings") && moduleHost.wantsKeyboard)
     WlrLayershell.keyboardFocus: root.takesKeyboard ? WlrKeyboardFocus.Exclusive
         : ((root.state.activeModule === "notifications" && (root.state.activePayload?.mode ?? "") === "center")
             || root.state.activeModule === "prompter" || root.state.activeModule === "timer")
@@ -491,6 +493,7 @@ PanelWindow {
             root.heldKnockouts = [];
     }
     readonly property bool knockoutsLive: root.liveKnockouts.length > 0
+    readonly property var frostClear: root.knockoutsLive ? moduleHost.knockoutClear : null
     readonly property var knockoutHoles: {
         const w = islandRect.width, h = islandRect.height, R = islandRect.radius;
         const dx = root.knockoutsLive ? 0 : (w - root.heldWidth) / 2;
@@ -909,6 +912,7 @@ PanelWindow {
     // leaving it for dropLeaveMs closes it again (back to the tray when it
     // replaced the tray). Own tile drags (Stash.outgoingDrag) never count.
     readonly property bool stashDropOpen: root.moduleOpen && root.state.activeModule === "stash-drop"
+    readonly property Item moduleItem: moduleHost.moduleItem
     readonly property bool stashDragOver: islandDrop.containsDrag || moduleHost.dragActive
 
     function openStashDrop(): void {
@@ -1503,19 +1507,52 @@ PanelWindow {
         // outline + holes), and the hole fill used across content swaps.
         // Opacity only, never `visible`: a CurveRenderer Shape toggled via
         // visible never repaints again (AGENTS gotcha).
-        Shape {
+        // `frostClear` (QS expanded card) cuts the tint out under one more
+        // shape with an inverted binary mask — holes can't overlap in the
+        // even-odd path, and dropping the card holes under it recoloured
+        // those cards.
+        Item {
+            id: frostClearMask
             anchors.fill: parent
-            preferredRendererType: Shape.CurveRenderer
-            opacity: root.frostProgress
-            ShapePath {
-                fillColor: root.frostTint
-                strokeWidth: -1
-                fillRule: ShapePath.OddEvenFill
-                PathSvg {
-                    path: root.frostProgress > 0.001
-                        ? Knockout.rectPath(Knockout.hole(0, 0, islandRect.width, islandRect.height, islandRect.radius))
-                            + " " + Knockout.holesPath(root.knockoutHoles)
-                        : ""
+            visible: false
+            layer.enabled: root.frostClear !== null
+            Item {
+                x: root.frostClear?.x ?? 0
+                y: root.frostClear?.y ?? 0
+                width: root.frostClear?.w ?? 0
+                height: root.frostClear?.h ?? 0
+                transform: Matrix4x4 { matrix: root.frostClear?.m ?? Qt.matrix4x4() }
+                Rectangle {
+                    anchors.fill: parent
+                    anchors.margins: root.frostClear?.inset ?? 0
+                    radius: Math.max(0, (root.frostClear?.r ?? 0) - anchors.margins)
+                    color: "white"
+                }
+            }
+        }
+        Item {
+            anchors.fill: parent
+            layer.enabled: root.frostClear !== null
+            layer.effect: MultiEffect {
+                maskEnabled: true
+                maskInverted: true
+                maskSource: frostClearMask
+                autoPaddingEnabled: false
+            }
+            Shape {
+                anchors.fill: parent
+                preferredRendererType: Shape.CurveRenderer
+                opacity: root.frostProgress
+                ShapePath {
+                    fillColor: root.frostTint
+                    strokeWidth: -1
+                    fillRule: ShapePath.OddEvenFill
+                    PathSvg {
+                        path: root.frostProgress > 0.001
+                            ? Knockout.rectPath(Knockout.hole(0, 0, islandRect.width, islandRect.height, islandRect.radius))
+                                + " " + Knockout.holesPath(root.knockoutHoles)
+                            : ""
+                    }
                 }
             }
         }

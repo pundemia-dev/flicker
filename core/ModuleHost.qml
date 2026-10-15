@@ -41,6 +41,9 @@ Item {
     readonly property var widthSpring: host.item?.widthSpring ?? null
     // Frost knockouts (components/Knockout.js) in module = island coords.
     readonly property var knockouts: host.item?.knockouts ?? []
+    // Region where the frost tint is cleared regardless of the holes
+    // ({x, y, w, h, r, m: matrix4x4, inset}; QS expanded card) or null.
+    readonly property var knockoutClear: host.item?.knockoutClear ?? null
     // A file drag over the module's own drop targets (stash drop chooser):
     // the island's drop area loses containsDrag under them.
     readonly property bool dragActive: host.item?.dragActive ?? false
@@ -48,6 +51,8 @@ Item {
     readonly property bool wantsKeyboard: host.item?.wantsKeyboard ?? false
     // The user is working with the module: auto-close timers wait.
     readonly property bool holdOpen: host.item?.holdOpen ?? false
+    // The live module item (debug IPC hooks such as quicksettingsExpand).
+    readonly property Item moduleItem: host.item
 
     Loader {
         id: host
