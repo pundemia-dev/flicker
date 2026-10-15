@@ -6,9 +6,11 @@ import "../../components"
 
 // One tray file (pShell StashDelegate port): theme icon underneath, image /
 // PDF / video thumbnail on top once ready, name label (always without a
-// thumb, on hover over a dark gradient with one). Hover shows a trash
-// button; hovering the trash slides send + bookmark out of it. Dragging the
-// tile drags the file out (native text/uri-list drag).
+// thumb, on hover over a dark gradient with one). Hover shows ONE menu
+// button; a click turns it into the action panel (StashTileMenu: send,
+// favourite, transcribe for audio / video, open, delete). Dragging the tile drags the file out (native
+// text/uri-list drag). A transcription shows as a thin bar at the bottom
+// (running / queued) or a text badge top-left (done).
 Item {
     id: root
     required property int index
@@ -22,12 +24,18 @@ Item {
     required property var theme
     required property real radius
     signal sendRequested(var files)
+    signal transcribeRequested(string file)
+    signal menuRequested(Item button)
+    // The tray's DropExpand (the menu button stays out while it is open).
+    property var menu: null
+    readonly property Item menuButton: menuBtn
+    readonly property color menuButtonColor: Qt.rgba(0.11, 0.11, 0.12, 0.92)
 
     readonly property string ext: root.fileName.includes(".") ? root.fileName.split(".").pop().toLowerCase() : ""
     readonly property bool isImage: ["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg"].includes(root.ext)
     readonly property bool isPdf: root.ext === "pdf"
-    readonly property bool isVideo: ["mp4", "mkv", "avi", "mov", "webm"].includes(root.ext)
-    readonly property bool isAudio: ["mp3", "wav", "flac", "ogg", "aac", "m4a", "opus"].includes(root.ext)
+    readonly property bool isVideo: ["mp4", "mkv", "avi", "mov", "webm", "m4v"].includes(root.ext)
+    readonly property bool isAudio: ["mp3", "wav", "flac", "ogg", "aac", "m4a", "opus", "wma", "amr", "aiff", "aif"].includes(root.ext)
     readonly property bool isText: ["txt", "md", "log", "csv", "json", "xml", "toml", "yaml", "yml", "sh", "py", "js", "ts", "rs", "go", "cpp", "c", "h", "qml"].includes(root.ext)
     readonly property bool isArchive: ["zip", "tar", "gz", "bz2", "xz", "rar", "7z", "zst"].includes(root.ext)
     readonly property string themeIcon: root.isImage ? "image-x-generic"
@@ -45,6 +53,15 @@ Item {
     readonly property string thumbSource: root.isImage ? root.fileUrl : (root.genThumb !== "" ? "file://" + root.genThumb : "")
     readonly property bool hasThumb: thumb.ready && root.thumbSource !== ""
     readonly property bool hovered: tileMa.containsMouse || actionsHover.hovered
+    readonly property bool canTranscribe: root.isAudio || root.isVideo
+    readonly property var tr: root.stash.transcribe
+    // Re-read on every Transcribe change (stateOf is a function).
+    readonly property string trState: {
+        if (!root.canTranscribe)
+            return "";
+        root.tr.known; root.tr.queue; root.tr.current; root.tr.errors;
+        return root.tr.stateOf(root.filePath);
+    }
 
     Component.onCompleted: if (root.isPdf || root.isVideo) thumbGen.running = true
 
@@ -112,6 +129,36 @@ Item {
         }
     }
 
+    // ── Transcription state ──
+    ProgressBar {
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        anchors.margins: 6
+        height: 3
+        visible: root.trState === "running" || root.trState === "queued"
+        value: root.trState === "running" ? root.tr.progress : 0
+        trackColor: Qt.rgba(0, 0, 0, 0.55)
+        fillColor: root.theme.cardBlue
+    }
+    Rectangle {
+        anchors.top: parent.top
+        anchors.left: parent.left
+        anchors.margins: 5
+        width: root.cfg.tileButtonSize
+        height: root.cfg.tileButtonSize
+        radius: Math.min(8, root.radius / 2)
+        visible: root.trState === "done" || root.trState === "error"
+        color: root.trState === "error" ? Qt.alpha(root.theme.accentRed, 0.85) : Qt.rgba(0.11, 0.11, 0.12, 0.92)
+        Text {
+            anchors.centerIn: parent
+            text: root.trState === "error" ? "\uea06" : "\ueaa2"
+            color: root.theme.islandFg
+            font.family: root.theme.iconFamily
+            font.pixelSize: Math.round(root.cfg.tileButtonSize * 0.55)
+        }
+    }
+
     // ── Drag out ──
     // Drag.active is set imperatively ONCE past the threshold: binding it to
     // drag.active is re-entrant with Drag.Automatic (the native drag drops
@@ -163,93 +210,41 @@ Item {
         }
     }
 
-    // ── Actions: trash, then send + bookmark born from under it ──
-    Item {
-        id: actions
-        readonly property real btn: root.cfg.tileButtonSize
-        readonly property real gap: 4
-        // Latched by hovering the trash, released when the strip is left.
-        property bool expanded: false
-        readonly property bool shown: root.hovered && !root.stash.outgoingDrag
-
+    // ── Menu: one button on hover; a click turns it into the action panel
+    // (components/DropExpand owned by the tray, StashTileMenu inside) ──
+    Rectangle {
+        id: menuBtn
+        readonly property bool menuOpen: root.menu?.active === true && root.menu.source === menuBtn
+        readonly property bool isOut: (root.hovered && !root.stash.outgoingDrag) || menuBtn.menuOpen
         anchors.top: parent.top
         anchors.right: parent.right
         anchors.margins: 5
-        // Fixed (expanded) width: growing it would shift every button's
-        // local x and the springs would make the trash jump.
-        width: actions.btn * 3 + actions.gap * 2
-        height: actions.btn
-
-        HoverHandler {
-            id: actionsHover
-            onHoveredChanged: if (!hovered) actions.expanded = false
-        }
-
-        TileButton {
-            id: trashBtn
-            slot: 0
-            glyph: ""
-            onHoveredChanged: if (hovered) actions.expanded = true
-            onClicked: root.stash.remove(root.filePath)
-        }
-        TileButton {
-            slot: 1
-            available: root.localSend.enabled
-            glyph: ""
-            accent: true
-            onClicked: root.sendRequested([root.filePath])
-        }
-        TileButton {
-            slot: root.localSend.enabled ? 2 : 1
-            glyph: ""
-            checked: root.isFav
-            onClicked: root.stash.toggleFav(root.index)
-        }
-    }
-
-    // Small square glyph button; slot 0 = trash (rightmost). Slots > 0 sit
-    // behind the trash until the strip expands, then spring out leftwards.
-    component TileButton: Rectangle {
-        id: tb
-        property int slot: 0
-        property string glyph
-        property bool accent: false
-        property bool checked: false
-        // Use this, not `visible` (that would override the fade-out gate and
-        // leave an invisible, clickable button behind the trash).
-        property bool available: true
-        readonly property bool hovered: tbMa.containsMouse
-        readonly property bool isOut: tb.available && (tb.slot === 0 ? actions.shown : actions.shown && actions.expanded)
-        signal clicked
-
-        width: actions.btn
-        height: actions.btn
+        width: root.cfg.tileButtonSize
+        height: root.cfg.tileButtonSize
         radius: Math.min(8, root.radius / 2)
-        x: actions.width - actions.btn - (tb.isOut ? tb.slot * (actions.btn + actions.gap) : 0)
-        z: -tb.slot
-        color: tb.accent ? root.theme.cardBlue
-            : tb.checked ? Qt.alpha(root.theme.cardBlue, 0.55)
-            : (tb.hovered ? root.theme.cardTrack : Qt.rgba(0.11, 0.11, 0.12, 0.92))
-        opacity: tb.isOut ? 1 : 0
-        scale: tb.isOut ? 1 : 0.5
+        color: menuMa.containsMouse ? root.theme.cardTrack : root.menuButtonColor
+        opacity: menuBtn.isOut ? 1 : 0
+        scale: menuBtn.isOut ? 1 : 0.5
         visible: opacity > 0.01
-        Behavior on x { Spring { stiffness: 5; damp: 0.4 } }
         Behavior on opacity { Spring { stiffness: 6; damp: 0.6; eps: 0.01 } }
         Behavior on scale { Spring { stiffness: 5; damp: 0.4; eps: 0.005 } }
 
+        HoverHandler {
+            id: actionsHover
+        }
         Text {
             anchors.centerIn: parent
-            text: tb.glyph
+            text: "\uea95"
             color: root.theme.islandFg
             font.family: root.theme.iconFamily
-            font.pixelSize: Math.round(actions.btn * 0.55)
+            font.pixelSize: Math.round(root.cfg.tileButtonSize * 0.6)
         }
         MouseArea {
-            id: tbMa
+            id: menuMa
             anchors.fill: parent
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
-            onClicked: tb.clicked()
+            onClicked: root.menuRequested(menuBtn)
         }
     }
 }

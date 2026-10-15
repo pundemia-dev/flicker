@@ -4,6 +4,7 @@ import QtQuick.Effects
 import Quickshell
 import Quickshell.Wayland
 import "../components"
+import "../indicators"
 import "../modules/dashboard/DashMetrics.js" as DashMetrics
 import "../modules/stash/StashMetrics.js" as StashMetrics
 import "../modules/quicksettings/QsMetrics.js" as QsMetrics
@@ -24,6 +25,7 @@ PanelWindow {
     required property var privacy
     required property var events
     required property var caffeine
+    required property var clipboardWatch
     required property var players
     required property var network
     required property var bluetooth
@@ -53,6 +55,9 @@ PanelWindow {
     required property var countdown
     // Music recognition (services/Shazam): the QS `shazam` card.
     required property var shazam
+    // Status indicators (services/Statuses): one ring in the drop that
+    // splits off the island's right end (core/StatusDrop).
+    required property var statuses
     required property var session
     // Keyboard pill policy (services/KeyboardIndicator): layout / Caps Lock.
     required property var keyboard
@@ -130,6 +135,13 @@ PanelWindow {
             y: 0
             width: root.stashDropOpen ? Math.round(root.islandWidth) : 0
             height: Math.round(root.islandY)
+        }
+        // Status drop (tap = its module, swipe = next status).
+        Region {
+            x: Math.round(statusDrop.cx - statusDrop.r)
+            y: Math.round(statusDrop.cy - statusDrop.r)
+            width: root.statusMode === "out" ? Math.round(statusDrop.r * 2) : 0
+            height: Math.round(statusDrop.r * 2)
         }
         // Minimal active zone (spec): from the top screen edge down past the
         // strip, so presses above the strip land here instead of falling
@@ -219,7 +231,14 @@ PanelWindow {
     property bool temporaryRevealFromMinimal: false
     property bool holdRevealing: false
     property bool tickerVisible: false
-    property string tickerText: ""
+    // Notification the ticker shows (NotificationEntry); kept after it hides
+    // so the fading ticker keeps its content.
+    property var tickerNotif: null
+    // Room the ticker adds on the bar's left (target value); the bar row
+    // moves right by the same amount on the island's width spring.
+    readonly property real tickerReserve: root.tickerVisible && !root.moduleOpen ? tickerItem.reserve : 0
+    property real tickerShift: root.tickerReserve
+    Behavior on tickerShift { Spring { stiffness: 4; damp: 0.35 } }
     // Dashboard drawer: island height follows the cursor while dragging from
     // the clock, snapping open past dashboardDragThreshold (spec).
     property bool dashboardDragging: false
@@ -235,7 +254,7 @@ PanelWindow {
 
     readonly property bool minimal: state.currentState === state.minimal
     // Bare strip (no hold reveal / ticker): the minimal active zone is live.
-    readonly property bool minimalZoneActive: minimal && !temporaryRevealFromMinimal && !tickerVisible
+    readonly property bool minimalZoneActive: minimal && !temporaryRevealFromMinimal && !tickerVisible && !indicatorPeek.active
     readonly property bool moduleOpen: state.currentState === state.module
     // Per-screen compositor state (global value as fallback).
     readonly property var screenInfo: (compositor?.perScreen ?? {})[screen.name] ?? null
@@ -250,7 +269,18 @@ PanelWindow {
     // the arcs tuck under it, and collapses only once they report `tucked`
     // (arcsHoldTimeout is the safety net).
     property bool arcsHold: false
-    readonly property bool shouldDrawIslandShape: !minimal || temporaryRevealFromMinimal || tickerVisible || arcsHold
+    readonly property bool shouldDrawIslandShape: !minimal || temporaryRevealFromMinimal || tickerVisible || arcsHold || indicatorPeek.active
+
+    // New indicator while Minimal: unfold the bar first, then let it in.
+    IndicatorPeek {
+        id: indicatorPeek
+        cfg: root.indicatorCfg
+        minimal: root.minimal
+        revealed: root.temporaryRevealFromMinimal || root.tickerVisible
+        blocked: !root.started || root.stolen || root.captureMinimal || root.moduleOpen
+        keepOpen: indicators.eventShowing || islandHover.hovered
+        rawKey: indicators.activeKey
+    }
 
     // Content actually rendered. Lags the state: ContentSwap commits it at
     // the swap midpoint (old content faded out), so the old module stays on
@@ -367,7 +397,8 @@ PanelWindow {
     // (eviction in IndicatorLayout kicks in past the cap).
     // + an event's wider half on BOTH sides (IndicatorLayout.eventSide):
     // the row stays centred while an event shows.
-    readonly property real barFittedWidth: indicators.edgePadD * 2 + indicators.stableRowWidth + indicators.eventSide * 2
+    // + the notification ticker's room on the left (fullscreen, tickerReserve).
+    readonly property real barFittedWidth: indicators.edgePadD * 2 + indicators.stableRowWidth + indicators.eventSide * 2 + root.tickerReserve
 
     readonly property real islandWidth: root.moduleOpen
         ? root.moduleSize.width
@@ -564,6 +595,44 @@ PanelWindow {
             root.state.setIsland();
     }
 
+    // ── Status drop ──
+    // The bar is on screen with its own content (not a module / ticker /
+    // Minimal / mid-swap): the drop may split off.
+    readonly property bool statusOn: root.statuses?.enabled ?? false
+    readonly property bool barShowing: (root.state.currentState === root.state.island || indicatorPeek.ready) && !root.moduleOpen
+        && !root.tickerVisible && root.shownModule === "" && root.started && !root.stolen
+    // A status's own event shows (event `status: key`): its ring sits inline
+    // at the island's right end until the event leaves.
+    readonly property string statusEventKey: {
+        const k = root.events?.current?.status ?? "";
+        return k !== "" && root.statuses?.find(k) ? k : "";
+    }
+    readonly property var statusEntry: root.statusEventKey !== "" ? root.statuses.find(root.statusEventKey) : (root.statuses?.current ?? null)
+    readonly property string statusMode: !root.statusOn || !(root.statuses?.active ?? false) ? "none"
+        : !root.barShowing ? "hidden"
+        : root.statusEventKey !== "" ? "inline" : "out"
+    // The timer lives in the drop (not on the music cover / in the row).
+    readonly property bool timerInDrop: root.statusOn && (root.config.status?.timer ?? true)
+    // Timer ring as a shared element: the drop's (hidden) halo while the
+    // drop shows the timer, else the bar's ring.
+    readonly property Item timerOwner: root.timerInDrop
+        ? (root.statusEntry?.key === "timer" ? statusTimerHalo : null)
+        : indicators.timerOwner
+    // Room of the inline ring (right end rounding) past the edge padding.
+    readonly property real statusInset: root.statusOn
+        ? Math.max(0, root.islandCfg.height / 2 + (root.config.status?.ringSize ?? 20) / 2 - indicators.edgePadD) : 0
+
+    // Tap on the drop: the shown status's module.
+    function openStatus(st: var): void {
+        const what = st?.open ?? "";
+        if (what === "timer")
+            openTimer(st.key === "timer" ? statusTimerHalo : null);
+        else if (what === "transcript" && root.stash.transcribe.current !== "")
+            openTranscript(root.stash.transcribe.current);
+        else if (what === "stash")
+            openStash("");
+    }
+
     // A pending polkit prompt owns the island: nothing replaces it (the
     // request would sit unanswered behind another module); its own
     // re-open (next request after a success) passes.
@@ -645,7 +714,7 @@ PanelWindow {
         openModule("timer", {
             timerRouted: true,
             shared: fromBar ? indicators.clockOwner : null,
-            sharedRing: fromBar && root.countdown.active ? (ring ?? indicators.timerOwner) : null
+            sharedRing: fromBar && root.countdown.active ? (ring ?? root.timerOwner) : null
         });
     }
     // The countdown rang: show it (done state: ringing bell, repeat / ✕).
@@ -661,7 +730,7 @@ PanelWindow {
     function sendTimerHome(): void {
         if (transitionLayer.phase === "" && indicators.clockOwner && transitionLayer.adopt(indicators.clockOwner, "timer"))
             transitionLayer.returnHome();
-        if (ringLayer.phase === "" && root.countdown.active && indicators.timerOwner && ringLayer.adopt(indicators.timerOwner, "timer"))
+        if (ringLayer.phase === "" && root.countdown.active && root.timerOwner && ringLayer.adopt(root.timerOwner, "timer"))
             ringLayer.returnHome();
     }
     // Cancelled inside the module: the ring has no home any more (its
@@ -900,6 +969,15 @@ PanelWindow {
             root.openModule("session", {});
     }
 
+    // Stash transcript view of `path` (IPC stashTranscript): queues the
+    // WhisperX run unless it is done / queued already.
+    function openTranscript(path: string): void {
+        if (root.lock.locked || root.stolen || root.capture.active || root.capture.grabbing || path === "")
+            return;
+        root.stash.transcribe.request(path);
+        openModule("stash", { view: "transcript", file: path, returnView: "tray" });
+    }
+
     function toggleStash(): void {
         if (root.moduleOpen && root.state.activeModule === "stash")
             root.closeModule();
@@ -1046,7 +1124,7 @@ PanelWindow {
     }
 
     function showTicker(notif: var): void {
-        tickerText = `${notif.appName}: ${notif.summary}`;
+        tickerNotif = notif;
         tickerVisible = true;
         tickerTimer.restart();
     }
@@ -1082,7 +1160,8 @@ PanelWindow {
 
     Timer {
         id: tickerTimer
-        interval: root.config.notifications.tickerDurationMs
+        // At least one full pass of a scrolling text (NotificationTicker.showMs).
+        interval: tickerItem.showMs
         onTriggered: {
             root.tickerVisible = false;
             // The ticker itself counts as interaction: restart the idle timer.
@@ -1305,10 +1384,31 @@ PanelWindow {
         cfg: root.config.arcs
         batteryCfg: root.config.battery
         visibleInState: root.state.currentState === root.state.island && !root.moduleOpen && !root.tickerVisible
+        // The battery arc wraps the status drop while it is split off.
+        rightShift: statusDrop.live && !statusDrop.merged ? Math.max(0, statusDrop.cx - statusDrop.c1x) : 0
         onTucked: {
             root.arcsHold = false;
             arcsHoldTimeout.stop();
         }
+    }
+
+    // Status drop body (below the island; ring above it, statusRingHost).
+    StatusDrop {
+        id: statusDrop
+        z: -1
+        cfg: root.config.status
+        color: root.restBodyColor
+        mode: root.statusMode
+        islandX: islandRect.x
+        islandY: islandRect.y
+        islandW: islandRect.width
+        islandH: islandRect.height
+        islandR: islandRect.radius
+        targetW: root.islandWidth
+        targetH: root.islandHeight
+        targetR: root.islandRadius
+        barHeight: root.islandCfg.height
+        widthSpring: moduleHost.widthSpring
     }
 
     // Light halo around the island body (the arcs' halo treatment, but
@@ -1601,7 +1701,12 @@ PanelWindow {
 
                 IndicatorLayout {
                     id: indicators
-                    anchors.fill: parent
+                    x: root.tickerShift
+                    width: parent.width - root.tickerShift
+                    height: parent.height
+                    extraReserve: root.tickerReserve
+                    holdNew: indicatorPeek.holding
+                    known: indicatorPeek.known
                     cfg: root.indicatorCfg
                     islandCfg: root.islandCfg
                     clock: root.clock
@@ -1616,6 +1721,10 @@ PanelWindow {
                     dictation: root.dictation
                     theme: root.theme
                     countdown: root.countdown
+                    statuses: root.statuses
+                    statusInset: root.statusInset
+                    statusTextGap: root.config.status?.textGap ?? 8
+                    timerInDrop: root.timerInDrop
                     onRequestModule: (name, payload) => root.openModule(name, payload)
                 }
             }
@@ -1663,6 +1772,7 @@ PanelWindow {
                                 haptics: root.haptics,
                                 wallpaper: root.wallpaper,
                                 prompter: root.prompter,
+                                clipboardWatch: root.clipboardWatch,
                                 screen: root.targetScreen?.name ?? "",
                                 originX: 0.5,
                                 originY: (root.islandCfg.topMargin + root.islandCfg.height / 2) / Math.max(1, root.targetScreen?.height ?? 1)
@@ -1683,36 +1793,79 @@ PanelWindow {
                 }
             }
 
-            // Notification ticker in the Minimal-revealed bar: overlays the
-            // bar content without replacing it (spec).
-            Item {
-                anchors.fill: parent
+            // Notification ticker in the Minimal-revealed bar (fullscreen):
+            // the bar widens by tickerReserve and the ticker fills that room
+            // on the left — icon still, text scrolling (spec + user).
+            NotificationTicker {
+                id: tickerItem
+                x: indicators.edgePadD
+                width: root.tickerShift
+                height: parent.height
                 visible: opacity > 0.01
                 opacity: root.shownTicker && root.tickerVisible ? 1 : 0
-                clip: true
                 Behavior on opacity { NumberAnimation { duration: root.timingCfg.fadeInMs } }
-
-                Text {
-                    id: tickerLabel
-                    y: (parent.height - height) / 2
-                    x: tickerAnim.running ? width : indicators.edgePad
-                    text: root.tickerText
-                    color: root.theme.islandFg
-                    font.pixelSize: root.theme.fontSizeBody
-                }
-                SequentialAnimation {
-                    id: tickerAnim
-                    running: root.tickerVisible
-                    loops: Animation.Infinite
-                    NumberAnimation {
-                        target: tickerLabel
-                        property: "x"
-                        from: islandRect.width
-                        to: -tickerLabel.width
-                        duration: root.config.notifications.tickerDurationMs
-                    }
-                }
+                notif: root.tickerNotif
+                cfg: root.config.notifications
+                theme: root.theme
+                iconSize: root.indicatorCfg.musicCoverDiameter ?? 24
+                fadeColor: root.backdropColor
+                running: root.tickerVisible
             }
+        }
+    }
+
+    // Status ring (above the island: inline it sits in the right end
+    // rounding) + the drop's input. The timer's PerimeterProgress lives in a
+    // hidden TimerHalo here: it is the shared element that unfolds into the
+    // timer module (ringLayer); while it is away the ring hides the timer.
+    Item {
+        id: statusRingHost
+        readonly property real box: root.config.status?.ringSize ?? 20
+        x: statusDrop.cx - statusDrop.dropR
+        y: statusDrop.cy - statusDrop.dropR
+        width: statusDrop.dropR * 2
+        height: statusDrop.dropR * 2
+        readonly property bool timerAway: ringLayer.owner === statusTimerHalo && ringLayer.phase !== ""
+
+        StatusRing {
+            anchors.centerIn: parent
+            width: statusRingHost.box
+            height: statusRingHost.box
+            statuses: root.statuses
+            theme: root.theme
+            cfg: root.config.status
+            entry: root.statusEntry
+            shown: root.statusMode === "out" || root.statusMode === "inline"
+            squeeze: statusDrop.squeeze
+            opacity: statusRingHost.timerAway && root.statusEntry?.key === "timer" ? 0 : 1
+        }
+        TimerHalo {
+            id: statusTimerHalo
+            anchors.centerIn: parent
+            width: statusRingHost.box
+            height: statusRingHost.box
+            opacity: 0
+            countdown: root.countdown
+            theme: root.theme
+            line: root.config.status?.ringLine ?? 2.5
+        }
+
+        MouseArea {
+            anchors.fill: parent
+            enabled: root.statusMode === "out"
+            property real pressX: 0
+            property bool swiped: false
+            onPressed: mouse => {
+                pressX = mouse.x;
+                swiped = false;
+            }
+            onPositionChanged: mouse => {
+                if (swiped || Math.abs(mouse.x - pressX) < (root.config.status?.swipePx ?? 18))
+                    return;
+                swiped = true;
+                root.statuses.cycle(mouse.x > pressX ? 1 : -1);
+            }
+            onClicked: if (!swiped) root.openStatus(root.statusEntry)
         }
     }
 
@@ -1756,6 +1909,16 @@ PanelWindow {
                     incoming: root.localSend.hasIncoming
                 },
                 capture: root.capture.debugInfo(),
+                status: {
+                    mode: root.statusMode,
+                    shown: root.statusEntry?.key ?? "",
+                    keys: (root.statuses?.ordered ?? []).map(st => st.key),
+                    cx: Math.round(statusDrop.cx),
+                    c1x: Math.round(statusDrop.c1x),
+                    r: Math.round(statusDrop.r),
+                    pulling: statusDrop.pulling,
+                    broken: statusDrop.broken
+                },
                 prompter: JSON.parse(root.prompter.status()),
                 queue: root.notificationQueue.size,
                 notifCount: (root.notifications.history ?? []).length,

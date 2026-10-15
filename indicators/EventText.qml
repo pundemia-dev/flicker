@@ -84,6 +84,10 @@ Item {
     readonly property real slotWidth: root.peak
     // Extra distance from the rest of the row (on top of the row spacing).
     readonly property real gap: cfg?.eventGap ?? 28
+    // A status's event (IndicatorLayout): the text follows the glyph on the
+    // left (the right end holds the inline ring) — left-aligned, the gap
+    // toward the row on its right.
+    property bool leading: false
     readonly property real desiredWidth: active ? slotWidth + gap : 0
 
     width: (entered && !evicted) ? desiredWidth : 0
@@ -100,14 +104,16 @@ Item {
 
     FadeBlur {
         anchors.verticalCenter: parent.verticalCenter
-        anchors.right: parent.right
+        anchors.right: root.leading ? undefined : parent.right
+        anchors.left: root.leading ? parent.left : undefined
         width: root.textWidth + 2
         height: parent.height
         shown: root.active && !root.evicted
 
         RollingText {
             id: label
-            anchors.right: parent.right
+            anchors.right: root.leading ? undefined : parent.right
+            anchors.left: root.leading ? parent.left : undefined
             anchors.verticalCenter: parent.verticalCenter
             text: root.value
             // Neutral (Theme.eventText) unless the event sets `textColor`.

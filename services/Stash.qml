@@ -9,6 +9,8 @@ import Quickshell.Io
 Scope {
     id: root
     required property var cfg
+    // Bar events (services/Events) for the transcription progress.
+    property var events: null
 
     // $HOME/~-expanded tray dir.
     readonly property string stashDir: root.expand(root.cfg?.stashDir ?? "/tmp/pillshell_stash")
@@ -18,6 +20,9 @@ Scope {
     // not take that drag as an incoming drop, nor close the tray under it
     // (that frees the drag's QMimeData mid-drag → segfault in pShell).
     property bool outgoingDrag: false
+
+    // Speech-to-text of tray audio / video (WhisperX, one file at a time).
+    readonly property alias transcribe: transcribeService
 
     readonly property alias model: fileModel
     readonly property int count: fileModel.count
@@ -123,6 +128,16 @@ Scope {
     Process {
         id: worker
         onExited: root.next()
+    }
+
+    Transcribe {
+        id: transcribeService
+        events: root.events
+        // A saved .txt / .srt in the tray shows up at once.
+        onWritten: target => {
+            if (target.startsWith(root.stashDir + "/"))
+                root.refresh();
+        }
     }
 
     ListModel {

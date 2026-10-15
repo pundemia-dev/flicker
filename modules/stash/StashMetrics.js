@@ -2,7 +2,8 @@
 
 // Island sizes of the stash views (DashMetrics pattern): derived from
 // config.stash + live counts so the island fits its content.
-// view: "drop" (chooser) | "tray" | "send" (device picker) | "incoming".
+// view: "drop" (chooser) | "tray" | "send" (device picker) | "incoming"
+// | "transcript" (fixed cfg size, the text scrolls).
 
 function trayRows(c, count) {
     return Math.max(1, Math.min(c.rowsMax, Math.ceil(Math.max(1, count) / c.columns)));
@@ -25,6 +26,8 @@ function islandSize(c, view, s) {
             height: pad2 + c.pickerHeaderHeight + c.gap + rows * c.deviceRowHeight + (rows - 1) * 4
         };
     }
+    if (view === "transcript")
+        return { width: c.transcriptWidth, height: c.transcriptHeight };
     if (view === "incoming") {
         const body = s.incomingText ? c.incomingTextHeight
             : Math.max(1, Math.min(c.visibleDevicesMax, s.incomingFiles)) * c.incomingFileRowHeight;

@@ -57,6 +57,8 @@ Item {
     // Extra distance from the rest of the row (on top of the row spacing).
     readonly property real gap: cfg?.eventGap ?? 28
     readonly property real desiredWidth: active ? glyphSize - pull + gap : 0
+    // Right edge of the glyph (a status event's text follows it).
+    readonly property real glyphEnd: glyphSize - pull
 
     width: (entered && !evicted) ? desiredWidth : 0
     height: cfg?.musicCoverDiameter ?? 24

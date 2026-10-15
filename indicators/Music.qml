@@ -27,6 +27,7 @@ Item {
     readonly property int diameter: cfg?.musicCoverDiameter ?? 24
     readonly property string artUrl: players?.artUrl ?? ""
     readonly property bool timerOn: (root.countdown?.active ?? false) && (root.cfg?.musicTimerRing ?? true)
+        && !(root.services?.timerInDrop ?? false)
     readonly property real ringLine: root.cfg?.timerRingLine ?? 2.5
     // With the ring the pair keeps the plain cover's size (user): the ring's
     // outer edge = the cover's edge without a timer, the cover shrinks

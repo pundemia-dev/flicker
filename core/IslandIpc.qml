@@ -24,6 +24,7 @@ Scope {
     required property var countdown
     required property var keyboard
     required property var shazam
+    required property var statuses
 
     // Drawn glyph previews for IPC glyphDemo: name -> [Theme colour, text].
     readonly property var glyphDemos: ({
@@ -80,6 +81,8 @@ Scope {
             cc?.save();
         }
         // Debug: long-press expansion of a QS card ("" = fold it back).
+        // Debug: tile menu of stash file <i> (-1 folds it back).
+        function stashMenu(i: int): void { root.island?.moduleItem?.debugMenu?.(i); }
         function quicksettingsExpand(id: string): void { root.island?.moduleItem?.expandCard?.(id); }
         function notifications(): void { root.island?.openNotificationCenter(); }
         function capture(): void { root.island?.openCapture(""); }
@@ -107,6 +110,8 @@ Scope {
         // File tray (toggle). The drop chooser opens on its own when a file
         // is dragged over the island.
         function stash(): void { root.island?.toggleStash(); }
+        // Transcript view of a file (WhisperX, queued if not done yet).
+        function stashTranscript(path: string): void { root.island?.openTranscript(path); }
         function player(): void { root.island?.openModule("player", {}); }
         function lock(): void { root.lock.activate(); }
         // Session menu (lock / log out / sleep / restart / shut down), toggle.
@@ -206,6 +211,26 @@ Scope {
             for (const name of Object.keys(root.glyphDemos))
                 glyphDemo(name);
         }
+        // Status drop demo: `statusDemo <name> <percent>` posts a status
+        // "demo:<name>" (percent < 0 = indeterminate) + its start event;
+        // again = update in place; `statusDemoEnd <name>` drops it;
+        // `statusNext` = the swipe on the drop.
+        function statusDemo(name: string, percent: int): void {
+            const key = `demo:${name}`;
+            const colors = ["qsBlue", "accentGreen", "focusPurple", "accentRed", "accentYellow"];
+            const fresh = !root.statuses.find(key);
+            root.statuses.post({
+                key: key,
+                priority: 5,
+                color: colors[Math.abs(name.split("").reduce((h, c) => h * 31 + c.charCodeAt(0), 7)) % colors.length],
+                progress: percent < 0 ? null : percent / 100,
+                open: ""
+            });
+            if (fresh)
+                root.events.post({ key: `status:${key}`, status: key, icon: "", text: name });
+        }
+        function statusDemoEnd(name: string): void { root.statuses.cancel(`demo:${name}`); }
+        function statusNext(): void { root.statuses.cycle(1); }
         function debugState(): string { return root.island?.debugState() ?? "{}"; }
     }
 }

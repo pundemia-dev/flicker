@@ -18,6 +18,9 @@ Item {
     required property var batteryCfg
     required property real islandRadius
     required property bool visibleInState
+    // Extra rightward offset of the right (battery) arc: it wraps the
+    // status drop instead of the island end while the drop is split off.
+    property real rightShift: 0
 
     // Same rule as the charger events (Battery.levelTone).
     readonly property color batteryColor: theme[battery.levelTone ?? "batteryGood"] ?? theme.batteryGood
@@ -221,7 +224,7 @@ Item {
         id: rightGroup
         width: root.box
         height: root.box
-        x: root.width / 2 + root.arcDx - width / 2
+        x: root.width / 2 + root.arcDx - width / 2 + root.rightShift
         scale: root.tuckScale
         // Vertically always on the LIVE island centre (frozen geometry is
         // horizontal only — that is where the island's bounce showed).

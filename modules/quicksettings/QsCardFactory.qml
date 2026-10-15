@@ -34,12 +34,27 @@ Item {
     // Expanded view of a card (QsExpander, long press); null = none.
     function panelFor(id: string): Component {
         return ({
-            wifi: wifiPanelComp
+            wifi: wifiPanelComp,
+            bluetooth: btPanelComp
         })[id] ?? null;
     }
     Component {
         id: wifiPanelComp
-        WifiPanel {}
+        WifiPanel {
+            services: root.services
+            cfg: root.services.config.quicksettings
+            theme: root.theme
+            frost: root.services.frost ?? null
+        }
+    }
+    Component {
+        id: btPanelComp
+        BluetoothPanel {
+            services: root.services
+            cfg: root.services.config.quicksettings
+            theme: root.theme
+            frost: root.services.frost ?? null
+        }
     }
 
     // Placeholder cards (no backend yet): toggles flip a session-only local

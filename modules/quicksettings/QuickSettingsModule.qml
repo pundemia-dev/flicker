@@ -170,7 +170,7 @@ Item {
         for (let i = 0; i < cardRepeater.count; i++) {
             const c = cardRepeater.itemAt(i);
             if (c?.cardId === id && c.visible)
-                expander.open(c);
+                expander.openCard(c);
         }
     }
 
@@ -356,7 +356,7 @@ Item {
                         Behavior on scale { Spring { eps: 0.005 } }
                         Behavior on opacity { Spring { eps: 0.01 } }
 
-                        onHoldRequested: if (!root.editing) expander.open(card)
+                        onHoldRequested: if (!root.editing) expander.openCard(card)
                         onRemoveRequested: root.cc.remove(modelData)
                         onSwipeStarted: y => root.swipeStart(y)
                         onSwipeUpdated: dy => root.swipeUpdate(dy)
@@ -486,7 +486,6 @@ Item {
         cfg: root.cfg
         theme: root.theme
         frost: root.frost
-        services: root.services
         cardFactory: factory
     }
 }

@@ -26,6 +26,8 @@ Scope {
     EventBluetooth { events: eventsService; bluetooth: bluetoothService }
     EventUpdates { events: eventsService }
     Caffeine { id: caffeineService; events: eventsService }
+    // Clipboard history feed (cliphist) for the launcher's clipboard plugin.
+    ClipboardWatch { id: clipboardWatchService }
     // Music recognition (QS card `shazam`, IPC `island shazam`).
     Shazam { id: shazamService; events: eventsService }
     // Countdown timer: a finished one opens the module on the focused output.
@@ -50,7 +52,7 @@ Scope {
     Sensors { id: sensorsService }
     Weather { id: weatherService }
     Haptics { id: hapticsService }
-    Stash { id: stashService; cfg: Config.data.stash }
+    Stash { id: stashService; cfg: Config.data.stash; events: eventsService }
     // Polkit agent: a request opens the prompt on the focused output.
     Polkit {
         id: polkitService
@@ -89,6 +91,19 @@ Scope {
 
     IslandRegistry { id: islandRegistry }
 
+    // Status indicators (one ring in the drop right of the island) + feeds.
+    Statuses { id: statusesService }
+    StatusFeeds {
+        statuses: statusesService
+        events: eventsService
+        countdown: countdownService
+        transcribe: stashService.transcribe
+        shazam: shazamService
+        recorder: recorderService
+        localSend: localSendService
+        semantic: wallpaperService.semantic
+    }
+
     // Wallpapers (wallr): favourites/history, random, video pause.
     Wallpaper {
         id: wallpaperService
@@ -114,6 +129,7 @@ Scope {
         countdown: countdownService
         keyboard: keyboardIndicatorService
         shazam: shazamService
+        statuses: statusesService
     }
 
     OsdWatcher {
@@ -141,6 +157,7 @@ Scope {
                 privacy: privacyService
                 events: eventsService
                 caffeine: caffeineService
+                clipboardWatch: clipboardWatchService
                 players: playersService
                 network: networkService
                 bluetooth: bluetoothService
@@ -163,6 +180,7 @@ Scope {
                 wallpaper: wallpaperService
                 countdown: countdownService
                 shazam: shazamService
+                statuses: statusesService
                 session: sessionService
                 keyboard: keyboardIndicatorService
             }

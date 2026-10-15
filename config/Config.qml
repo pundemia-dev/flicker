@@ -147,6 +147,15 @@ Singleton {
                     edgePaddingFactor: 0.08,
                     edgePaddingMin: 16,
                     musicCoverDiameter: 24,
+                    // Minimal → bar peek for a new indicator: wait for the bar
+                    // to unfold (peekRevealMs), keep it peekShowMs (event /
+                    // hover hold it, then peekTailMs). peekIgnore = names
+                    // (timer|music|privacy|dictation|event) that never peek.
+                    peekEnabled: true,
+                    peekRevealMs: 450,
+                    peekShowMs: 3000,
+                    peekTailMs: 1000,
+                    peekIgnore: [],
                     micDotDiameter: 8,
                     micLabelMaxWidth: 180,
                     waveWidth: 28,
@@ -196,10 +205,62 @@ Singleton {
                     updates: true,
                     caffeine: true,
                     shazam: true,
+                    transcribe: true,
                     updatesDelayMs: 30000,
                     // Updates are announced only if the shell started within
                     // this long after boot (not on a restart). 0 = always.
                     updatesMaxUptimeSec: 180
+                })
+            // Status drop (services/Statuses + core/StatusDrop): long
+            // processes (timer, transcription, Shazam, recording save,
+            // LocalSend, wallpaper indexing) as ONE ring in a drop that
+            // splits off the island's right end (metaball neck) and sits
+            // right of it; the battery arc wraps the drop. size 0 = the
+            // island height. gap = drop <-> island; the drop is pulled
+            // `pull` px further out until the neck snaps at `breakAt` of
+            // that pull, then recoils. neckSpread = metaball spread (0..1),
+            // neckHandle = handle length. Ring: ringSize/ringLine,
+            // trackAlpha = remainder tinted by the status colour,
+            // indeterminate = arc length of a status without a percent,
+            // spinDegPerSec its spin. Swipe the drop past swipePx = next
+            // status (the track spins round once, recolouring).
+            // textGap = event glyph -> its text (the text follows the glyph on the
+            // left, the ring stays in the right end). Springs: drop*
+            // (position), swap* (swipe driver), reveal* (draw in), revealOut* (close —
+            // faster); closeAt = sucked back in, the ring is shut by this distance
+            // (fraction of touching, 0 = centres together) — before the merge.
+            property var status: ({
+                    enabled: true,
+                    size: 0,
+                    gap: 8,
+                    pull: 12,
+                    breakAt: 0.7,
+                    neckSpread: 0.5,
+                    neckHandle: 2.4,
+                    ringSize: 20,
+                    ringLine: 2.5,
+                    trackAlpha: 0.28,
+                    indeterminate: 0.28,
+                    spinDegPerSec: 300,
+                    swipePx: 18,
+                    textGap: 8,
+                    dropStiffness: 3,
+                    dropDamping: 0.3,
+                    swapStiffness: 2.2,
+                    swapDamping: 0.32,
+                    revealStiffness: 3,
+                    revealDamping: 0.6,
+                    revealOutStiffness: 14,
+                    revealOutDamping: 0.45,
+                    closeAt: 0.6,
+                    // A process shows up as a status only after running this long.
+                    announceDelayMs: 1000,
+                    timer: true,
+                    transcribe: true,
+                    shazam: true,
+                    recordSaving: true,
+                    localSend: true,
+                    wallpaperIndex: true
                 })
             // Keyboard pill (services/KeyboardIndicator + Caret,
             // modules/keyboard): macOS-style capsule under the TEXT CARET
@@ -603,6 +664,17 @@ Singleton {
                 })
             property var notifications: ({
                     tickerDurationMs: 3500,
+                    // Fullscreen ticker: text viewport cap (longer text
+                    // scrolls), icon -> text gap, ticker -> bar row gap,
+                    // scroll speed px/s, hold before / after a pass, gap
+                    // before the looped copy, soft edge width.
+                    tickerWidth: 220,
+                    tickerIconGap: 8,
+                    tickerRowGap: 12,
+                    tickerSpeed: 60,
+                    tickerHoldMs: 1200,
+                    tickerLoopGap: 48,
+                    tickerEdgeFade: 14,
                     onlyUrgentToast: true,
                     // Notification Center (iOS style): card tile height, gap
                     // between cards/groups, how far the plates of a
@@ -944,36 +1016,23 @@ Singleton {
                     // Edit-mode button, bottom-right corner of the rail column
                     // (mirrors the session button; same disc/glyph sizes).
                     editButton: true,
-                    // Expanded card (QsExpander, long press on a card with a
-                    // panel): the card shrinks into a drop (diameter = its
-                    // short side x dropScale), the drop flies over the grid to
-                    // the panel centre (the card centre moved just enough for
-                    // the panel to fit inside the island margins), then grows
-                    // into the panel. Each phase is a spring; the next starts
-                    // when the previous reaches `handoff`. Panel sizes are free
-                    // px (not grid cells); radius 0 = concentric (unit / 2).
-                    // The rest of the grid stays; it is cut out under the
-                    // shape (mask inset cutInset px). fadeStiffness = content
-                    // blur-fades (card out / panel in).
+                    // Expanded card (QsExpander = components/DropExpand, long
+                    // press on a card with a panel; motion in `dropExpand`):
+                    // panel sizes are free px (not grid cells), radius 0 =
+                    // concentric (unit / 2); the grid is cut out under the
+                    // shape with the mask inset cutInset px.
                     expand: ({
-                        dropScale: 0.9,
-                        handoff: 0.5,
-                        dropStiffness: 14,
-                        dropDamping: 0.5,
-                        flyStiffness: 12,
-                        flyDamping: 0.45,
-                        growStiffness: 12,
-                        growDamping: 0.45,
-                        fadeStiffness: 12,
-                        cutInset: 1.5,
                         panelRadius: 0,
+                        cutInset: 1.5,
                         panels: ({
-                            wifi: ({ width: 340, height: 300 })
+                            wifi: ({ width: 340, height: 300 }),
+                            bluetooth: ({ width: 340, height: 300 })
                         })
                     }),
-                    // Wi‑Fi panel (panels/WifiPanel): side padding, header and
-                    // row heights, title / row text sizes, signal glyph size.
-                    wifiPanel: ({
+                    // List panels of expanded cards (panels/WifiPanel,
+                    // BluetoothPanel): side padding, header and row heights,
+                    // title / row text sizes, glyph size, password field.
+                    listPanel: ({
                         padding: 18,
                         headerHeight: 54,
                         rowHeight: 42,
@@ -1031,6 +1090,22 @@ Singleton {
             // settles on a spring (stiffness/damping, explicit Euler sub-steps).
             // diagonal: share of the stretch kept along a 45° motion (also
             // scales its skew); axis-aligned motion is unaffected. 1 = pShell.
+            // Drop expansion (components/DropExpand: a button / card turns
+            // into a panel — drop, flight, grow; QS cards, stash tile menu).
+            // Drop diameter = the source's short side x dropScale; each phase
+            // starts when the previous reaches handoff; fadeStiffness = the
+            // content blur-fades (source look out / panel in).
+            property var dropExpand: ({
+                    dropScale: 0.9,
+                    handoff: 0.5,
+                    dropStiffness: 14,
+                    dropDamping: 0.5,
+                    flyStiffness: 12,
+                    flyDamping: 0.45,
+                    growStiffness: 12,
+                    growDamping: 0.45,
+                    fadeStiffness: 12
+                })
             property var deform: ({
                     scale: 0.0004,
                     maxStretch: 0.35,
@@ -1100,7 +1175,12 @@ Singleton {
                             historyLimit: 100,
                             autoPaste: false,
                             pasteCommand: "wtype -M ctrl v -m ctrl",
-                            cacheDir: ""
+                            cacheDir: "",
+                            // Feed cliphist (services/ClipboardWatch): "auto" =
+                            // own wl-paste watchers unless the compositor runs
+                            // one (niri does, driftwm not); true / false force.
+                            watch: "auto",
+                            watchRestartMs: 2000
                         }),
                     // Wallpaper carousel (plugins/wallpapers, backend wallr).
                     // Cards by distance from the centre: cardWidths[k] x
@@ -1520,6 +1600,40 @@ Singleton {
                     eventMaxChars: 28,
                     statusHoldMs: 6000
                 })
+            // Speech-to-text of stash audio / video (services/Transcribe,
+            // scripts/stash/transcribe.py = WhisperX on the PyTorch CPU
+            // build; files run one at a time). model: tiny | base | small |
+            // medium | large-v3 | large-v3-turbo | distil-* (faster-whisper
+            // names). language: "auto" (detected on the first 30 s) or a code
+            // ("ru", "en"). device cpu | cuda, computeType int8 | float16 |
+            // float32. threads 0 = 4. vad pyannote | silero. align = word
+            // timings (better .srt). diarize = speakers (pyannote: needs
+            // hfToken — "" = $HF_TOKEN / the huggingface-cli login — and
+            // the accepted pyannote/speaker-diarization-community-1 terms);
+            // min/maxSpeakers 0 = let it guess. modelsDir "" = HF cache.
+            // nice = CPU priority of the run. The stash transcript view:
+            // segments closer than paragraphGapSec (and a paragraph up to
+            // paragraphMaxChars) join into one paragraph; saveDir "" = the
+            // stash itself (.txt / .srt appear as tray files).
+            property var transcribe: ({
+                    model: "large-v3-turbo",
+                    language: "auto",
+                    device: "cpu",
+                    computeType: "int8",
+                    batchSize: 8,
+                    threads: 0,
+                    vad: "pyannote",
+                    align: true,
+                    diarize: false,
+                    hfToken: "",
+                    minSpeakers: 0,
+                    maxSpeakers: 0,
+                    modelsDir: "",
+                    nice: 10,
+                    paragraphGapSec: 1.5,
+                    paragraphMaxChars: 600,
+                    saveDir: ""
+                })
             property var timer: ({
                     defaultMinutes: 10,
                     maxMinutes: 120,
@@ -1685,7 +1799,22 @@ Singleton {
                     pickerHeaderHeight: 32,
                     incomingWidth: 400,
                     incomingFileRowHeight: 26,
-                    incomingTextHeight: 96
+                    incomingTextHeight: 96,
+                    transcriptWidth: 520,
+                    transcriptHeight: 380,
+                    transcriptFontSize: 14,
+                    // Tile menu (StashTileMenu, grown out of the tile's menu
+                    // button by components/DropExpand): glyph disc, cell width
+                    // per action, gap, inner padding, name / label sizes.
+                    menu: ({
+                        buttonSize: 40,
+                        cellWidth: 54,
+                        spacing: 4,
+                        padding: 12,
+                        nameSize: 12,
+                        labelSize: 10
+                    }),
+                    copiedFlashMs: 900
                 })
             // UI language: "auto" = system locale (Qt.locale()), or a tag like
             // "ru" / "en". Translations: assets/i18n/<lang>.json.

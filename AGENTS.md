@@ -34,13 +34,14 @@ Not a git repo. No tests, no linter, no formatter.
 - IPC: `quickshell -p $PWD ipc call <target> <fn>` (with the user's instance running,
   address yours via `quickshell ipc --id <by-id dir> call ...`). `island` is ONE handler
   (`core/IslandIpc.qml`) routed via `core/IslandRegistry.qml` to the island on
-  `compositor.focusedOutput` — never put an IpcHandler in per-screen Island. Targets: `island` (launcher (toggle), launcherPlugin <id> (apps|clipboard|wallpapers, toggle), quicksettings, quicksettingsEdit/Page/Resize/Expand,
+  `compositor.focusedOutput` — never put an IpcHandler in per-screen Island. Targets: `island` (launcher (toggle), launcherPlugin <id> (apps|clipboard|wallpapers, toggle), quicksettings, quicksettingsEdit/Page/Resize/Expand, stashMenu <i>,
   notifications, stash (tray toggle), capture (again while open = next mode), captureMode(shot|record|color|
   window|ai|scan), captureScreen (= Enter in the active tool), captureCancel, session (session menu toggle), screenshot
   (instant, no overlay), record (toggle), recordPause, recordControls, dashboard, player, lock, close, minimal, island, osd, debugState,
   volumeUp/Down/Mute, micMute, brightnessUp/Down, playPause, nextTrack, prevTrack, playerSeek <s>),
   `lock` (activate/isLocked — deliberately NO unlock/toggle over IPC; unlocking needs PAM),
-  keyboardDemo layout|caps, shazam (listen / cancel), timer (module toggle), timerStart <min>, timerPause (toggle), timerCancel,
+  keyboardDemo layout|caps, shazam (listen / cancel), timer (module toggle), timerStart <min>, timerPause (toggle), timerCancel, stashTranscript <path>,
+  statusDemo <name> <percent> (<0 = spinning) / statusDemoEnd <name> / statusNext (= swipe on the drop),
   `dictation` (start/stop/toggle/cancel/status),
   `prompter` (open <path>, clipboard, text <s>, show/close/toggle, pause, mode voice|auto|manual,
   move <n words>, next/prev (block), status).
@@ -255,6 +256,22 @@ Not a git repo. No tests, no linter, no formatter.
   reveal under fullscreen stays while `islandHover` is hovered and drops back to Minimal
   `minimalIdleMs` after the cursor leaves (`fsRevealIdle`/`armFsReveal` in Island.qml);
   closing a module into the bar under fullscreen arms the same timer.
+  Notification in Minimal / fullscreen = TICKER (`core/NotificationTicker.qml`, Oct 2026, user):
+  the bar WIDENS by `tickerReserve` on the left (in `barFittedWidth` + IndicatorLayout
+  `extraReserve` eviction budget; the row moves right on `tickerShift`, same spring as the
+  island width) — never drawn over the clock. Sender avatar / app icon (letter fallback) at the
+  bar music cover size (`indicators.musicCoverDiameter`) stands still, text (summary + body)
+  in a viewport fitted to it up to `notifications.tickerWidth`; longer text loops at
+  `tickerSpeed` px/s, and `tickerTimer` follows `showMs` (≥ one pass). Verified live with
+  notify-send + grim frames.
+  NEW INDICATOR in Minimal = PEEK (`core/IndicatorPeek.qml`, Oct 2026, user): any row indicator,
+  event or status event turning on while Minimal first unfolds the bar WITHOUT it (IndicatorLayout
+  `holdNew` + `known` snapshot; `activeKey` = raw active names, both event halves = "event"), the
+  newcomer shows after `indicators.peekRevealMs`, the bar stays `peekShowMs` (event / hover hold it,
+  then `peekTailMs`) and folds back. `barShowing` counts the peek (status drop splits off in it).
+  Not while a module / capture / start-up (things that came on meanwhile count as known); ticker or
+  hold reveal = already revealed, no hold. `peekIgnore` names never peek (music play/pause in a
+  fullscreen video peeks otherwise). Verified live (eventDemo pacman, statusDemo + grim frames).
 - MprisPlayer position reads are always live (Quickshell interpolates), but the
   positionChanged signal must be emitted manually while playing — the documented pattern
   (1s Timer, `onTriggered: player.positionChanged()`, running bound to Playing) is in
@@ -335,7 +352,13 @@ Not a git repo. No tests, no linter, no formatter.
   flip to that tab, over "+" = new tab), bottom-right arc = resize (nearest allowed size),
   "−" = hide, footer chips add back, «Готово»/tap on empty/module close saves.
   Expanded card (Oct 2026, user design): long press on a card with a panel
-  (`QsCardFactory.panelFor`, now only wifi) → `QsExpander` (on top of the module): ONE shape in
+  (`QsCardFactory.panelFor`: wifi, bluetooth) → `QsExpander` = a thin QS wrapper over the
+  GENERIC `components/DropExpand.qml` (user: reusable on any button, click or hold —
+  `components/DropExpandArea.qml` trigger; `open(source, {panel, width, height, radius,
+  sourceRadius, layer, color (value or live function), payload})`, panel item gets
+  `expander`/`payload`; `close(fn)` runs fn after the drop LANDED — menu actions that remove
+  the source; `lifted`/`landed` signals; motion = `Config.dropExpand`, per-instance
+  overridable). The QS look (`openCard`): ONE shape in
   three spring phases chained by `expand.handoff` (next starts when the previous reaches it):
   card rect → drop (circle, short side × dropScale, on the card centre) → flight to the panel
   centre (VelocityDeform stretch) → grow to the panel. Panel size = free px
@@ -356,9 +379,16 @@ Not a git repo. No tests, no linter, no formatter.
   (`panels/WifiPanel` + `WifiRow`): header disc toggles Wi‑Fi, list from `Network.networks`
   (`setScanning` while the panel exists, `scanMs`; ListModel synced in place, order current →
   saved → signal bars → name), tap joins saved/open, a new secured one opens a password field
-  in its row (`wantsKeyboard` → Island Exclusive for quicksettings). Debug IPC
-  `quicksettingsExpand <id>` ("" folds back). Verified via that IPC + grim frames (both ways).
-  NOT tested: the real long press, password join, Bluetooth panel (not built yet).
+  in its row (`wantsKeyboard` → Island Exclusive for quicksettings). Bluetooth panel
+  (`panels/BluetoothPanel` + `BluetoothRow`; shared `PanelHeader` + `PanelSync.js` (ListModel
+  in-place sync) with Wi‑Fi, sizes `quicksettings.listPanel`): adapter discovery while the panel
+  exists, paired (connected first) + NAMED nearby devices, rows look the device up by address
+  (live state), tap = disconnect / connect / pair → trusted + connect. `services/Bluetooth`
+  used `adapter.powered`, which does NOT exist in Quickshell (`enabled` does): the card read Off
+  forever, toggle dead — fixed. Panels get services through the factory's Component bindings.
+  Debug IPC `quicksettingsExpand <id>` ("" folds back). Verified via that IPC + grim frames
+  (both ways, both panels; BT discovery found nearby devices). NOT tested: the real long press,
+  password join, BT connect / pair taps.
   Slider cards (`cards/SliderCard.qml`, volume/brightness) = the OSD look: the card IS the
   capsule (`ownSurface` → QsCard drops its bg so the gap shows the island), fill | gap |
   track with `Config.osd.gap/innerRadius/fill*` springs, glyph + title drawn twice (light
@@ -438,8 +468,11 @@ Not a git repo. No tests, no linter, no formatter.
   (`grabToImage` at 80/200/450 ms + row dumps) — a FloatingWindow off-screen on driftwm
   gets no frame callbacks, its animations freeze and the frames lie. A re-open
   over the open launcher only swaps the payload (`onPayloadChanged` → `applyPayload`).
-  Apps launch through `launcher.apps.launchPrefix` (app2unit). Clipboard needs
-  `wl-paste --watch cliphist store` running — niri spawns it, driftwm does NOT.
+  Apps launch through `launcher.apps.launchPrefix` (app2unit). Clipboard history is fed
+  by `services/ClipboardWatch.qml` (Shell → Island → `launcherHost.clipboardWatch`): `watch: "auto"`
+  starts own `wl-paste --type text|image --watch cliphist store` (argv[0] `pillshell-clipwatch`,
+  restarted on exit) unless an external one runs (niri spawns it, driftwm does NOT); each store bumps
+  `revision` → an open clipboard plugin re-lists. Verified live on driftwm: text + PNG stored.
   Verified via IPC on the live instance + a headless harness (state machine, picker,
   fuzzy, double Backspace). NOT live-tested (no keyboard/mouse tool): typing, Enter/Alt+Enter,
   launching, copy/auto-paste, wheel, hover, the details toggle.
@@ -610,6 +643,26 @@ Not a git repo. No tests, no linter, no formatter.
   by hand from the printed state).
   Verified via IPC + log only (centre on current wallpaper, thumbs, video init); visuals
   and keys NOT checked — the user checks visuals themselves (asked: no screenshots).
+- Stash transcription (Oct 2026, user): WhisperX speech-to-text of tray audio / video.
+  `services/Transcribe.qml` = child of Stash (`stash.transcribe`, Stash gets `events` from Shell):
+  FIFO queue, ONE file at a time, `stateOf(path)` ""|queued|running|done|error, result JSON
+  `cachePath("transcripts")/<md5(path)>.json` (`known` = cache scan at start + finished runs;
+  stale if a same-named file replaces it → the view's re-run button). `scripts/stash/transcribe.py`
+  (uv script, whisperx 3.8 on the PyTorch CPU index via `[tool.uv.sources]` — no CUDA here, Navi 14;
+  protocol on a dup of fd 1, every library print goes to stderr; progress parsed from WhisperX's
+  "Progress: N%" prints, weighted transcribe/align/diarize). Run = uv offline first, online retry
+  only when it died WITHOUT output. Bar event key "transcribe" (transfer glyph + progress, hold).
+  All settings in `Config.transcribe` (model, language auto|code, device, computeType, batchSize,
+  threads, vad, align, diarize + hfToken ("" = $HF_TOKEN / HF login) + min/maxSpeakers, nice,
+  paragraph joining, saveDir "" = the stash). UI: tile button (behind the trash, audio/video only)
+  → `TranscriptView` (stash view "transcript", payload.file, fixed `stash.transcriptWidth/Height`):
+  paragraphs WITHOUT timecodes (user; copies never carry them), click = copy, swipe-up over a
+  paragraph forwards close; footer Copy all / .srt / Save (`TranscriptText.js`; writes go through
+  stdin, never argv — an hour of text passes the 128 KB exec-arg limit). Tile: progress bar while
+  queued/running, text badge when done. IPC `island stashTranscript <path>`.
+  Verified: script on a real 16 s voice (small, ru, aligned), view render from a hand-written result
+  + the running state. NOT tested: large-v3-turbo speed, diarization, copy/save clicks, the tile
+  button (mouse), queue of several files.
 - Session menu (Oct 2026, pShell `modules/session` port): `services/Session.qml` (Shell → Island
   `session` → services map) + `modules/session/` (SessionModule / SessionButton / SessionActions.js
   catalog: lock, logout, suspend, hibernate, reboot, poweroff). One row of bare glyph buttons, no
@@ -808,6 +861,44 @@ Not a git repo. No tests, no linter, no formatter.
   LOW BATTERY: right arc "wipers" (tempShell RadialSliderIcon connecting sweep) — fill sweeps
   level ↔ full, timed InOutCubic `arcs.wiperMs` (user exception like hideProgress), while
   `battery.low`; verified in a scratch harness (frames).
+- STATUS DROP (Oct 2026, user design) = the third indicator kind, for LONG processes (events only
+  inform and leave). `services/Statuses.qml` (one shown at a time: highest `priority`, or the key the
+  user swiped to = `pinned` until it ends; entry {key, priority, color (Theme name | fn), progress
+  (0..1 | fn | null = spinning), open "timer"|"transcript"|"stash"|""}) fed by
+  `services/StatusFeeds.qml` (timer 100, recording saving 80, Shazam listening 70, transcription 60,
+  LocalSend 50, wallpaper semantic indexing 10; toggles `Config.status.<feed>`). A feed announces
+  (status + start event) only after `on` held `status.announceDelayMs` (timer: at once) — the
+  semantic index wakes after every warm-up, finds nothing new and reports done instantly, which
+  flashed the event (island spread for a split second).
+  OUTCOME (user): exactly ONE of event / notification when a status ends. Notification = a result to
+  act on later or an error worth keeping (recording saved → tap opens the file / failed; transcript
+  ready → tap = `quickshell ipc -p <shellDir> call island stashTranscript` / failed; Shazam match
+  (event only with `shazam.notify` off); LocalSend's own script notifications). Event = a plain
+  result (Shazam no match / failed). Nothing = user's own cancel / discard, background work (index).
+  Timer keeps its own finish (module + alarm). A notification outcome cancels the start event. A status starts with
+  its EVENT tagged `status: key` (Transcribe / Shazam post theirs, feeds with `event` post
+  "status:<key>"): while it shows the TEXT follows the glyph on the left (user; EventText `leading`,
+  `IndicatorLayout.statusEvent` / `eventSide` = max(glyph + textGap + text, ring room)) and the ring
+  sits INLINE in the island's right end rounding; when it leaves the island collapses and the drop
+  splits off.
+  `core/StatusDrop.qml` = body BELOW the island: circle + metaball neck (`components/Metaball.js`,
+  Sato/varun construction, spread fades to 0 toward `breakDist`, cut below 0.15 — thinner rendered as a
+  dotted hairline) from the ANIMATED island end; position springs to TARGET geometry; split = pulled
+  `pull` px past rest until the neck snaps (`breakAt`), then recoils (`pulling`/`broken` latches);
+  modes inline/out/hidden (module, Minimal, ticker: absorbed, r ≤ drop r)/none. Painted only while
+  `live` (shown → until merged back): at shell start the geometry settles and the invisible drop
+  springs across from near the left edge — it used to be seen flying in from the corner. Ring = 
+  `indicators/StatusRing.qml` above the island (track = tinted remainder, so its turn shows; swap =
+  one spring `k`: ring turns once in `lastDir`, track recolours, old arc squeezes into its start, new
+  grows from it; sucked back in, the ring shuts by drop POSITION — `StatusDrop.squeeze`, shut at
+  `closeAt` × touching distance — so it is closed before the merge (user: a faster reveal spring
+  alone did not do it)). Battery arc wraps the drop (`Arcs.rightShift`). Tap = `Island.openStatus`, horizontal
+  swipe = `Statuses.cycle`. The timer no longer sits in the row / on the music cover while
+  `status.timer` is on (`Island.timerInDrop`): `Island.timerOwner` = a hidden (opacity 0) TimerHalo in
+  the drop — its PerimeterProgress is the ringLayer shared element; the StatusRing hides the timer
+  while it is away. Verified via IPC demos + grim frames: inline → split (neck), swipe swap, timer
+  ring drop → module → back → split. NOT tested: mouse tap/swipe, real Shazam / transcription /
+  LocalSend / saving / indexing feeds, multi-output.
 - Timer (Oct 2026, user design after an iOS Live Activity reference): `services/Countdown.qml`
   (NOT `Timer.qml` — would shadow QtQuick's Timer in that dir; phase idle|running|paused|done,
   `progress` remaining 1→0 refreshed every ~0.5 px of a `perimeterPx` outline (16 ms..1 s),
@@ -1486,6 +1577,11 @@ Simplified / not implemented yet (see pillShell.md for the intended behaviour):
   `stashDropLeave` closes after `stash.dropLeaveMs`. Own tile drag-outs set
   `Stash.outgoingDrag` (ignored as a drop, keeps the tray/moduleIdle alive; Drag.active is
   set imperatively — binding it segfaulted pShell). Island sizes: `StashMetrics.js`.
+  Tile actions (user, Oct 2026): hover shows ONE "⋯" button (top-right); a click grows it
+  through the tray's `DropExpand` into `StashTileMenu` (file name + glyph discs with labels:
+  Open (xdg-open), Send (LocalSend), Pin/Unpin (fav), Transcript (audio/video), Delete); every
+  action runs via `expander.close(fn)` after the drop is back. Sizes `stash.menu`. Debug IPC
+  `island stashMenu <i>` (-1 folds). Verified via IPC + grim frames; mouse NOT tested.
   Verified via IPC + screenshots: tray (image/PDF thumbs), chooser, picker scanning → none
   found, cancel-on-close. NOT live-tested: real drags in/out, device rows, sending,
   incoming card. pShell's receive server uses the same port 53317 — never both on.

@@ -17,6 +17,9 @@ import "../config"
 //   family icon font (default Theme.iconFamily)
 //   key    same key = replace in place (current: content updates without
 //          restarting its timer; queued: the queued copy is replaced)
+//   status key of a running status (services/Statuses): announces it —
+//          its ring sits inline at the island's right end while the event
+//          shows, then splits off as the status drop
 //   hold   stays until replaced by a same-key event without `hold` (its
 //          timer starts then) or cancelled — e.g. Shazam "Listening…"
 Scope {

@@ -6,8 +6,8 @@ import Quickshell.Io
 // lives only inside the plugin). Lists the history, classifies entries
 // (image / color / url / path / text) and decodes image thumbnails into
 // cfg.cacheDir in one batch before publishing, so `imagePath` always
-// exists. History only fills while `wl-paste --watch cliphist store` runs
-// (niri spawns it at startup; other compositors need it too).
+// exists. History is fed by `wl-paste --watch cliphist store` — the
+// compositor's or ours (services/ClipboardWatch, reports via changed()).
 Item {
     id: root
     required property var cfg
@@ -159,11 +159,16 @@ Item {
         onExited: root.refresh()
     }
 
-    // Text copies while the launcher is open.
+    // A new entry while the launcher is open (store lands a moment later).
+    function changed(): void {
+        watchTimer.restart();
+    }
+
+    // Text copies with an external watcher (it reports nothing).
     Connections {
         target: Quickshell
         function onClipboardTextChanged(): void {
-            watchTimer.restart();
+            root.changed();
         }
     }
 

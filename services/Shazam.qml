@@ -55,8 +55,9 @@ Scope {
         root.events.cancel("shazam");
     }
 
-    // One event key for the whole run: "Listening…" is held, the outcome
-    // replaces it in place (the glyph stops breathing, pops on a match).
+    // One event key for the whole run: "Listening…" shows for the usual
+    // event time, the outcome replaces it (in place if still up; the glyph
+    // stops breathing, pops on a match). `hold` = still listening.
     function announce(text: string, hold: bool): void {
         if (!(Config.data.events.shazam ?? true))
             return;
@@ -66,7 +67,9 @@ Scope {
             glyphArgs: { listening: hold, found: root.phase === "found" },
             icon: "\uedd6", // tabler brand-shazam (font fallback)
             color: "shazam",
-            hold: hold,
+            // Listening: the event informs, the spinning status ring
+            // (services/StatusFeeds) stays until the answer replaces it.
+            status: hold ? "shazam" : "",
             text: text
         });
     }
@@ -87,8 +90,15 @@ Scope {
             root.history = [r, ...root.history.filter(h => h.url !== r.url || r.url === "")].slice(0, root.cfg.historyLimit);
             root.save();
             root.finish("found");
-            root.announce(root.short(r.title), false);
-            root.notify(r);
+            // One outcome (user): a match is a notification (song link,
+            // copy); the "Listening…" event leaves. Without notifications
+            // the title shows as the event instead.
+            if (root.cfg.notify) {
+                root.events.cancel("shazam");
+                root.notify(r);
+            } else {
+                root.announce(root.short(r.title), false);
+            }
         } else if (m.state === "none") {
             root.finish("none");
             root.announce(I18n.tr("No match"), false);

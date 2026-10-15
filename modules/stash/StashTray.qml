@@ -16,6 +16,7 @@ Item {
     required property var theme
     required property real tileRadius
     signal sendRequested(var files)
+    signal transcribeRequested(string file)
 
     readonly property real actionsH: root.cfg.actionsHeight
 
@@ -50,9 +51,11 @@ Item {
             Behavior on scrollY { Spring { stiffness: 6; damp: 0.6 } }
 
             Repeater {
+                id: tiles
                 model: root.stash.model
 
                 StashTile {
+                    id: tile
                     width: root.cfg.cellSize
                     height: root.cfg.cellSize
                     stash: root.stash
@@ -61,6 +64,16 @@ Item {
                     theme: root.theme
                     radius: root.tileRadius
                     onSendRequested: files => root.sendRequested(files)
+                    onTranscribeRequested: file => root.transcribeRequested(file)
+                    menu: tileMenu
+                    onMenuRequested: button => tileMenu.toggle(button, {
+                        panel: tileMenuComp,
+                        width: root.menuWidth(tile),
+                        height: root.menuHeight(),
+                        radius: root.tileRadius,
+                        color: tile.menuButtonColor,
+                        payload: tile
+                    })
                 }
             }
         }
@@ -155,5 +168,34 @@ Item {
             glyph: ""
             onClicked: root.stash.clearAll()
         }
+    }
+
+    // Debug IPC (island stashMenu <i>, -1 folds it back).
+    function debugMenu(i: int): void {
+        const t = i >= 0 ? tiles.itemAt(i) : null;
+        if (t)
+            t.menuRequested(t.menuButton);
+        else
+            tileMenu.close();
+    }
+
+    // Tile menu: the tile's button grows into StashTileMenu over the tray.
+    readonly property var mc: root.cfg.menu ?? ({})
+    function menuWidth(tile: var): real {
+        const n = 3 + (root.localSend.enabled ? 1 : 0) + (tile.canTranscribe ? 1 : 0);
+        return 2 * (root.mc.padding ?? 12) + n * (root.mc.cellWidth ?? 54) + (n - 1) * (root.mc.spacing ?? 4);
+    }
+    function menuHeight(): real {
+        const pad = root.mc.padding ?? 12;
+        return 2 * pad + (root.mc.nameSize ?? 12) + 8 + (root.mc.buttonSize ?? 40) + 4 + (root.mc.labelSize ?? 10) + 4;
+    }
+    Component {
+        id: tileMenuComp
+        StashTileMenu {}
+    }
+    DropExpand {
+        id: tileMenu
+        anchors.fill: parent
+        panelColor: root.theme.cardBg
     }
 }

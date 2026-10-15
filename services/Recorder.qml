@@ -212,10 +212,13 @@ Item {
             root.paused = false;
             root.saving = false;
             root.discardRequested = false;
+            // One outcome (user): saved / failed = a notification (tap on
+            // a saved one opens the file); discarded = nothing (the user
+            // did it).
             if (discard)
-                Quickshell.execDetached(["bash", "-c", `rm -f ${f}; notify-send -a pillShell ${root.shq(I18n.tr("Recording discarded"))}`]);
+                Quickshell.execDetached(["rm", "-f", root.file]);
             else
-                Quickshell.execDetached(["bash", "-c", `[ -s ${f} ] && notify-send -a pillShell ${root.shq(I18n.tr("Recording saved"))} ${f} || notify-send -a pillShell ${root.shq(I18n.tr("Recording failed"))} ${root.shq(I18n.tr("wf-recorder exited without a file"))}`]);
+                Quickshell.execDetached(["bash", "-c", `if [ -s ${f} ]; then a=$(notify-send -a pillShell -A default=${root.shq(I18n.tr("Open"))} ${root.shq(I18n.tr("Recording saved"))} ${f}); [ "$a" = default ] && xdg-open ${f}; else notify-send -a pillShell ${root.shq(I18n.tr("Recording failed"))} ${root.shq(I18n.tr("wf-recorder exited without a file"))}; fi`]);
         }
     }
 

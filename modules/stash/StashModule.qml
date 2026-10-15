@@ -2,7 +2,8 @@ import QtQuick
 
 // Stash (pShell file tray + LocalSend port) as an island module. Opened
 // over IPC only (`island stash`); the drop chooser is StashDropModule.
-// payload.view: "tray" | "send" (device picker) | "incoming" (accept card).
+// payload.view: "tray" | "send" (device picker) | "incoming" (accept card)
+// | "transcript" (WhisperX text of payload.file, TranscriptView).
 // View changes go through Island.openModule (openRequested), so each one
 // replays the ContentSwap and the island resizes (StashMetrics).
 // payload.returnView === "tray": the flow started from the tray and goes
@@ -32,6 +33,13 @@ Item {
         if (!root.localSend.start(files))
             return;
         root.openRequested("stash", { view: "send", returnView: "tray" });
+    }
+
+    // Tile button: queue the file (no-op when already done / queued) and
+    // show its transcript view; leaving it keeps the run going.
+    function openTranscript(file: string): void {
+        root.stash.transcribe.request(file);
+        root.openRequested("stash", { view: "transcript", file: file, returnView: "tray" });
     }
 
     // The tray rescans while it is on screen.
@@ -69,6 +77,11 @@ Item {
     }
     property bool acceptedOnce: false
 
+    // Debug IPC hook (island stashMenu <i>).
+    function debugMenu(i: int): void {
+        tray.debugMenu(i);
+    }
+
     // Picker dismissed (swipe-up / IPC close) before a target was picked.
     Component.onDestruction: {
         root.closing = true;
@@ -81,6 +94,7 @@ Item {
         anchors.margins: root.cfg.padding
 
         StashTray {
+            id: tray
             anchors.fill: parent
             visible: root.view === "tray"
             stash: root.stash
@@ -89,6 +103,20 @@ Item {
             theme: root.theme
             tileRadius: root.tileRadius
             onSendRequested: files => root.startSend(files)
+            onTranscribeRequested: file => root.openTranscript(file)
+        }
+
+        Loader {
+            anchors.fill: parent
+            active: root.view === "transcript"
+            sourceComponent: TranscriptView {
+                path: root.payload?.file ?? ""
+                stash: root.stash
+                cfg: root.cfg
+                theme: root.theme
+                onBack: root.finish()
+                onCloseRequested: root.closeRequested()
+            }
         }
 
         DevicePicker {

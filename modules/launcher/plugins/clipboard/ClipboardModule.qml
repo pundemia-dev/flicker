@@ -19,6 +19,15 @@ LauncherPlugin {
         onRecordsChanged: root.rebuild()
     }
 
+    // Our own cliphist watcher reports every store (images too).
+    Connections {
+        target: root.host?.clipboardWatch ?? null
+        ignoreUnknownSignals: true
+        function onRevisionChanged(): void {
+            service.changed();
+        }
+    }
+
     ScriptModel {
         id: model
     }

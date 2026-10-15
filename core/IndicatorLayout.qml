@@ -29,6 +29,17 @@ Item {
     required property var dictation
     required property var theme
     required property var countdown
+    // Status drop (Island): a status's event shows its text right after
+    // the glyph (left half) and the inline ring in the right end rounding
+    // (`statusInset` = its room past edgePad, `statusTextGap` = glyph ->
+    // text); the timer leaves the row / music cover for the drop.
+    property var statuses: null
+    property real statusInset: 0
+    property real statusTextGap: 8
+    property bool timerInDrop: false
+    // Width the island adds outside this layout (fullscreen notification
+    // ticker): taken out of the eviction budget.
+    property real extraReserve: 0
     signal requestModule(string name, var payload)
 
     Registry { id: registry }
@@ -43,6 +54,8 @@ Item {
             dictation: root.dictation,
             theme: root.theme,
             countdown: root.countdown,
+            statuses: root.statuses,
+            timerInDrop: root.timerInDrop,
             cfg: root.cfg,
             islandHeight: root.islandHeight
         })
@@ -56,8 +69,15 @@ Item {
     // sides — the row (and the clock) stays exactly centred on screen
     // (user: events must not push the main indicators).
     readonly property var eventNames: ["eventIcon", "eventText"]
-    readonly property real eventSide: root.indicatorActive("eventIcon")
-        ? Math.max(root.desiredWidth("eventIcon"), root.desiredWidth("eventText")) : 0
+    readonly property bool statusEvent: {
+        const k = root.events?.current?.status ?? "";
+        return k !== "" && !!root.statuses?.find(k);
+    }
+    readonly property real iconGlyphEnd: eventIconLoader.item?.glyphEnd ?? 0
+    readonly property real eventSide: !root.indicatorActive("eventIcon") ? 0
+        : root.statusEvent
+        ? Math.max(root.iconGlyphEnd + root.statusTextGap + root.desiredWidth("eventText"), root.statusInset + (root.cfg.eventGap ?? 28))
+        : Math.max(root.desiredWidth("eventIcon"), root.desiredWidth("eventText"))
     readonly property var loaders: ({
             eventIcon: eventIconLoader,
             privacy: privacyLoader,
@@ -75,7 +95,7 @@ Item {
     // Timer ring as a shared-element owner (null while not loaded): around
     // the music cover while a player shows, else the stand-alone ring.
     // One music+timer indicator (Music.qml) when musicTimerRing is on.
-    readonly property bool timerOnCover: root.cfg.musicTimerRing ?? true
+    readonly property bool timerOnCover: !root.timerInDrop && (root.cfg.musicTimerRing ?? true)
     readonly property Item timerOwner: root.timerOnCover ? (musicLoader.item?.halo ?? null) : (timerLoader.item?.halo ?? null)
     // Clock centre in this item's coords (follows the row's springs).
     readonly property real clockCenterX: barRow.x + clockPlate.x + clockPlate.width / 2
@@ -118,8 +138,22 @@ Item {
     }
     readonly property real stableRowWidth: keptSum + clockWidth + spacingD * keptCount
 
+    // Minimal → bar peek (core/IndicatorPeek): while `holdNew` only the
+    // `known` names show — a newcomer waits until the bar has unfolded.
+    property bool holdNew: false
+    property var known: ({})
+    // Active names for the peek's newcomer check (both event halves = "event").
+    readonly property string activeKey: orderedNames.concat(["event"]).filter(n => root.rawActive(n)).join(",")
+
     function indicatorActive(name: string): bool {
-        if (name === "eventIcon" || name === "eventText")
+        if (!root.rawActive(name))
+            return false;
+        const key = name === "eventIcon" || name === "eventText" ? "event" : name;
+        return !root.holdNew || !!root.known[key];
+    }
+
+    function rawActive(name: string): bool {
+        if (name === "event" || name === "eventIcon" || name === "eventText")
             return root.events.current !== null;
         if (name === "privacy")
             return root.privacy.active;
@@ -128,7 +162,7 @@ Item {
         if (name === "dictation")
             return root.dictation.active && root.dictation.sink === "type";
         if (name === "timer")
-            return (root.countdown?.active ?? false) && !root.timerOnCover;
+            return (root.countdown?.active ?? false) && !root.timerOnCover && !root.timerInDrop;
         return false;
     }
 
@@ -168,7 +202,7 @@ Item {
             active.push({ name: n, priority: priorityOf(n), width: desiredWidth(n) });
         }
         active.sort((a, b) => b.priority - a.priority);
-        const budget = root.islandCfg.maxWidth - root.edgePadD * 2 - root.clockWidth - root.eventSide * 2;
+        const budget = root.islandCfg.maxWidth - root.edgePadD * 2 - root.clockWidth - root.eventSide * 2 - root.extraReserve;
         const evicted = [];
         let used = 0;
         for (let i = 0; i < active.length; i++) {
@@ -206,8 +240,8 @@ Item {
     // indicators clashed with it): fades to `eventRowOpacity` under a light
     // content blur (`eventRowBlur`). Queued events keep it dimmed through
     // the collapse gap between them, so it never flickers bright.
-    readonly property bool eventShowing: (root.events?.current ?? null) !== null
-        || (root.events?.queue?.length ?? 0) > 0
+    readonly property bool eventShowing: (!root.holdNew || !!root.known["event"]) && ((root.events?.current ?? null) !== null
+        || (root.events?.queue?.length ?? 0) > 0)
     property real rowDim: root.eventShowing ? 1 : 0
     Behavior on rowDim { Spring { stiffness: 4; damp: 0.5; eps: 0.005 } }
 
@@ -335,8 +369,9 @@ Item {
     Loader {
         id: eventTextLoader
         anchors.verticalCenter: parent.verticalCenter
-        anchors.right: parent.right
-        anchors.rightMargin: root.edgePadD
+        // Status event: right after the glyph; otherwise the far right.
+        x: root.statusEvent ? root.edgePadD + root.iconGlyphEnd + root.statusTextGap
+            : parent.width - root.edgePadD - width
         width: item ? item.width : 0
         height: item ? item.height : 0
         readonly property bool collapsing: item !== null && !root.indicatorActive("eventText") && item.width > 0.5
@@ -345,6 +380,7 @@ Item {
         onLoaded: {
             item.services = Qt.binding(() => root.servicesBundle);
             item.evicted = false;
+            item.leading = Qt.binding(() => root.statusEvent);
         }
     }
 }
