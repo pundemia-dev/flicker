@@ -241,9 +241,22 @@ while :; do
     wait $! 2>/dev/null
 done
 
+# Saving progress for the shell (Recorder.saveProgress → status drop):
+# "progress <0..1>" lines on stdout. Finishers count up to `fw`, the
+# assembly fills the rest (a re-encoding concat reports ffmpeg's time).
+progress() { printf 'progress %s\n' "$1"; }
+fw=0.9
+[ "$sped" = 1 ] && [ "${#segs[@]}" -gt 1 ] && fw=0.5
+[ -e "$discardflag" ] && fw=1
+progress 0
+
 # Wait for the background finishers, keep the segments that made it.
+fi_n=${#finishers[@]}
+fi_i=0
 for f in "${finishers[@]}"; do
     while kill -0 "$f" 2>/dev/null; do wait "$f" 2>/dev/null; done
+    fi_i=$((fi_i + 1))
+    progress "$(awk -v i=$fi_i -v n=$fi_n -v w=$fw 'BEGIN { printf "%.3f", w * i / n }')"
 done
 done_segs=()
 for f in "${segs[@]}"; do
@@ -272,13 +285,20 @@ elif [ "${#segs[@]}" -gt 1 ]; then
             ins+=(-i "${segs[i]}")
             pads="$pads[$i:v:0][$i:a:0]"
         done
+        total=0
+        for s in "${segs[@]}"; do
+            d=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$s" 2>/dev/null)
+            total=$(awk -v a="$total" -v b="${d:-0}" 'BEGIN { printf "%.3f", a + b }')
+        done
         ffmpeg -y "${ins[@]}" -filter_complex "${pads}concat=n=${#segs[@]}:v=1:a=1[v][a]" -map "[v]" -map "[a]" \
             -fps_mode vfr -enc_time_base "1/$maxfps" -c:v libx264 -preset veryfast -crf 20 -pix_fmt yuv420p \
-            -c:a aac -b:a 160k -ar 48000 -ac 2 "$out" < /dev/null > /dev/null 2>&1
+            -c:a aac -b:a 160k -ar 48000 -ac 2 -nostats -progress pipe:1 "$out" < /dev/null 2>/dev/null \
+            | awk -F= -v t="$total" -v w="$fw" '$1 == "out_time_us" && t > 0 { p = w + (1 - w) * ($2 / 1e6) / t; if (p > 1) p = 1; if (p >= 0) { printf "progress %.3f\n", p; fflush() } }'
     else
         ffmpeg -y -f concat -safe 0 -i "$list" -c copy "$out" < /dev/null > /dev/null 2>&1
     fi
 fi
+progress 1
 rm -rf "$segdir"
 rm -f "$ctl" "$speedctl" "$discardflag"
 

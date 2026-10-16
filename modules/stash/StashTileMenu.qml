@@ -2,9 +2,11 @@ import QtQuick
 import Quickshell
 import "../../components"
 import "../../config"
+import "StashTypes.js" as Types
 
 // Action panel of a tray file (the tile's menu button grown through the
-// tray's DropExpand): file name on top, a row of glyph buttons with labels.
+// tray's DropExpand): file name on top, glyph buttons with labels (wrap
+// into rows when the tray is too narrow — StashTray.menuSize).
 // Every action runs after the drop has landed back on the button
 // (expander.close(fn)) — delete removes the tile it flies home to.
 Item {
@@ -17,19 +19,11 @@ Item {
     readonly property var mc: root.cfg?.menu ?? ({})
     readonly property var theme: root.tile?.theme ?? null
 
-    readonly property var actions: {
-        const t = root.tile;
-        if (!t)
-            return [];
-        const out = [{ key: "open", glyph: "", label: I18n.tr("Open") }];
-        if (t.localSend?.enabled)
-            out.push({ key: "send", glyph: "", label: I18n.tr("Send"), accent: true });
-        out.push({ key: "fav", glyph: "", label: t.isFav ? I18n.tr("Unpin") : I18n.tr("Pin"), checked: t.isFav });
-        if (t.canTranscribe)
-            out.push({ key: "transcribe", glyph: "", label: I18n.tr("Transcript"), checked: t.trState === "done" });
-        out.push({ key: "delete", glyph: "", label: I18n.tr("Delete"), danger: true });
-        return out;
-    }
+    readonly property var actions: Types.actions(root.tile, k => I18n.tr(k))
+    readonly property real pad: root.mc.padding ?? 12
+    readonly property real cellW: root.mc.cellWidth ?? 54
+    readonly property real spacing: root.mc.spacing ?? 4
+    readonly property int columns: Math.max(1, Math.floor((root.width - 2 * root.pad + root.spacing) / (root.cellW + root.spacing)))
 
     function run(key: string): void {
         const t = root.tile;
@@ -50,6 +44,18 @@ Item {
             case "delete":
                 t.stash.remove(t.filePath);
                 break;
+            case "preview":
+                t.previewRequested(t.filePath);
+                break;
+            case "pack":
+                t.stash.pack([t.filePath]);
+                break;
+            case "unpack":
+                t.stash.unpack(t.filePath);
+                break;
+            case "select":
+                t.stash.toggleSelect(t.filePath);
+                break;
             }
         });
     }
@@ -66,11 +72,13 @@ Item {
         horizontalAlignment: Text.AlignHCenter
     }
 
-    Row {
+    Grid {
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottom: parent.bottom
-        anchors.bottomMargin: root.mc.padding ?? 12
-        spacing: root.mc.spacing ?? 4
+        anchors.bottomMargin: root.pad
+        columns: root.columns
+        columnSpacing: root.spacing
+        rowSpacing: root.spacing * 2
 
         Repeater {
             model: root.actions

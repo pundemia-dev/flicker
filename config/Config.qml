@@ -209,7 +209,31 @@ Singleton {
                     updatesDelayMs: 30000,
                     // Updates are announced only if the shell started within
                     // this long after boot (not on a restart). 0 = always.
-                    updatesMaxUptimeSec: 180
+                    updatesMaxUptimeSec: 180,
+                    // Wi‑Fi joined / switched / lost (EventNetwork); a state
+                    // must hold wifiSettleMs (nmcli polls, roams flap).
+                    wifi: true,
+                    wifiSettleMs: 1500,
+                    // Default sink / active port changed (EventAudioOutput;
+                    // Bluetooth sinks are EventBluetooth's).
+                    audioOutput: true,
+                    audioOutputSettleMs: 400,
+                    audioOutputMaxChars: 24,
+                    // Battery full / at the charge limit, critical level
+                    // (EventBattery; thresholds in `battery`).
+                    batteryFull: true,
+                    batteryCritical: true,
+                    // Monitor connected / disconnected (EventDisplays).
+                    displays: true,
+                    // Removable drive plugged / removed (EventDrives; tap =
+                    // mount if needed + open).
+                    drives: true,
+                    drivesSettleMs: 700,
+                    // Outcomes of status sources: "N packages updated"
+                    // (PacmanWatch), browser download finished (DownloadWatch,
+                    // tap = open the file).
+                    pacman: true,
+                    download: true
                 })
             // Status drop (services/Statuses + core/StatusDrop): long
             // processes (timer, transcription, Shazam, recording save,
@@ -260,7 +284,37 @@ Singleton {
                     shazam: true,
                     recordSaving: true,
                     localSend: true,
-                    wallpaperIndex: true
+                    wallpaperIndex: true,
+                    // Google Lens upload (capture), spinning.
+                    lens: true,
+                    lensAnnounceMs: 300,
+                    // pacman / yay transaction: /var/lib/pacman/db.lck polled
+                    // every pacmanPollMs (pacmanBusyPollMs while it runs).
+                    pacman: true,
+                    pacmanPollMs: 2000,
+                    pacmanBusyPollMs: 1000,
+                    pacmanAnnounceMs: 2000,
+                    // Partial downloads (DownloadWatch, scripts/status/
+                    // downloads.sh): browser = downloadsDir ("" = XDG download
+                    // dir), models = modelDirs; only partials touched within
+                    // downloadsFreshMin minutes count.
+                    download: true,
+                    modelDownload: true,
+                    downloadsDir: "",
+                    modelDirs: ["~/.cache/huggingface/hub", "~/.cache/torch/hub"],
+                    downloadsFreshMin: 2,
+                    downloadsPollMs: 3000,
+                    downloadsBusyPollMs: 1000,
+                    downloadsMaxChars: 22,
+                    // Dictation Refine model loading (managed llama-server).
+                    refineWarmup: true,
+                    refineAnnounceMs: 1500,
+                    // Wallpaper background work: duplicate search (a warm run
+                    // takes ~2 s — only longer ones show) and thumbnails.
+                    wallpaperDupes: true,
+                    dupesAnnounceMs: 4000,
+                    wallpaperWarmup: true,
+                    warmupAnnounceMs: 3000
                 })
             // Keyboard pill (services/KeyboardIndicator + Caret,
             // modules/keyboard): macOS-style capsule under the TEXT CARET
@@ -582,6 +636,35 @@ Singleton {
                         buttonMs: 320,
                         tiltDeg: 7
                     },
+                    wifi: {
+                        arcsAt: 0.55,
+                        halfSpan: 45,
+                        stroke: 0.11,
+                        dim: 0.28,
+                        pulseMs: 900
+                    },
+                    battery: {
+                        nubAt: 0.7,
+                        fillAt: 0.85,
+                        fillStiffness: 3.5,
+                        fillDamping: 0.35,
+                        minLevel: 0.1,
+                        stroke: 0.075,
+                        gap: 0.05,
+                        blinkMs: 520,
+                        blinkPauseMs: 500
+                    },
+                    display: {
+                        drawAt: 0.5,
+                        paintAt: 0.75,
+                        offStiffness: 4
+                    },
+                    drive: {
+                        ledAt: 0.9,
+                        slideStiffness: 5,
+                        slideDamping: 0.4,
+                        travel: 0.45
+                    },
                     lock: {
                         latchAt: 0.6,
                         latchStiffness: 6,
@@ -722,7 +805,14 @@ Singleton {
                 })
             property var battery: ({
                     warnPercent: 50,
-                    lowPercent: 20
+                    lowPercent: 20,
+                    // EventBattery: critical event at / below this level;
+                    // chargeLimit 0 = read charge_control_end_threshold
+                    // (100 without one); the full event re-arms fullRearm %
+                    // below the limit.
+                    criticalPercent: 5,
+                    chargeLimit: 0,
+                    fullRearm: 3
                 })
             property var audio: ({
                     maxVolume: 1.05,
@@ -1779,6 +1869,30 @@ Singleton {
                     columns: 5,
                     rowsMax: 2,
                     cellSize: 88,
+                    // Island height of an EMPTY tray: tall enough that the
+                    // folder icon sits on the island's vertical middle with
+                    // the two caption lines + action row below it.
+                    emptyHeight: 228,
+                    // Zip name for a multi-file "Compress" (a single file
+                    // keeps its own stem).
+                    archiveName: "Archive",
+                    // Quick Look (Space / double click / menu): images and
+                    // video fit previewMaxWidth × previewMaxHeight (never
+                    // narrower than previewMinWidth), text / folder /
+                    // archive listings get previewTextWidth × Height, audio
+                    // and other files the compact previewInfo* card.
+                    // previewTextBytes = how much of a text file is read.
+                    previewMaxWidth: 760,
+                    previewMaxHeight: 520,
+                    previewMinWidth: 320,
+                    previewTextWidth: 560,
+                    previewTextHeight: 420,
+                    previewInfoWidth: 440,
+                    previewInfoHeight: 168,
+                    previewHeaderHeight: 30,
+                    previewTextBytes: 65536,
+                    previewTextSize: 12,
+                    rubberBandMin: 6,
                     gap: 8,
                     padding: 14,
                     actionsHeight: 34,
@@ -1808,8 +1922,8 @@ Singleton {
                     // per action, gap, inner padding, name / label sizes.
                     menu: ({
                         buttonSize: 40,
-                        cellWidth: 54,
-                        spacing: 4,
+                        cellWidth: 50,
+                        spacing: 2,
                         padding: 12,
                         nameSize: 12,
                         labelSize: 10

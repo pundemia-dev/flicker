@@ -25,6 +25,12 @@ Scope {
     required property var keyboard
     required property var shazam
     required property var statuses
+    required property var network
+    required property var audioOutput
+    required property var batteryEvents
+    required property var displays
+    required property var drives
+    required property var downloads
 
     // Drawn glyph previews for IPC glyphDemo: name -> [Theme colour, text].
     readonly property var glyphDemos: ({
@@ -48,7 +54,11 @@ Scope {
             pacman: ["accentYellow", "12"],
             ghost: ["qsBlue", "3"],
             coffee: ["coffee", "On"],
-            bolt: ["batteryGood", "95%"]
+            bolt: ["batteryGood", "95%"],
+            wifi: ["qsBlue", "Home"],
+            battery: ["batteryGood", "Charged"],
+            display: ["qsBlue", "DELL U2720Q"],
+            drive: ["qsBlue", "KINGSTON"]
         })
 
     readonly property var island: root.registry.forOutput(root.compositor?.focusedOutput ?? "")
@@ -112,6 +122,8 @@ Scope {
         function stash(): void { root.island?.toggleStash(); }
         // Transcript view of a file (WhisperX, queued if not done yet).
         function stashTranscript(path: string): void { root.island?.openTranscript(path); }
+        // Quick Look of a file (any path; ← / → walk the tray).
+        function stashPreview(path: string): void { root.island?.openModule("stash", { view: "preview", file: path, returnView: "tray" }); }
         function player(): void { root.island?.openModule("player", {}); }
         function lock(): void { root.lock.activate(); }
         // Session menu (lock / log out / sleep / restart / shut down), toggle.
@@ -181,7 +193,9 @@ Scope {
         // "caps" = toggle a fake Caps Lock (the LED poll restores the truth).
         function keyboardDemo(kind: string): void { root.keyboard.demo(kind); }
         // Event indicator demo (no real source needed): charging | discharging |
-        // bluetooth | pacman | aur | text <anything else = the text>.
+        // bluetooth | pacman | aur | wifi | wifiLost | output | full | critical |
+        // display | displayOff | drive | driveOff | downloaded | text
+        // <anything else = the text>.
         function eventDemo(kind: string): void {
             const demos = {
                 charging: { key: "charging", icon: "\uea38", glyph: "bolt", glyphArgs: { mode: "join" }, color: () => root.battery.levelTone, texts: [() => `${root.battery.percent}%`, "1 h 25 min"] },
@@ -190,6 +204,23 @@ Scope {
                 pacman: { key: "updates:pacman", icon: String.fromCodePoint(0xf0baf), glyph: "pacman", color: "accentYellow", family: "nerd", text: "12" },
                 aur: { key: "updates:aur", icon: "\uf4a2", glyph: "ghost", color: "qsBlue", family: "nerd", text: "3" }
             };
+            // Real announcers (same code path as the live sources).
+            const real = {
+                wifi: () => root.network.announce(true, "Demo Wi‑Fi", true),
+                wifiLost: () => root.network.announce(false, "", true),
+                output: () => root.audioOutput.announce("headphones", "Headphones"),
+                full: () => root.batteryEvents.announceFull(),
+                critical: () => root.batteryEvents.announceCritical(),
+                display: () => root.displays.announce("DP-1", "DELL U2720Q", "2560×1440", true),
+                displayOff: () => root.displays.announce("DP-1", "DELL U2720Q", "", false),
+                drive: () => root.drives.announce("/dev/demo1", "KINGSTON", "32 GB", true),
+                driveOff: () => root.drives.announce("/dev/demo1", "KINGSTON", "", false),
+                downloaded: () => root.downloads.announceDone("/tmp/demo.zip", "demo.zip")
+            };
+            if (real[kind]) {
+                real[kind]();
+                return;
+            }
             root.events.post(demos[kind] ?? { key: `demo:${kind}`, icon: "\uea37", text: kind });
         }
         // Drawn glyph previews (no service needed): `glyphDemo <name>` posts

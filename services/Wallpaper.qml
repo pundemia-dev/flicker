@@ -108,7 +108,7 @@ Scope {
     // Background thumbnails for the carousel (services/WallpaperWarmup);
     // once they are all there the duplicate groups are refreshed.
     WallpaperWarmup {
-        id: warmup
+        id: warmupItem
         cfg: root.cfg
         discharging: root.discharging
         onIdle: {
@@ -117,7 +117,8 @@ Scope {
         }
     }
 
-    readonly property string thumbCacheDir: warmup.cacheDir
+    readonly property string thumbCacheDir: warmupItem.cacheDir
+    readonly property alias warmup: warmupItem
 
     // Text / picture search (services/WallpaperSemantic) for the "? " and
     // "~ " views.
@@ -126,7 +127,7 @@ Scope {
         id: semanticItem
         cfg: root.cfg
         discharging: root.discharging
-        cacheDir: warmup.cacheDir
+        cacheDir: warmupItem.cacheDir
     }
 
     // Visual duplicate groups (services/WallpaperDupes) for the "d " view.
@@ -134,7 +135,7 @@ Scope {
     WallpaperDupes {
         id: dupesItem
         cfg: root.cfg
-        cacheDir: warmup.cacheDir
+        cacheDir: warmupItem.cacheDir
     }
 
     FileView {

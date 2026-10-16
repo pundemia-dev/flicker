@@ -25,6 +25,7 @@ Scope {
     required property var recorder
     required property var theme
     required property var compositor
+    property var events: null
 
     readonly property var cfg: Config.data.capture
     readonly property alias actions: actionsService
@@ -301,7 +302,10 @@ Scope {
     CaptureActions {
         id: actionsService
         cfg: root.cfg
+        events: root.events
     }
+    // Google Lens upload running (StatusFeeds `lens`).
+    readonly property bool lensBusy: actionsService.lensBusy
 
     Process {
         id: grabProc

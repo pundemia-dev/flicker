@@ -35,6 +35,11 @@ Scope {
     // Flat [key, path, key, path, ...] still to make.
     property var queue: []
     property bool started: false
+    // Progress of the current run (StatusFeeds `wallpaperWarmup`).
+    property int total: 0
+    property int inFlight: 0
+    readonly property bool busy: root.allowed && (batch.running || root.queue.length > 0)
+    readonly property real progress: root.total > 0 ? Math.max(0, 1 - (root.queue.length / 2 + root.inFlight) / root.total) : 0
 
     onAllowedChanged: {
         if (!root.allowed)
@@ -84,6 +89,7 @@ Scope {
                     }
                 }
                 root.queue = q;
+                root.total = q.length / 2;
                 if (q.length)
                     console.info("[wallpaper] warm-up:", q.length / 2, "thumbnails to make");
                 Qt.callLater(root.pump);
@@ -101,6 +107,7 @@ Scope {
         const n = Math.max(1, root.cfg.warmupBatch ?? 40) * 2;
         const args = root.queue.slice(0, n);
         root.queue = root.queue.slice(n);
+        root.inFlight = args.length / 2;
         batch.command = [root.scripts + "thumbs.sh", root.cacheDir, String(root.cfg.thumbHeight ?? 460),
             String(Math.max(1, root.cfg.warmupJobs ?? 1))].concat(args);
         batch.running = true;
@@ -108,6 +115,9 @@ Scope {
 
     Process {
         id: batch
-        onExited: Qt.callLater(root.pump)
+        onExited: {
+            root.inFlight = 0;
+            Qt.callLater(root.pump);
+        }
     }
 }

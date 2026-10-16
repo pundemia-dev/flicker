@@ -3,7 +3,11 @@ import QtQuick
 // Stash (pShell file tray + LocalSend port) as an island module. Opened
 // over IPC only (`island stash`); the drop chooser is StashDropModule.
 // payload.view: "tray" | "send" (device picker) | "incoming" (accept card)
-// | "transcript" (WhisperX text of payload.file, TranscriptView).
+// | "transcript" (WhisperX text of payload.file, TranscriptView)
+// | "preview" (Quick Look of payload.file, StashPreview; ← / → step through
+// the tray, each step a module re-open = blur swap + island refit).
+// Keyboard (Exclusive while the tray / preview shows): forwarded to the
+// view's handleKey; unhandled Esc closes.
 // View changes go through Island.openModule (openRequested), so each one
 // replays the ContentSwap and the island resizes (StashMetrics).
 // payload.returnView === "tray": the flow started from the tray and goes
@@ -21,6 +25,31 @@ Item {
 
     readonly property string view: root.payload?.view ?? "tray"
     readonly property real tileRadius: Math.max(4, root.surfaceRadius - root.cfg.padding)
+    readonly property bool wantsKeyboard: root.view === "tray" || root.view === "preview"
+
+    focus: true
+    Component.onCompleted: root.forceActiveFocus()
+    Keys.onPressed: event => {
+        const v = root.view === "tray" ? tray : root.view === "preview" ? previewLoader.item : null;
+        if (v?.handleKey(event)) {
+            event.accepted = true;
+        } else if (event.key === Qt.Key_Escape) {
+            event.accepted = true;
+            root.closeRequested();
+        }
+    }
+
+    function openPreview(file: string): void {
+        root.openRequested("stash", { view: "preview", file: file, returnView: "tray" });
+    }
+    // ← / → in Quick Look: neighbours in tray order, wrapping round.
+    function stepPreview(delta: int): void {
+        const all = root.stash.allPaths();
+        if (all.length < 2)
+            return;
+        const i = all.indexOf(root.payload?.file ?? "");
+        root.openPreview(all[((i < 0 ? 0 : i + delta) % all.length + all.length) % all.length]);
+    }
 
     function finish(): void {
         if ((root.payload?.returnView ?? "") === "tray")
@@ -104,6 +133,21 @@ Item {
             tileRadius: root.tileRadius
             onSendRequested: files => root.startSend(files)
             onTranscribeRequested: file => root.openTranscript(file)
+            onPreviewRequested: file => root.openPreview(file)
+        }
+
+        Loader {
+            id: previewLoader
+            anchors.fill: parent
+            active: root.view === "preview"
+            sourceComponent: StashPreview {
+                path: root.payload?.file ?? ""
+                stash: root.stash
+                cfg: root.cfg
+                theme: root.theme
+                onBack: root.finish()
+                onStep: delta => root.stepPreview(delta)
+            }
         }
 
         Loader {

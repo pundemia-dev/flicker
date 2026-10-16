@@ -332,5 +332,34 @@
   "Saving recording": "Сохранение записи",
   "Sending files": "Отправка файлов",
   "Receiving files": "Приём файлов",
-  "Indexing wallpapers": "Индексация обоев"
+  "Indexing wallpapers": "Индексация обоев",
+  "Preview": "Просмотр",
+  "Extract": "Распаковать",
+  "Compress": "Сжать",
+  "Select": "Выбрать",
+  "%1 selected": [
+    "%1 выбран",
+    "%1 выбрано",
+    "%1 выбрано"
+  ],
+  "Empty": "Пусто",
+  "Could not create the archive": "Не удалось создать архив",
+  "Could not extract the archive": "Не удалось распаковать архив",
+  "Disconnected": "Отключено",
+  "Wi‑Fi off": "Wi‑Fi выкл.",
+  "Muted": "Без звука",
+  "Charged to limit": "Заряжено до лимита",
+  "USB drive": "USB-накопитель",
+  "Removed": "Извлечён",
+  "Downloaded": "Загружено",
+  "%1 package updated": [
+    "%1 пакет обновлён",
+    "%1 пакета обновлено",
+    "%1 пакетов обновлено"
+  ],
+  "Updating packages": "Обновление пакетов",
+  "Uploading to Lens": "Загрузка в Lens",
+  "Loading dictation model": "Загрузка модели диктовки",
+  "Finding duplicates": "Поиск дубликатов",
+  "Making thumbnails": "Создание миниатюр"
 }

@@ -26,6 +26,14 @@ Scope {
     EventBluetooth { events: eventsService; bluetooth: bluetoothService }
     EventUpdates { events: eventsService }
     Caffeine { id: caffeineService; events: eventsService }
+    EventNetwork { id: eventNetworkService; events: eventsService; network: networkService }
+    EventAudioOutput { id: eventAudioOutputService; events: eventsService; audio: audioService }
+    EventBattery { id: eventBatteryService; events: eventsService; battery: batteryService; charging: eventChargingService }
+    EventDisplays { id: eventDisplaysService; events: eventsService }
+    EventDrives { id: eventDrivesService; events: eventsService }
+    // Long-process watchers for the status drop (StatusFeeds).
+    PacmanWatch { id: pacmanWatchService; events: eventsService }
+    DownloadWatch { id: downloadWatchService; events: eventsService }
     // Clipboard history feed (cliphist) for the launcher's clipboard plugin.
     ClipboardWatch { id: clipboardWatchService }
     // Music recognition (QS card `shazam`, IPC `island shazam`).
@@ -87,6 +95,7 @@ Scope {
         recorder: recorderService
         theme: themeService
         compositor: compositorService
+        events: eventsService
     }
 
     IslandRegistry { id: islandRegistry }
@@ -102,6 +111,11 @@ Scope {
         recorder: recorderService
         localSend: localSendService
         semantic: wallpaperService.semantic
+        pacman: pacmanWatchService
+        downloads: downloadWatchService
+        dictation: dictationService
+        wallpaper: wallpaperService
+        capture: captureService
     }
 
     // Wallpapers (wallr): favourites/history, random, video pause.
@@ -130,6 +144,12 @@ Scope {
         keyboard: keyboardIndicatorService
         shazam: shazamService
         statuses: statusesService
+        network: eventNetworkService
+        audioOutput: eventAudioOutputService
+        batteryEvents: eventBatteryService
+        displays: eventDisplaysService
+        drives: eventDrivesService
+        downloads: downloadWatchService
     }
 
     OsdWatcher {

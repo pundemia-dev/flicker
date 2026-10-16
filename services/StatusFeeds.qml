@@ -18,6 +18,11 @@ Scope {
     required property var recorder
     required property var localSend
     required property var semantic
+    required property var pacman
+    required property var downloads
+    required property var dictation
+    required property var wallpaper
+    required property var capture
 
     readonly property var cfg: Config.data.status
 
@@ -81,7 +86,13 @@ Scope {
         bus: root.events
         key: "recordSaving"
         on: (root.cfg.recordSaving ?? true) && (root.recorder?.saving ?? false)
-        entry: ({ priority: 80, color: "accentRed", progress: null, open: "" })
+        entry: ({
+                priority: 80,
+                color: "accentRed",
+                // record.sh reports progress once the finishers / assembly run.
+                progress: () => root.recorder.saveProgress,
+                open: ""
+            })
         event: ({ icon: "", color: "accentRed", text: I18n.tr("Saving recording") })
     }
 
@@ -138,5 +149,81 @@ Scope {
                 open: ""
             })
         event: ({ icon: "", color: "focusPurple", text: I18n.tr("Indexing wallpapers") })
+    }
+
+    property Feed lens: Feed {
+        hub: root.statuses
+        bus: root.events
+        key: "lens"
+        delay: Config.data.status.lensAnnounceMs ?? 300
+        on: (root.cfg.lens ?? true) && (root.capture?.lensBusy ?? false)
+        entry: ({ priority: 75, color: "qsBlue", progress: null, open: "" })
+        event: ({ glyph: "transfer", glyphArgs: { progress: null }, icon: "", color: "qsBlue", text: I18n.tr("Uploading to Lens") })
+    }
+
+    property Feed pacmanUpdate: Feed {
+        hub: root.statuses
+        bus: root.events
+        key: "pacman"
+        delay: Config.data.status.pacmanAnnounceMs ?? 2000
+        on: (root.cfg.pacman ?? true) && (root.pacman?.busy ?? false)
+        entry: ({ priority: 45, color: "accentYellow", progress: null, open: "" })
+        event: ({
+                glyph: "pacman",
+                glyphArgs: { food: "box" },
+                icon: String.fromCodePoint(0xf0baf),
+                family: "nerd",
+                color: "accentYellow",
+                text: () => root.pacman.count > 0 ? I18n.trN(root.pacman.count, "%1 package", "%1 packages") : I18n.tr("Updating packages")
+            })
+    }
+
+    property Feed download: Feed {
+        hub: root.statuses
+        bus: root.events
+        key: "download"
+        on: (root.cfg.download ?? true) && (root.downloads?.browserActive ?? false)
+        entry: ({ priority: 40, color: "qsBlue", progress: null, open: "" })
+        event: ({ glyph: "transfer", glyphArgs: { progress: null }, icon: "", color: "qsBlue", text: () => root.downloads.browserText() })
+    }
+
+    property Feed modelDownload: Feed {
+        hub: root.statuses
+        bus: root.events
+        key: "modelDownload"
+        on: (root.cfg.modelDownload ?? true) && (root.downloads?.modelActive ?? false)
+        entry: ({ priority: 30, color: "qsIndigo", progress: null, open: "" })
+        event: ({ glyph: "transfer", glyphArgs: { progress: null }, icon: "", color: "qsIndigo", text: () => root.downloads.modelText() })
+    }
+
+    property Feed refineWarmup: Feed {
+        hub: root.statuses
+        bus: root.events
+        key: "refineWarmup"
+        delay: Config.data.status.refineAnnounceMs ?? 1500
+        on: (root.cfg.refineWarmup ?? true) && (root.dictation?.refineWarming ?? false)
+        entry: ({ priority: 15, color: "accentGreen", progress: null, open: "" })
+        event: ({ icon: "", color: "accentGreen", text: I18n.tr("Loading dictation model") })
+    }
+
+    property Feed wallpaperDupes: Feed {
+        hub: root.statuses
+        bus: root.events
+        key: "wallpaperDupes"
+        // A warm run takes ~2 s (fingerprints cached): only cold runs show.
+        delay: Config.data.status.dupesAnnounceMs ?? 4000
+        on: (root.cfg.wallpaperDupes ?? true) && (root.wallpaper?.dupes?.busy ?? false)
+        entry: ({ priority: 9, color: "focusPurple", progress: null, open: "" })
+        event: ({ icon: "", color: "focusPurple", text: I18n.tr("Finding duplicates") })
+    }
+
+    property Feed wallpaperWarmup: Feed {
+        hub: root.statuses
+        bus: root.events
+        key: "wallpaperWarmup"
+        delay: Config.data.status.warmupAnnounceMs ?? 3000
+        on: (root.cfg.wallpaperWarmup ?? true) && (root.wallpaper?.warmup?.busy ?? false)
+        entry: ({ priority: 8, color: "focusPurple", progress: () => root.wallpaper.warmup.progress, open: "" })
+        event: ({ icon: "", color: "focusPurple", text: I18n.tr("Making thumbnails") })
     }
 }

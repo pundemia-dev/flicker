@@ -87,6 +87,8 @@ PanelWindow {
     readonly property bool takesKeyboard: root.state.activeModule === "launcher" || root.state.activeModule === "polkit"
         || (root.state.activeModule === "timer" && !root.countdown.active)
         || root.state.activeModule === "session"
+        // Stash tray / Quick Look: Space, arrows, Ctrl+A, Delete, Esc.
+        || (root.state.activeModule === "stash" && moduleHost.wantsKeyboard)
         || ((root.state.activeModule === "notifications" || root.state.activeModule === "quicksettings") && moduleHost.wantsKeyboard)
     WlrLayershell.keyboardFocus: root.takesKeyboard ? WlrKeyboardFocus.Exclusive
         : ((root.state.activeModule === "notifications" && (root.state.activePayload?.mode ?? "") === "center")
@@ -356,7 +358,8 @@ PanelWindow {
                 devices: root.localSend.devices.count,
                 sending: root.localSend.phase === "sending",
                 incomingText: root.localSend.request?.isText ?? false,
-                incomingFiles: root.localSend.request?.files?.length ?? 1
+                incomingFiles: root.localSend.request?.files?.length ?? 1,
+                preview: root.stash.preview
             });
         const all = root.config.modules ?? {};
         const size = all[root.moduleKey] ?? all[root.state.activeModule]

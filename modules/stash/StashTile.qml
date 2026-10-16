@@ -3,6 +3,7 @@ import Quickshell
 import Quickshell.Io
 import Quickshell.Widgets
 import "../../components"
+import "StashTypes.js" as Types
 
 // One tray file (pShell StashDelegate port): theme icon underneath, image /
 // PDF / video thumbnail on top once ready, name label (always without a
@@ -11,6 +12,11 @@ import "../../components"
 // favourite, transcribe for audio / video, open, delete). Dragging the tile drags the file out (native
 // text/uri-list drag). A transcription shows as a thin bar at the bottom
 // (running / queued) or a text badge top-left (done).
+// Selection (Stash.selection): Ctrl+click toggles, Shift+click adds the
+// range from the last toggled tile, a plain click toggles while anything
+// is selected; selected = accent ring + check badge (every tile shows an
+// empty circle while selecting). Dragging a SELECTED tile drags the whole
+// selection. Double click = Quick Look.
 Item {
     id: root
     required property int index
@@ -18,6 +24,7 @@ Item {
     required property string filePath
     required property string fileUrl
     required property bool isFav
+    required property bool isDir
     required property var stash
     required property var localSend
     required property var cfg
@@ -26,24 +33,20 @@ Item {
     signal sendRequested(var files)
     signal transcribeRequested(string file)
     signal menuRequested(Item button)
+    signal previewRequested(string file)
     // The tray's DropExpand (the menu button stays out while it is open).
     property var menu: null
     readonly property Item menuButton: menuBtn
     readonly property color menuButtonColor: Qt.rgba(0.11, 0.11, 0.12, 0.92)
 
-    readonly property string ext: root.fileName.includes(".") ? root.fileName.split(".").pop().toLowerCase() : ""
-    readonly property bool isImage: ["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg"].includes(root.ext)
-    readonly property bool isPdf: root.ext === "pdf"
-    readonly property bool isVideo: ["mp4", "mkv", "avi", "mov", "webm", "m4v"].includes(root.ext)
-    readonly property bool isAudio: ["mp3", "wav", "flac", "ogg", "aac", "m4a", "opus", "wma", "amr", "aiff", "aif"].includes(root.ext)
-    readonly property bool isText: ["txt", "md", "log", "csv", "json", "xml", "toml", "yaml", "yml", "sh", "py", "js", "ts", "rs", "go", "cpp", "c", "h", "qml"].includes(root.ext)
-    readonly property bool isArchive: ["zip", "tar", "gz", "bz2", "xz", "rar", "7z", "zst"].includes(root.ext)
-    readonly property string themeIcon: root.isImage ? "image-x-generic"
-        : root.isPdf ? "application-pdf"
-        : root.isVideo ? "video-x-generic"
-        : root.isAudio ? "audio-x-generic"
-        : root.isText ? "text-x-generic"
-        : root.isArchive ? "application-x-archive" : "application-x-generic"
+    readonly property string kind: Types.kindOf(root.fileName, root.isDir)
+    readonly property bool isImage: root.kind === "image" || root.kind === "animated"
+    readonly property bool isPdf: root.kind === "pdf"
+    readonly property bool isVideo: root.kind === "video"
+    readonly property bool isAudio: root.kind === "audio"
+    readonly property string themeIcon: Types.themeIcon(root.kind)
+    readonly property bool selected: root.stash.selection[root.filePath] === true
+    readonly property bool selecting: root.stash.selectedCount > 0
 
     // Generated thumbs (PDF first page / video frame) are cached by name.
     // Keyed by a path hash (a sanitized name made every Cyrillic name of
@@ -52,7 +55,7 @@ Item {
     property string genThumb: ""
     readonly property string thumbSource: root.isImage ? root.fileUrl : (root.genThumb !== "" ? "file://" + root.genThumb : "")
     readonly property bool hasThumb: thumb.ready && root.thumbSource !== ""
-    readonly property bool hovered: tileMa.containsMouse || actionsHover.hovered
+    readonly property bool hovered: tileMa.containsMouse || actionsHover.hovered || menuMa.containsMouse
     readonly property bool canTranscribe: root.isAudio || root.isVideo
     readonly property var tr: root.stash.transcribe
     // Re-read on every Transcribe change (stateOf is a function).
@@ -148,7 +151,7 @@ Item {
         width: root.cfg.tileButtonSize
         height: root.cfg.tileButtonSize
         radius: Math.min(8, root.radius / 2)
-        visible: root.trState === "done" || root.trState === "error"
+        visible: !root.selecting && (root.trState === "done" || root.trState === "error")
         color: root.trState === "error" ? Qt.alpha(root.theme.accentRed, 0.85) : Qt.rgba(0.11, 0.11, 0.12, 0.92)
         Text {
             anchors.centerIn: parent
@@ -156,6 +159,41 @@ Item {
             color: root.theme.islandFg
             font.family: root.theme.iconFamily
             font.pixelSize: Math.round(root.cfg.tileButtonSize * 0.55)
+        }
+    }
+
+    // ── Selection: accent ring + check badge (empty circle while selecting) ──
+    Rectangle {
+        anchors.fill: parent
+        radius: root.radius
+        color: "transparent"
+        border.width: 2
+        border.color: root.theme.cardBlue
+        opacity: root.selected ? 1 : 0
+        Behavior on opacity { Spring { stiffness: 6; damp: 0.6; eps: 0.01 } }
+    }
+    Rectangle {
+        anchors.top: parent.top
+        anchors.left: parent.left
+        anchors.margins: 5
+        width: root.cfg.tileButtonSize
+        height: width
+        radius: width / 2
+        color: root.selected ? root.theme.cardBlue : Qt.rgba(0, 0, 0, 0.45)
+        border.width: root.selected ? 0 : 1.5
+        border.color: Qt.rgba(1, 1, 1, 0.8)
+        opacity: root.selecting ? 1 : 0
+        scale: root.selecting ? 1 : 0.5
+        visible: opacity > 0.01
+        Behavior on opacity { Spring { stiffness: 6; damp: 0.6; eps: 0.01 } }
+        Behavior on scale { Spring { stiffness: 5; damp: 0.4; eps: 0.005 } }
+        Text {
+            anchors.centerIn: parent
+            text: "\uea5e"
+            color: "white"
+            font.family: root.theme.iconFamily
+            font.pixelSize: Math.round(parent.width * 0.62)
+            opacity: root.selected ? 1 : 0
         }
     }
 
@@ -170,6 +208,17 @@ Item {
         hoverEnabled: true
         drag.target: dragItem
         cursorShape: Qt.OpenHandCursor
+
+        onClicked: mouse => {
+            if (mouse.modifiers & Qt.ShiftModifier)
+                root.stash.selectRange(root.filePath);
+            else if ((mouse.modifiers & Qt.ControlModifier) || root.selecting)
+                root.stash.toggleSelect(root.filePath);
+        }
+        onDoubleClicked: mouse => {
+            if (!(mouse.modifiers & (Qt.ShiftModifier | Qt.ControlModifier)) && !root.selecting)
+                root.previewRequested(root.filePath);
+        }
 
         readonly property bool armed: drag.active
         // Released before the image grab landed: no native drag started,
@@ -199,7 +248,10 @@ Item {
         Drag.dragType: Drag.Automatic
         Drag.supportedActions: Qt.CopyAction
         Drag.proposedAction: Qt.CopyAction
-        Drag.mimeData: ({ "text/uri-list": root.fileUrl })
+        // A selected tile carries the whole selection.
+        Drag.mimeData: ({ "text/uri-list": root.selected && root.stash.selectedCount > 1
+                ? root.stash.selectedPaths().map(p => root.stash.urlOf(p)).join("\r\n")
+                : root.fileUrl })
         // Pins the tray (Stash.outgoingDrag): the island ignores it as an
         // incoming drop and never closes the module under the drag.
         Drag.onDragStarted: root.stash.outgoingDrag = true

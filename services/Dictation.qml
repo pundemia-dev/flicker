@@ -171,6 +171,9 @@ Item {
         }
     }
 
+    // The managed Refine model is loading (StatusFeeds `refineWarmup`).
+    readonly property bool refineWarming: refine._modelState === "starting"
+
     DictationRefine {
         id: refine
         finalizerCommand: Config.data.dictation.finalizerCommand ?? ""

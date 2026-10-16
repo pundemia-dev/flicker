@@ -26,6 +26,8 @@ Item {
     property real appliedSpeed: 1
     // Stopped, record.sh still assembling the file.
     property bool saving: false
+    // 0..1 while saving (record.sh "progress" lines), null = not known yet.
+    property var saveProgress: null
     // "auto" default memory: the last audio choice, session-only.
     property string lastAudio: "none"
     property string file: ""
@@ -151,6 +153,7 @@ Item {
         root.recording = false;
         root.paused = false;
         root.saving = true;
+        root.saveProgress = null;
         recProc.signal(2);
     }
 
@@ -205,7 +208,14 @@ Item {
 
     Process {
         id: recProc
+        stdout: SplitParser {
+            onRead: line => {
+                if (root.saving && line.startsWith("progress "))
+                    root.saveProgress = Math.max(0, Math.min(1, parseFloat(line.slice(9)) || 0));
+            }
+        }
         onExited: {
+            root.saveProgress = null;
             const f = root.shq(root.file);
             const discard = root.discardRequested;
             root.recording = false;

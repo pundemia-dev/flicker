@@ -27,7 +27,11 @@ QtObject {
             error: error,
             copy: copy,
             hello: hello,
-            shazam: shazam
+            shazam: shazam,
+            wifi: wifi,
+            battery: battery,
+            display: display,
+            drive: drive
         })
 
     property Component pacman: PacmanGlyph {}
@@ -52,4 +56,8 @@ QtObject {
     property Component error: ErrorGlyph {}
     property Component copy: CopyGlyph {}
     property Component hello: HelloGlyph {}
+    property Component wifi: WifiGlyph {}
+    property Component battery: BatteryGlyph {}
+    property Component display: DisplayGlyph {}
+    property Component drive: DriveGlyph {}
 }

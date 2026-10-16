@@ -40,7 +40,7 @@ Not a git repo. No tests, no linter, no formatter.
   (instant, no overlay), record (toggle), recordPause, recordControls, dashboard, player, lock, close, minimal, island, osd, debugState,
   volumeUp/Down/Mute, micMute, brightnessUp/Down, playPause, nextTrack, prevTrack, playerSeek <s>),
   `lock` (activate/isLocked — deliberately NO unlock/toggle over IPC; unlocking needs PAM),
-  keyboardDemo layout|caps, shazam (listen / cancel), timer (module toggle), timerStart <min>, timerPause (toggle), timerCancel, stashTranscript <path>,
+  keyboardDemo layout|caps, shazam (listen / cancel), timer (module toggle), timerStart <min>, timerPause (toggle), timerCancel, stashTranscript <path>, stashPreview <path>,
   statusDemo <name> <percent> (<0 = spinning) / statusDemoEnd <name> / statusNext (= swipe on the drop),
   `dictation` (start/stop/toggle/cancel/status),
   `prompter` (open <path>, clipboard, text <s>, show/close/toggle, pause, mode voice|auto|manual,
@@ -899,6 +899,31 @@ Not a git repo. No tests, no linter, no formatter.
   while it is away. Verified via IPC demos + grim frames: inline → split (neck), swipe swap, timer
   ring drop → module → back → split. NOT tested: mouse tap/swipe, real Shazam / transcription /
   LocalSend / saving / indexing feeds, multi-output.
+- MORE EVENT / STATUS SOURCES (Oct 2026). Events: `EventNetwork` (Wi‑Fi joined / switched / lost,
+  settled `wifiSettleMs` vs the last ANNOUNCED state; `WifiGlyph`, `args.lost` = arcs go out outer
+  first), `EventAudioOutput` (`pactl subscribe` → debounced `pactl -f json list sinks`, signature
+  default-sink|active-port — a jack plug only switches the PORT; bluez sinks skipped = EventBluetooth's;
+  glyph headphones/display/speaker/laptop, texts name → live volume), `EventBattery` (full = FullyCharged
+  or ≥ charge limit (`battery.chargeLimit`, 0 = sysfs charge_control_end_threshold, none here → 100),
+  critical ≤ `battery.criticalPercent`, once per charge / discharge; `BatteryGlyph`), `EventDisplays`
+  (Quickshell.screens diff; `DisplayGlyph`, `args.off` = TV switch-off), `EventDrives` (`udevadm monitor`
+  block → `lsblk -J`, hotplug/rm + fstype; `DriveGlyph`, `args.eject`). Event `tap` (function) = NEW:
+  IndicatorLayout puts MouseAreas over both event halves ONLY while the current event has one (drive:
+  mount via udisksctl if needed + xdg-open; finished download: open the file). Statuses (StatusFeeds):
+  `lens` (CaptureActions.lens is a Process now, `lensBusy`; failure = `error` event, no notify-sends),
+  `pacman` (`services/PacmanWatch`: db.lck polled, count = ALPM lines pacman.log gained; end = event
+  "N packages updated", pacman + boxes), `download` / `modelDownload` (`services/DownloadWatch` +
+  `scripts/status/downloads.sh`: .part/.crdownload in the XDG download dir, HF `.incomplete` / torch
+  `.partial` under `status.modelDirs`, only partials touched within `downloadsFreshMin`; spinning, text
+  name · bytes; finished browser file → event, tap opens), `refineWarmup` (`Dictation.refineWarming`),
+  `wallpaperDupes` (announce delay 4 s: warm runs ~2 s), `wallpaperWarmup` (`Wallpaper.warmup` progress).
+  recordSaving now has PROGRESS: record.sh prints `progress <0..1>` after stop (finishers, then the
+  concat — a re-encoding concat via ffmpeg `-progress pipe:1` vs the ffprobe'd total) →
+  `Recorder.saveProgress`. IPC `eventDemo wifi|wifiLost|output|full|critical|display|displayOff|drive|
+  driveOff|downloaded` run the REAL announcers. Verified on the live instance (grim frames): every demo,
+  a fake growing `.part` → status + drop split + "Downloaded" event. NOT tested: real Wi‑Fi roam, jack
+  plug (T2 audio), real monitor / USB stick, pacman (needs root), Lens, record save progress, model
+  downloads, refine warm-up, taps (mouse).
 - Timer (Oct 2026, user design after an iOS Live Activity reference): `services/Countdown.qml`
   (NOT `Timer.qml` — would shadow QtQuick's Timer in that dir; phase idle|running|paused|done,
   `progress` remaining 1→0 refreshed every ~0.5 px of a `perimeterPx` outline (16 ms..1 s),
@@ -1582,6 +1607,29 @@ Simplified / not implemented yet (see pillShell.md for the intended behaviour):
   Open (xdg-open), Send (LocalSend), Pin/Unpin (fav), Transcript (audio/video), Delete); every
   action runs via `expander.close(fn)` after the drop is back. Sizes `stash.menu`. Debug IPC
   `island stashMenu <i>` (-1 folds). Verified via IPC + grim frames; mouse NOT tested.
+  Types: `modules/stash/StashTypes.js` = ONE kind table (tile icon/thumb, menu actions via
+  `actions(tile, tr)` — tray menu width/rows are derived from it, wrap to rows past the tray width;
+  scanner `ls -1Ap` → `isDir`). Multi-select (Oct 2026, user): `Stash.selection` {path: true}
+  (pruned on rescan), Ctrl+click toggle, Shift+click range from `anchorPath`, plain click toggles
+  while selecting, rubber band = MouseArea BELOW the tiles on empty grid space (a click there
+  clears; swipe-up close must start outside the grid while files are shown); dragging a SELECTED
+  tile drags every selected uri; the action row crossfades into the group bar (send · compress ·
+  delete | "n selected" | select all · clear). Archives: `scripts/stash/archive.sh` pack (zip -r -y,
+  unique "x 2.zip") / unpack (bsdtar, 7z fallback; one top entry lands as itself, several in
+  "<stem>/", bare .gz/.xz/.bz2/.zst just decompressed; temp `.unpack.*` hidden from the scanner);
+  failure = notify-send. Quick Look = stash view "preview" (`StashPreview` + `StashPreviewMedia`
+  (MediaPlayer with sound, looped; click / P pause, seek strip) + `StashPreviewText` (text head,
+  folder / archive listing, `file -b` + size)); island fitted via `Stash.preview` {kind, w, h} —
+  a BINDING from the body's naturalW/H (a cached image is Ready before onCompleted, a write there
+  zeroed it); the body Loader is re-activated on every path change (a same-kind step reused the
+  body and showed the previous file). Keyboard: Exclusive while tray / preview shows
+  (`StashModule.wantsKeyboard`): tray Space = preview hovered / first selected, Ctrl+A, Delete,
+  Esc clears selection then closes; preview Space/Esc back, ←/→ step (wraps), Enter = xdg-open.
+  Double click a tile = preview. IPC `island stashPreview <path>`. Verified via IPC + wtype + grim:
+  image / video / text / zip previews and their island fits (709×520, 668×426), Ctrl+A group bar,
+  menus (zip: Extract, audio: 8 actions in one row), archive.sh on scratch files. NOT tested:
+  mouse (clicks, Ctrl/Shift, rubber band, group drag-out, seek strip), compress/extract from the UI,
+  audio preview, PDF preview.
   Verified via IPC + screenshots: tray (image/PDF thumbs), chooser, picker scanning → none
   found, cancel-on-close. NOT live-tested: real drags in/out, device rows, sending,
   incoming card. pShell's receive server uses the same port 53317 — never both on.

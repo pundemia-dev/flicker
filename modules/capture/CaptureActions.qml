@@ -104,13 +104,30 @@ Scope {
     }
 
     // Google Lens: crop the pure grab → temp host → Lens in the browser.
+    // The upload is a status (StatusFeeds `lens`: spinning drop while
+    // `lensBusy`); success opens the browser (that is the outcome), a
+    // failure = an `error` event.
+    property var events: null
+    readonly property bool lensBusy: lensProc.running
     function lens(src: string, r: var, name: string): void {
+        if (lensProc.running)
+            return;
         const file = root.scratchPng("lens", name);
-        Quickshell.execDetached(["bash", "-c", `magick ${root.shq(src)} -crop ${r.width}x${r.height}+${r.x}+${r.y} +repage ${root.shq(file)}`
-            + ` && url="$(curl -sf -F "files[]=@${file}" ${root.shq(root.cfg.lensUploadUrl)} | jq -r '.files[0].url')"`
-            + ` && [ -n "$url" ] && [ "$url" != null ] && xdg-open "https://lens.google.com/uploadbyurl?url=$url"`
-            + ` || notify-send -a pillShell 'Google Lens' ${root.shq(I18n.tr("Upload failed"))}`]);
-        Quickshell.execDetached(["notify-send", "-a", "pillShell", "Google Lens", I18n.tr("Uploading the snippet…")]);
+        lensProc.command = ["bash", "-c", `magick ${root.shq(src)} -crop ${r.width}x${r.height}+${r.x}+${r.y} +repage ${root.shq(file)}`
+            + ` && url="$(curl -4 -sf -F "files[]=@${file}" ${root.shq(root.cfg.lensUploadUrl)} | jq -r '.files[0].url')"`
+            + ` && [ -n "$url" ] && [ "$url" != null ] && xdg-open "https://lens.google.com/uploadbyurl?url=$url"`];
+        lensProc.running = true;
+    }
+    Process {
+        id: lensProc
+        onExited: code => {
+            if (code === 0)
+                return;
+            if (root.events)
+                root.events.post({ key: "lens:error", glyph: "error", icon: "", color: "accentRed", texts: ["Google Lens", I18n.tr("Upload failed")] });
+            else
+                Quickshell.execDetached(["notify-send", "-a", "pillShell", "Google Lens", I18n.tr("Upload failed")]);
+        }
     }
 
     // scripts/capture/<name> (uv inline-deps script). Offline first: online

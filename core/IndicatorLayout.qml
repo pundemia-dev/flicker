@@ -383,4 +383,35 @@ Item {
             item.leading = Qt.binding(() => root.statusEvent);
         }
     }
+    // Event `tap` (a function, e.g. open the drive just plugged in): both
+    // halves take the click — only while the visible event has one, so
+    // they never swallow presses meant for the gesture layer otherwise.
+    readonly property bool eventTappable: typeof root.events?.current?.tap === "function"
+    function tapEvent(): void {
+        const tap = root.events?.current?.tap;
+        if (typeof tap !== "function")
+            return;
+        root.events.finish();
+        tap();
+    }
+    MouseArea {
+        x: eventIconLoader.x
+        y: 0
+        width: eventIconLoader.width
+        height: parent.height
+        enabled: root.eventTappable
+        visible: enabled
+        cursorShape: Qt.PointingHandCursor
+        onClicked: root.tapEvent()
+    }
+    MouseArea {
+        x: eventTextLoader.x
+        y: 0
+        width: eventTextLoader.width
+        height: parent.height
+        enabled: root.eventTappable
+        visible: enabled
+        cursorShape: Qt.PointingHandCursor
+        onClicked: root.tapEvent()
+    }
 }
