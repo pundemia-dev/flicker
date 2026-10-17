@@ -2,3 +2,6 @@ config/config.json
 
 # Reference clones (caelestia & forks)
 temp/
+
+# Machine-specific agent notes
+CLAUDE.local.md

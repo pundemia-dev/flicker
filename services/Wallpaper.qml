@@ -330,8 +330,8 @@ Scope {
     // overwrites: an identical twin under the new name sends the source to
     // the trash, a different one gets "<stem>-<n>"). Returns the EXPECTED
     // path at once (the carousel shows it optimistically); hideDone reports
-    // what really happened — the user's folder had 53 "name" + ".name"
-    // twins, where a plain `mv -n` silently did nothing and the card came
+    // what really happened — identical "name" + ".name"
+    // twins happen, and a plain `mv -n` silently did nothing and the card came
     // back on the next rescan. Runs one at a time (rapid Ctrl+Shift+H).
     signal hideDone(string from, string to, bool ok)
 

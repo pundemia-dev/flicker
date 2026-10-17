@@ -10,8 +10,8 @@ SigLIP 2 So400m image encoder, ONNX (mexma_image_encoder.onnx: pixel_values
 1x3x512x512 → 1152; mexma_text_encoder.onnx: input_ids/attention_mask 1x32
 → 1152). Chosen after a comparison (Oct 2026): best multilingual
 text→image retrieval (XM3600 R@1 62.5 vs SigLIP 2 B 40.7 / So400m 48.1),
-understands Russian queries. Measured on the user's i7-9750H: ~2.8 s per
-image with 6 threads (12 is slower; int8 dynamic quantization gave nothing,
+understands Russian queries. Measured on a 6-core laptop CPU: a few s per
+image with one thread per core (SMT threads are slower; int8 dynamic quantization gave nothing,
 the export is already quantized), ~60 ms per query.
 
 Usage: clip.py <modelDir> <storeDir> <threads> <idleSec>

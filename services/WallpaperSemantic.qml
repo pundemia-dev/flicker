@@ -123,8 +123,8 @@ Scope {
                 const all = WallEntry.lines(this.text).map(l => WallEntry.make(l.path, l.mtimeText, l.sizeText));
                 if (!all.length)
                     return;
-                // Visible pictures first, hidden ones after (the user's folder
-                // is mostly hidden files: ~3900 of ~4900) — or not at all
+                // Visible pictures first, hidden ones after (a folder
+                // can be mostly hidden files) — or not at all
                 // (semanticIndexHidden). Vectors of every existing file are
                 // kept either way; only vanished files are forgotten.
                 const withHidden = root.cfg.semanticIndexHidden ?? true;

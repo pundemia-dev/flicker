@@ -11,7 +11,7 @@ in another resolution / format / compression matches:
   * verified on a 16x16 RGB miniature: every channel within maxPixel, the
     mean difference within maxMean, AND the contrast-normalised luminance
     (z-scores) within maxZ mean difference — box averaging hides small
-    details, normalising brings them back (measured on the user's folder:
+    details, normalising brings them back (measured on a real folder:
     real duplicates 0.003-0.13, distinct dark/minimal ones 0.26+). Nearly
     flat miniatures (luminance std < flatStd: z-scores are noise there)
     must instead match almost exactly (every channel within 8). dHash

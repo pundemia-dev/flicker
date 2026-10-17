@@ -1147,7 +1147,7 @@ Singleton {
                 })
             // Remote cover art (services/Players.qml): http(s) art URLs are
             // fetched with `curl -4` into cachePath("art") — Qt's own loader
-            // stalls on this network's broken IPv6 (Spotify's i.scdn.co
+            // stalls on networks with broken IPv6 (Spotify's i.scdn.co
             // never showed). Timeout per fetch; newest cacheMax files kept.
             property var mediaArt: ({
                     fetchTimeoutSec: 10,

@@ -8,30 +8,29 @@ Flicker — a Wayland desktop shell on Quickshell (pure QML, no C++/build step):
 Reference implementation: `~/.config/quickshell/pShell` (also see its `CLAUDE.md` and
 `docs/development/`). Per spec: check how pShell does something before writing an equivalent.
 
-Not a git repo. No tests, no linter, no formatter.
+No tests, no linter, no formatter. Machine-specific notes (hardware, the dev box, the
+user's data) live outside the repo: `CLAUDE.local.md` (git-ignored) and `~/.claude/CLAUDE.md`.
 
 ## Run / verify
 
 - Entry file MUST be `shell.qml` (Quickshell 0.3.1 loads `shell.qml`, ignores `main.qml`).
   Current content: `import "core"` + `Shell {}`.
-- Smoke test: `timeout 8 quickshell -p $PWD 2>&1 | head -40` (needs a Wayland session; niri here).
-- Runtime logs: stderr and `/run/user/1000/quickshell/by-id/<id>/log.qslog`.
-- The user's live shell is pShell (separate `qs` process). Running Flicker in parallel is
-  safe; these warnings are EXPECTED and harmless: "Could not register notification server at
-  org.freedesktop.Notifications", portal "Connection already associated with an application ID".
-- NEVER leave a background Flicker running: the user tests their own instance
-  (`qs -c flicker`) — two same-config instances overlap on screen (looks like
-  mismatched radii!) and IPC routing between them is ambiguous. Before starting
-  one, check BOTH forms: `pgrep -af "quickshell|qs -c"`. Kill yours immediately
-  after (`kill <PID>`, literal PID — `pkill -f`/subshell kills are blocked).
+- Smoke test: `timeout 8 quickshell -p $PWD 2>&1 | head -40` (needs a Wayland session).
+- Runtime logs: stderr and `$XDG_RUNTIME_DIR/quickshell/by-id/<id>/log.qslog`.
+- Next to another shell these warnings are EXPECTED and harmless: "Could not register
+  notification server at org.freedesktop.Notifications", portal "Connection already
+  associated with an application ID".
+- NEVER leave a background Flicker running next to a live `qs -c flicker`: two same-config
+  instances overlap on screen (looks like mismatched radii!) and IPC routing between them
+  is ambiguous. Before starting one, check BOTH forms: `pgrep -af "quickshell|qs -c"`.
+  Kill yours immediately after (`kill <PID>`, literal PID — `pkill -f`/subshell kills are blocked).
 - Real pointer input: `python3 temp/vmouse.py <dx dy>... click sleep <s>` = uinput virtual
-  mouse (/dev/uinput is user-writable via ACL here), clicks/moves land through the compositor
+  mouse (needs a writable /dev/uinput), clicks/moves land through the compositor
   like a real mouse. Move in SMALL steps (`-40 0` ×20): one large relative jump barely moves
   the cursor. Cursor position: debugState `capture.square` while capture is open.
-- Visual check: `grim /tmp/shot.png`, crop top-center. grim is fast here now (Oct 2026:
-  ~60ms `-t ppm`, ~125ms png); earlier sessions saw ~1.9s — if so, raise
+- Visual check: `grim /tmp/shot.png`, crop top-center. If grim is slow (~1.9 s seen), raise
   `timings.osdAutoCloseMs` when screenshotting short-lived states.
-- IPC: `quickshell -p $PWD ipc call <target> <fn>` (with the user's instance running,
+- IPC: `quickshell -p $PWD ipc call <target> <fn>` (with a live instance running,
   address yours via `quickshell ipc --id <by-id dir> call ...`). `island` is ONE handler
   (`core/IslandIpc.qml`) routed via `core/IslandRegistry.qml` to the island on
   `compositor.focusedOutput` — never put an IpcHandler in per-screen Island. Targets: `island` (launcher (toggle), launcherPlugin <id> (apps|clipboard|wallpapers, toggle), quicksettings, quicksettingsEdit/Page/Resize/Expand, stashMenu <i>,
@@ -80,7 +79,7 @@ Not a git repo. No tests, no linter, no formatter.
   `startRecording/stopRecording` API but delegates to `services/Recorder.qml` (single
   source of truth for the flag + wf-recorder process). Backends must NOT spawn wf-recorder.
   Compositor also needs `recorder: recorderService` injected in `core/Shell.qml`.
-- The user runs BOTH niri and driftwm (check `pgrep -a driftwm` / `NIRI_SOCKET` before
+- Both niri and driftwm are supported (check `pgrep -a driftwm` / `NIRI_SOCKET` before
   assuming). Drift backend: `driftwm msg subscribe --json` snapshots (`{"State":...}`),
   fullscreen = top-level `State.fullscreen[].output` (window `mode: "Fit"` is NOT
   fullscreen), no workspaces; protocol source in /usr/src/debug/driftwm/*/src/ipc/protocol.rs.
@@ -113,10 +112,9 @@ Not a git repo. No tests, no linter, no formatter.
   (`probe` exit 0 usable / 1 none / 2 no access + hint; `run --options JSON`) + `udev.rules`:
   `evdev-haptic` (kernel FF_HAPTIC, never FF_RUMBLE = gamepads; ctypes structs verified
   48 B / EVIOCSFF 0x40304580, NOT tested on hardware), `apple-t2` (hidraw report 0x53,
-  verified on 05ac:0340; release = the driver's segment-less packet `53 01 s f`
+  verified on hardware; release = the driver's segment-less packet `53 01 s f`
   (`rate_probe.py release-native`: 14/90, 28/ff, 14/ff, click→release at 0 ms all pass), tick =
-  click waveform; a lone rejection at 20:21 came right after a FAILED RESUME FROM SUSPEND (the
-  user's suspend is broken) — the T2 may reject anything in that state), `_template`. A change of backend/order/backendOptions restarts the backend (`setupKey`).
+  click waveform; after a FAILED RESUME FROM SUSPEND the T2 may reject anything), `_template`. A change of backend/order/backendOptions restarts the backend (`setupKey`).
   Exit 3 = no backend → re-probe every `rescanMs`
   with `--quiet` (hint logged once). apple-t2: NEVER send untested bytes — a rejected
   packet stalls EP0 of the whole keyboard/trackpad and the T2 resets it (~5 s, hidraw
@@ -125,11 +123,11 @@ Not a git repo. No tests, no linter, no formatter.
   `temp/haptic/rate_probe.py` (log `temp/haptic/logs/rate-probe.jsonl`): NOT bytes, NOT rate (a
   write blocks ~5 ms; 0 ms gaps, 1000-write floods, Caps Lock LED / backlight toggles all pass;
   the segment-less release packet is fine too) — TWO CONCURRENT WRITERS race on the shared EP0
-  and stall it (probe "parallel": 1 of ~45 overlapping pairs). 17:38 = my smoke instance + the
-  user's shell. So the backend holds an exclusive flock on the device (second writer stays
+  and stall it (probe "parallel": 1 of ~45 overlapping pairs; first seen with a smoke instance
+  next to a live shell). So the backend holds an exclusive flock on the device (second writer stays
   silent, logs once) — NEVER run a second Flicker with haptics on. After EPIPE/ETIMEDOUT it
-  goes quiet until the HID node re-enumerates (logs effect/packet/gap); minIntervalMs 40 (rate is irrelevant) (`authorized` 0/1 on
-  /sys/bus/usb/devices/7-5 was tried: keyboard+trackpad never came back, Oct 2026); plain write() of the exact packet
+  goes quiet until the HID node re-enumerates (logs effect/packet/gap); minIntervalMs 40 (rate is irrelevant) (toggling the USB device's
+  `authorized` 0/1 was tried: keyboard+trackpad never came back, Oct 2026); plain write() of the exact packet
   length = EP0 SET_REPORT (no OUT endpoint). Test packets against a plain file
   (`--options '{"device":"/tmp/f"}'`, xxd). Places (user decision, `Config.haptics`
   toggles): BOUND volume/brightness reaching/passing a multiple of `osdStepEvery` % (10) = tick (OsdWatcher; QS sliders are quiet →
@@ -198,7 +196,7 @@ Not a git repo. No tests, no linter, no formatter.
   Password dots (`LockDots`, user: like caelestia's MaterialShape input): each char pops in as a
   random shape and morphs into the dot; a deleted slot shrinks away (a ListModel trails the count
   by `dotExitMs`, appended/removed at the end — an INT Repeater model rebuilt every delegate, so
-  all dots replayed the pop-in on each keystroke). M3Shapes is a hand-installed C++ plugin (/usr/lib/qt6/qml, no package) — NOT
+  all dots replayed the pop-in on each keystroke). M3Shapes (C++ plugin, not packaged) is NOT
   used: `components/MorphShape.js` = polar r(θ) shapes (cookie/sunny/burst/star/n-gon, max r 1),
   morph = per-angle lerp; `components/MorphDot.qml` = CurveRenderer PathPolyline of it. Verified
   with harness frames (shapes, morph, collapse).
@@ -485,14 +483,14 @@ Not a git repo. No tests, no linter, no formatter.
   Plugin owns the state (`entries`, `selected`, animated `pos` on a Spring whose params come from
   `wallpapers.speeds[speedLevel]`: single step / quick steps within `speedWindowMs` / auto-repeat
   + jumps; jumps > `flyMax` snap); `WallCarousel` only draws a WINDOW of cards (ScriptModel slice
-  around round(pos), `CarouselMath.reach`) — the user's folder has ~3600 files. `CarouselMath.js`:
+  around round(pos), `CarouselMath.reach`) — folders hold thousands of files. `CarouselMath.js`:
   width/height/x per offset d (body = `visibleCards` cards, tiers `cardWidths[k]`/`cardHeights[k]` by |d|, gap stays exactly
   `cardSpacing`), parallax = art wider than the card shifted −d·parallax (clamped to the overscan).
   GIF/video play in the centre card `playDelayMs` after it rests (AnimatedImage / MediaPlayer+
   VideoOutput, muted, looped). Thumbs on demand (`thumbAhead` around the selection) via
   `scripts/wallpapers/thumbs.sh` (ffmpeg, `thumbJobs` parallel) → `~/.cache/flicker/wallpapers/
   <md5(path|mtime|size)>.jpg`; scan `scripts/wallpapers/scan.sh` (dot DIRS skipped; dot FILES = hidden wallpapers, listed with
-  `hidden: true` — the user's folder has ~1350; thumb key ignores the dot), rescan
+  `hidden: true`; thumb key ignores the dot), rescan
   only when the dir-mtime signature changes (poll `rescanMs` while active). Live preview (fade,
   `--no-theme`) after `previewDelayMs`; Esc/close/other plugin restores the original read from
   `~/.cache/wallr/last_wallpaper/<output>` (execDetached from onDestruction). Enter = this output,
@@ -514,8 +512,8 @@ Not a git repo. No tests, no linter, no formatter.
   `random(output)` (`island wallpaperRandom`, `randomFrom` all|favourites, never the current),
   `setHidden()` ("name" <-> ".name" via `scripts/wallpapers/hide.sh`, queued, result in
   `hideDone` → the carousel rescans if it did not land as assumed; an identical twin under the
-  new name → source to `gio trash`, a different one → "<stem>-<n>"; the user's folder had 53
-  byte-identical name/.name twins where `mv -n` silently did nothing — cards "came back"),
+  new name → source to `gio trash`, a different one → "<stem>-<n>"; byte-identical name/.name
+  twins happen, and `mv -n` silently did nothing on them — cards "came back"),
   random skips hidden; hide/fav chords ignore auto-repeat, video pause `wallr ipc pause/resume -m <out>` per screen on
   fullscreen (`pauseOnFullscreen`) / battery (`pauseOnBattery`) / SESSION LOCK (wallr 0.6.4 presents
   via Vulkan FIFO, ignores frame callbacks; under a lock the present blocks and its play_video loop
@@ -561,10 +559,9 @@ Not a git repo. No tests, no linter, no formatter.
   `services/WallpaperDupes.qml` runs `scripts/wallpapers/dupes.py` (system python3 + Pillow) on
   the carousel THUMBNAILS: dHash candidates (8×8-bit bands) verified on a 16×16 RGB miniature
   (per-channel / mean diff + contrast-normalised luminance ≤ `dupesMaxZ`; near-flat images must
-  match exactly) and grouped around a representative (no A~B~C chaining). Calibrated on the
-  user's folder: dHash + union-find alone gave groups of 228/117 dark/minimal wallpapers; real
-  duplicates (incl. 7680×4320 vs 1920×1080) sit at z ≤ 0.13, distinct dark ones ≥ 0.26 → 79
-  groups / 165 files. Fingerprints cached in `<thumbCache>/dhash.json` (~2 s warm, ~15 s cold);
+  match exactly) and grouped around a representative (no A~B~C chaining). Calibrated on a
+  real folder: dHash + union-find alone gave huge groups of dark/minimal wallpapers; real
+  duplicates (incl. 7680×4320 vs 1920×1080) sit at z ≤ 0.13, distinct dark ones ≥ 0.26. Fingerprints cached in `<thumbCache>/dhash.json` (~2 s warm, ~15 s cold);
   refreshed when the warm-up goes idle and on opening the view if older than `dupesMaxAgeMin`.
   Caption line `detail` = "n of m · W×H · size"; a group left with one visible member drops out.
   Process stdin one-shot: `stdinEnabled: true`, write() in onStarted, then `stdinEnabled = false`
@@ -588,16 +585,16 @@ Not a git repo. No tests, no linter, no formatter.
   (uv script: onnxruntime/numpy/pillow/tokenizers) = a JSON-lines server (index / query /
   similar / forget / stop), vectors fp16 in `<thumbCache>/clip/`, image encoder loaded only while
   indexing, quits after `semanticIdleSec`; `services/WallpaperSemantic.qml` starts it on demand
-  (outbox until started), indexes all thumbnails after the warm-up goes idle (niced, ~2.8 s per
-  image on the i7-9750H — 6 threads beat 12, int8 quantize gave nothing: the export is already
-  quantized; ~1000 files ≈ 50 min, resumable: saved every 16), not on battery. Carousel: "? text"
+  (outbox until started), indexes all thumbnails after the warm-up goes idle (niced, seconds per
+  image on a laptop CPU — physical-core threads beat SMT ones, int8 quantize gave nothing: the
+  export is already quantized; resumable: saved every 16), not on battery. Carousel: "? text"
   (debounced `semanticDebounceMs`, stale answers dropped by seq) and "~ name" / Ctrl+F = similar,
   best `semanticTop` by score, the best match centred (`rankReset`); pills "Searching…" /
   "Indexing n / m". Text encoder input is fixed 1×32 (padded); its attention pooling ignores
   the mask — queries are encoded one at a time. Verified: standalone protocol test, Russian
   queries on named thumbnails ("кот" → 3 cats, "машина" → 3 cars), live "? кот" + Ctrl+F.
   Hidden files are indexed too (same vector hidden/unhidden — the key ignores the dot), visible
-  ones FIRST (the folder is ~3900 hidden of ~4900: ~3 h for everything), or skipped with
+  ones FIRST (hidden ones can be the bulk of a folder), or skipped with
   `semanticIndexHidden: false` (panel: General); the hidden-view mode filters BEFORE ranking.
   Panel action row "Search index" (row kind "action"): Run now = `forceIndex()` (ignores the
   battery gate, not stopped by unplugging), Stop = `stopIndex()` (`userStopped`: automatic runs
@@ -648,7 +645,7 @@ Not a git repo. No tests, no linter, no formatter.
   FIFO queue, ONE file at a time, `stateOf(path)` ""|queued|running|done|error, result JSON
   `cachePath("transcripts")/<md5(path)>.json` (`known` = cache scan at start + finished runs;
   stale if a same-named file replaces it → the view's re-run button). `scripts/stash/transcribe.py`
-  (uv script, whisperx 3.8 on the PyTorch CPU index via `[tool.uv.sources]` — no CUDA here, Navi 14;
+  (uv script, whisperx 3.8 on the PyTorch CPU index via `[tool.uv.sources]` — no CUDA assumed;
   protocol on a dup of fd 1, every library print goes to stderr; progress parsed from WhisperX's
   "Progress: N%" prints, weighted transcribe/align/diarize). Run = uv offline first, online retry
   only when it died WITHOUT output. Bar event key "transcribe" (transfer glyph + progress, hold).
@@ -747,7 +744,7 @@ Not a git repo. No tests, no linter, no formatter.
   (`fuser` poll `cameraPollMs`, pipewire/wireplumber ignored; browsers use V4L2 directly).
   Verified live: ffmpeg on /dev/video0 → green "ffmpeg"; a gst `pipewiresink mode=provide`
   Video/Source named xdpw-stream → red. NOT verified: consumer names via PwLink (gst
-  pipewiresrc got "target not found" here), a real portal screencast.
+  pipewiresrc got "target not found"), a real portal screencast.
   EVENT INDICATORS (`services/Events.qml`): one at a time, FIFO with the notification-flow
   timing (`events.showMs` 5 s alone / `showQueuedMs` 3 s with more queued, an arrival shortens
   the visible one; `gapMs` collapse between two). Glyph at the far LEFT (`EventIcon`, `eventIconSize` 22, `eventGap` 28 — user, Oct 2026; while an event shows (or is queued) the row recedes: `IndicatorLayout.rowSurface` BlurSurface to `eventRowOpacity`/`eventRowBlur`; pressed to the edge: same gap to the left edge as to
@@ -904,7 +901,7 @@ Not a git repo. No tests, no linter, no formatter.
   first), `EventAudioOutput` (`pactl subscribe` → debounced `pactl -f json list sinks`, signature
   default-sink|active-port — a jack plug only switches the PORT; bluez sinks skipped = EventBluetooth's;
   glyph headphones/display/speaker/laptop, texts name → live volume), `EventBattery` (full = FullyCharged
-  or ≥ charge limit (`battery.chargeLimit`, 0 = sysfs charge_control_end_threshold, none here → 100),
+  or ≥ charge limit (`battery.chargeLimit`, 0 = sysfs charge_control_end_threshold, none → 100),
   critical ≤ `battery.criticalPercent`, once per charge / discharge; `BatteryGlyph`), `EventDisplays`
   (Quickshell.screens diff; `DisplayGlyph`, `args.off` = TV switch-off), `EventDrives` (`udevadm monitor`
   block → `lsblk -J`, hotplug/rm + fstype; `DriveGlyph`, `args.eject`). Event `tap` (function) = NEW:
@@ -922,7 +919,7 @@ Not a git repo. No tests, no linter, no formatter.
   `Recorder.saveProgress`. IPC `eventDemo wifi|wifiLost|output|full|critical|display|displayOff|drive|
   driveOff|downloaded` run the REAL announcers. Verified on the live instance (grim frames): every demo,
   a fake growing `.part` → status + drop split + "Downloaded" event. NOT tested: real Wi‑Fi roam, jack
-  plug (T2 audio), real monitor / USB stick, pacman (needs root), Lens, record save progress, model
+  plug, real monitor / USB stick, pacman (needs root), Lens, record save progress, model
   downloads, refine warm-up, taps (mouse).
 - Timer (Oct 2026, user design after an iOS Live Activity reference): `services/Countdown.qml`
   (NOT `Timer.qml` — would shadow QtQuick's Timer in that dir; phase idle|running|paused|done,
@@ -1002,9 +999,9 @@ Not a git repo. No tests, no linter, no formatter.
   nothing reports it → `probe()` maps a second full-screen INPUT surface for a moment, the
   compositor sends wl_pointer.enter ~17 ms after the map (verified on driftwm), `pointerSeen`
   unmaps it; the pill shows only after the probe. Native text on a transparent surface leaves
-  subpixel colour fringes → `RollingText.renderType: Text.QtRendering`. The user's xkb has
-  `grp:caps_toggle`: Caps = layout switch, Shift+Caps = Caps Lock. Test: `temp/vkey.py`
-  (uinput keyboard: `42+58` = Shift+Caps, `58` = switch, `30` = a, `led`) — the whole sequence in
+  subpixel colour fringes → `RollingText.renderType: Text.QtRendering`. Test: `temp/vkey.py`
+  (uinput keyboard, keycodes; with xkb `grp:caps_toggle` `42+58` = Shift+Caps = Caps Lock,
+  `58` = layout switch, `30` = a, `led`) — the whole sequence in
   ONE vkey run (a vkey device leaving resets the compositor's Caps Lock); `zenity --entry` for a
   caret; one-shot Timer: `running` is still true inside onTriggered (own flags). IPC
   `island keyboardDemo layout|caps`, debugState `keyboard`. Verified live: caret follow while
@@ -1033,7 +1030,7 @@ Not a git repo. No tests, no linter, no formatter.
   Stopped with stale voice-message metadata) over the actually playing app.
   Cover art: `Players.artUrl` is NEVER a remote URL — http(s) art (Spotify i.scdn.co, YouTube
   thumbs) is fetched with `curl -4` into `cachePath("art")/<md5>` (`Config.mediaArt`), Qt's
-  network Image loader stalled on this network's broken IPv6 (Spotify covers never showed,
+  network Image loader stalled on a network with broken IPv6 (Spotify covers never showed,
   no warning logged; a fresh process loaded them). Raw value = `remoteArt`.
 
 - i18n (Oct 2026, user: source language ENGLISH): `config/I18n.qml` (pragma Singleton next to
@@ -1043,8 +1040,7 @@ Not a git repo. No tests, no linter, no formatter.
   key; ru `MMMM` = genitive, `standaloneMonthName` = nominative; `I18n.capitalize` for ru's
   lowercase names). Catalog `assets/i18n/<lang>.json` = flat `{English: перевод}`, plural entry =
   array in the language's CLDR order (ru one/few/many, rule in `pluralIndex`), missing/empty →
-  English. Language = `Config.i18n.language` (`"auto"` = Qt.locale(), default; the user's
-  config pins `"en"` (Oct 2026; system LANG is en_US, so "auto" = English too)). Catalog watched; switching language
+  English. Language = `Config.i18n.language` (`"auto"` = Qt.locale(), default). Catalog watched; switching language
   re-evaluates bindings live (tr() reads `table`) — verified ru↔en on the dashboard. Never hard-code
   non-English UI text or keep translated strings in services: return English keys and translate
   at the display site (`Weather.desc`, `QsCatalog` titles) so a switch follows without a refetch.
@@ -1237,8 +1233,7 @@ modules launcher/quicksettings/dashboard/player/osd/capture/dictation/notificati
 NOT live-tested; flow FIFO queue with 5s single / 3s queued lifetimes
 (`flowShowMs`/`flowShowQueuedMs`) + collapse-to-bar gap between cards
 (`flowSwapGapMs`, `pendingFlow` + `requeue` keep FIFO on user intervention),
-verified headless on a nested bus with scaled timings, live D-Bus unreachable —
-pShell owns the notification server; card layout `NotificationCard`: avatar (sender `image`, else app
+verified headless on a nested bus with scaled timings; card layout `NotificationCard`: avatar (sender `image`, else app
 icon, else initial letter) + app-icon badge on the avatar rim, title … time
 (today HH:MM / Вчера, HH:MM / Пн HH:MM / dd.mm.yyyy), body, 3 lines max incl. title;
 icon resolution chain: D-Bus app_icon → bare name smuggled via image-path
@@ -1364,7 +1359,7 @@ Simplified / not implemented yet (see flicker.md for the intended behaviour):
   inside the morphing rounded outline. Secondary layers (idle discs, rail disc, chips,
   pills, hover ✕) only fade alpha to `effects.frostLayerOpacity`. Independent of
   `disableCompositorBlur`. Island layer namespace `flicker-island`; niri needs a
-  `layer-rule` with `background-effect { xray false }` (added to ~/.config/niri/config.kdl)
+  `layer-rule` with `background-effect { xray false }` in the niri config
   or it blurs only the wallpaper; driftwm blurs windows under layer surfaces by itself
   (verified there). Accent colours (qsFill/Blue/Green, slider icons) from the samples.
 - Blur: backdrop blur via niri's `ext-background-effect-v1` is WIRED
@@ -1482,7 +1477,7 @@ Simplified / not implemented yet (see flicker.md for the intended behaviour):
   old null-sink + 2 loopbacks mix recorded DIGITAL SILENCE in ~1 of 4 runs when another stream
   started meanwhile, graph linked fine — reproduced with pw-play, Oct 2026), pause = segment split (SIGUSR1), live
   audio switch (`.audioctl` + SIGUSR2), discard, VAAPI via `recorder.hwDevice`.
-  wf-recorder 0.6 HERE drops the video with `--audio` (pulse) and the audio with
+  wf-recorder 0.6 drops the video with `--audio` (pulse) and the audio with
   `--audio-backend=pipewire` — so record.sh captures video (wf-recorder) and audio
   (`parecord --latency-msec=50`; default latency loses ~2s of buffer on SIGINT)
   separately and muxes per segment (`-c:v copy -af apad -shortest`, silent track for
