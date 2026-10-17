@@ -143,7 +143,7 @@ Scope {
         const title = ok ? I18n.tr("Transcript ready") : I18n.tr("Transcription failed");
         const body = ok ? root.fileName(path) : `${root.fileName(path)}\n${message}`;
         Quickshell.execDetached(["bash", "-c",
-            `a=$(notify-send -a pillShell -A default=${q(I18n.tr("Open"))} ${q(title)} ${q(body)}); `
+            `a=$(notify-send -a Flicker -A default=${q(I18n.tr("Open"))} ${q(title)} ${q(body)}); `
             + `[ "$a" = default ] && quickshell ipc -p ${q(Quickshell.shellDir)} call island stashTranscript ${q(path)}`]);
     }
 

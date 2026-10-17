@@ -83,7 +83,7 @@ Scope {
         screen: root.targetScreen
         color: "transparent"
         WlrLayershell.layer: WlrLayer.Top
-        WlrLayershell.namespace: "pillShell-record-region"
+        WlrLayershell.namespace: "flicker-record-region"
         WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
         WlrLayershell.exclusionMode: ExclusionMode.Ignore
         anchors.top: true

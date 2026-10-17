@@ -139,7 +139,7 @@ Item {
             id: imgBox
             // PDF: first page rendered once per file (cached next to the
             // tile thumbs, regenerated when the file is newer).
-            readonly property string pdfPng: `/tmp/pillshell_stash_thumbs/${Qt.md5(root.path)}-ql.png`
+            readonly property string pdfPng: `/tmp/flicker_stash_thumbs/${Qt.md5(root.path)}-ql.png`
             property string pdfReady: ""
             readonly property real naturalW: img.status === Image.Ready ? Math.max(img.implicitWidth, img.sourceSize.width) : 0
             readonly property real naturalH: img.status === Image.Ready ? Math.max(img.implicitHeight, img.sourceSize.height) : 0
@@ -148,7 +148,7 @@ Item {
             Process {
                 running: root.kind === "pdf"
                 command: ["bash", "-c", `f=${root.stash.shq(imgBox.pdfPng)}; [ "$f" -nt ${root.stash.shq(root.path)} ] && exit 0; `
-                    + `mkdir -p /tmp/pillshell_stash_thumbs && pdftoppm -png -singlefile -f 1 -l 1 -scale-to ${Math.round(root.cfg.previewMaxHeight * 2)} `
+                    + `mkdir -p /tmp/flicker_stash_thumbs && pdftoppm -png -singlefile -f 1 -l 1 -scale-to ${Math.round(root.cfg.previewMaxHeight * 2)} `
                     + `${root.stash.shq(root.path)} "\${f%.png}"`]
                 onExited: code => {
                     if (code === 0)

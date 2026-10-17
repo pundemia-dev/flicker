@@ -24,7 +24,7 @@ Item {
         if (d)
             return d.replace(/^~/, Quickshell.env("HOME"));
         const x = Quickshell.env("XDG_CACHE_HOME");
-        return ((x && x.length) ? x : Quickshell.env("HOME") + "/.cache") + "/pillShell/clipboard";
+        return ((x && x.length) ? x : Quickshell.env("HOME") + "/.cache") + "/flicker/clipboard";
     }
 
     function shq(s: string): string {

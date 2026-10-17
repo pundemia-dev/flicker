@@ -4,11 +4,11 @@
 # dependencies = []
 # ///
 #
-# LocalSend receive server for pillShell Stash.
+# LocalSend receive server for Flicker Stash.
 #
 # Runs as a long-lived child of the LocalSend.qml service. It does three things:
 #   1. Announces itself on UDP multicast (and replies to peers' announces) so
-#      other LocalSend apps list pillShell as a target.
+#      other LocalSend apps list Flicker as a target.
 #   2. Serves the LocalSend v2 HTTPS API on :53317.
 #   3. Bridges accept/reject decisions with QML over stdin/stdout:
 #        - emits one JSON object per line on stdout  (events -> QML)
@@ -40,7 +40,7 @@ PORT = 53317
 UPLOAD_TIMEOUT = 20
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--alias", default="pillShell Stash")
+parser.add_argument("--alias", default="Flicker Stash")
 # FilesTray directory: every accepted *file* is also mirrored here so it shows
 # up in the stash tray. Empty disables mirroring.
 parser.add_argument("--stash-dir", default="")
@@ -50,7 +50,7 @@ STASH_DIR = os.path.expanduser(args.stash_dir) if args.stash_dir else ""
 
 import hashlib
 
-CACHE_DIR = os.path.expanduser("~/.cache/pillshell_localsend")
+CACHE_DIR = os.path.expanduser("~/.cache/flicker_localsend")
 os.makedirs(CACHE_DIR, exist_ok=True)
 CERT = os.path.join(CACHE_DIR, "cert.pem")
 KEY = os.path.join(CACHE_DIR, "key.pem")
@@ -63,7 +63,7 @@ if not (os.path.exists(CERT) and os.path.exists(KEY)):
     subprocess.run([
         "openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes",
         "-keyout", KEY, "-out", CERT, "-days", "3650",
-        "-subj", "/CN=pillShell Stash",
+        "-subj", "/CN=Flicker Stash",
     ], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 with open(CERT) as _cf:
@@ -97,7 +97,7 @@ def device_info():
     return {
         "alias": ALIAS,
         "version": "2.1",
-        "deviceModel": "pillShell",
+        "deviceModel": "Flicker",
         "deviceType": "desktop",
         "fingerprint": FINGERPRINT,
         "port": PORT,
@@ -439,7 +439,7 @@ _reg_ctx.verify_mode = ssl.CERT_NONE
 def http_register(peer, port):
     # Actively register with a peer over HTTP(S). iOS LocalSend discovers
     # peers via this registration handshake rather than multicast replies,
-    # so this is what makes pillShell show up on iPhones. Try HTTPS then HTTP.
+    # so this is what makes Flicker show up on iPhones. Try HTTPS then HTTP.
     body = json.dumps(device_info()).encode()
     for scheme, ctx in (("https", _reg_ctx), ("http", None)):
         try:

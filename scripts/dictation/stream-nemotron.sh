@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# stream-nemotron.sh — live backend for pillShell dictation (Nemotron 3.5).
+# stream-nemotron.sh — live backend for Flicker dictation (Nemotron 3.5).
 #
 # Single process (python execs below): SIGINT/SIGTERM land in
 # stream-nemotron-ws.py, which kills its own pw-record child, commits the
@@ -19,13 +19,13 @@ umask 077
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WS_PY="$SCRIPT_DIR/stream-nemotron-ws.py"
 # Interpreter with the `websockets` package: dedicated venv first, then system.
-WS_VENV_PY="$HOME/.local/share/pillshell-ws/bin/python"
+WS_VENV_PY="$HOME/.local/share/flicker-ws/bin/python"
 if [[ -x "$WS_VENV_PY" ]] && "$WS_VENV_PY" -c "import websockets" 2>/dev/null; then
   WS_PY_BIN="$WS_VENV_PY"
 elif command -v python3 >/dev/null && python3 -c "import websockets" 2>/dev/null; then
   WS_PY_BIN="python3"
 else
-  _err='{"type":"error","message":"stream backend: no python with websockets (create pillshell-ws venv)"}'
+  _err='{"type":"error","message":"stream backend: no python with websockets (create flicker-ws venv)"}'
   printf '%s\n' "$_err" >&2
   if [[ -n "${DICT_SESSION_FILE:-}" ]]; then printf '%s\n' "$_err" >> "$DICT_SESSION_FILE"; fi
   exit 1

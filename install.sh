@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# install.sh — one-stop setup for pillShell. Grows over time: every manual
+# install.sh — one-stop setup for flicker. Grows over time: every manual
 # setup step lands here as a new section. Idempotent: safe to re-run,
 # finished steps detect themselves and skip.
 set -u
@@ -72,7 +72,7 @@ fi
 
 # 3a. Search model: visheratin/mexma-siglip2 (MIT) ONNX encoders, ~1 GB.
 # Resumable into .part, sha256-checked against the Hugging Face LFS hashes.
-SEM_DIR="$HOME/.local/share/pillShell/models/mexma-siglip2"
+SEM_DIR="$HOME/.local/share/flicker/models/mexma-siglip2"
 SEM_URL="https://huggingface.co/visheratin/mexma-siglip2/resolve/main"
 mkdir -p "$SEM_DIR"
 declare -A SEM_SHA=(

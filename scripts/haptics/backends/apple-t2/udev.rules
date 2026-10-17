@@ -1,14 +1,14 @@
-# pillShell haptics, apple-t2 backend: T2 MacBook trackpad actuator.
+# Flicker haptics, apple-t2 backend: T2 MacBook trackpad actuator.
 # Gives the seat user access (uaccess ACL) to interface 3 of the Apple internal
 # keyboard/trackpad and a stable name that survives re-enumeration:
-# /dev/pillshell-haptic.
-# Install: sudo install -m644 udev.rules /etc/udev/rules.d/70-pillshell-haptic.rules
+# /dev/flicker-haptic.
+# Install: sudo install -m644 udev.rules /etc/udev/rules.d/70-flicker-haptic.rules
 #          sudo udevadm control --reload && sudo udevadm trigger -s hidraw
 # All ATTRS of one rule must match on the SAME parent, so the HID vendor (HID
 # device), the product name (USB device) and the interface number (USB
 # interface) are checked in steps through ENV flags.
-SUBSYSTEM!="hidraw", GOTO="pillshell_haptic_end"
-KERNELS=="0003:05AC:*", ENV{PILLSHELL_APPLE_HID}="1"
-ENV{PILLSHELL_APPLE_HID}=="1", SUBSYSTEMS=="usb", ATTRS{product}=="Apple Internal Keyboard / Trackpad", ENV{PILLSHELL_APPLE_KBTP}="1"
-ENV{PILLSHELL_APPLE_KBTP}=="1", SUBSYSTEMS=="usb", ATTRS{bInterfaceNumber}=="03", SYMLINK+="pillshell-haptic", TAG+="uaccess"
-LABEL="pillshell_haptic_end"
+SUBSYSTEM!="hidraw", GOTO="flicker_haptic_end"
+KERNELS=="0003:05AC:*", ENV{FLICKER_APPLE_HID}="1"
+ENV{FLICKER_APPLE_HID}=="1", SUBSYSTEMS=="usb", ATTRS{product}=="Apple Internal Keyboard / Trackpad", ENV{FLICKER_APPLE_KBTP}="1"
+ENV{FLICKER_APPLE_KBTP}=="1", SUBSYSTEMS=="usb", ATTRS{bInterfaceNumber}=="03", SYMLINK+="flicker-haptic", TAG+="uaccess"
+LABEL="flicker_haptic_end"

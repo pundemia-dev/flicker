@@ -1,8 +1,8 @@
-# pillShell haptics, evdev-haptic backend: lets the seat user write force
+# Flicker haptics, evdev-haptic backend: lets the seat user write force
 # feedback to TOUCHPADS (uaccess ACL). Trade-off: the logged-in user can then
 # also read raw touchpad events (motion/taps, not keystrokes) — the same access
 # libinput already has. Alternative: add yourself to the `input` group (wider:
 # keyboards too).
-# Install: sudo install -m644 udev.rules /etc/udev/rules.d/70-pillshell-evdev-haptic.rules
+# Install: sudo install -m644 udev.rules /etc/udev/rules.d/70-flicker-evdev-haptic.rules
 #          sudo udevadm control --reload && sudo udevadm trigger -s input
 SUBSYSTEM=="input", KERNEL=="event*", ENV{ID_INPUT_TOUCHPAD}=="1", TAG+="uaccess"

@@ -36,7 +36,7 @@ Scope {
     PamContext {
         id: passwd
 
-        config: "pillshell"
+        config: "flicker"
         configDirectory: Quickshell.shellDir + "/assets/pam.d"
 
         onMessageChanged: {

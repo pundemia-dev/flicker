@@ -96,9 +96,9 @@ PanelWindow {
         ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
     WlrLayershell.exclusionMode: ExclusionMode.Ignore
     // Own namespace so compositor rules can target the island (niri
-    // `layer-rule { match namespace="^pillShell-island$" }` with
+    // `layer-rule { match namespace="^flicker-island$" }` with
     // `background-effect { xray false }` blurs the windows under it).
-    WlrLayershell.namespace: "pillShell-island"
+    WlrLayershell.namespace: "flicker-island"
     anchors.top: true
     anchors.left: true
     anchors.right: true

@@ -98,7 +98,7 @@ WAYLAND_CORE_XML = "/usr/share/wayland/wayland.xml"
 
 
 def ensure_bindings() -> Path:
-    cache = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "pillShell" / "vptr-bindings"
+    cache = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "flicker" / "vptr-bindings"
     marker = cache / "gen" / "wlr_virtual_pointer_unstable_v1" / "__init__.py"
     if not marker.exists():
         gen = cache / "gen"

@@ -136,7 +136,7 @@ Scope {
         function island(): void { root.island?.state.setIsland(); }
         function osd(title: string, icon: string, value: real): void { root.island?.showOsd({ kind: "custom", icon: icon, value: value }); }
 
-        // Key-driven OSD (bind in niri: qs -c pillShell ipc call island <fn>)
+        // Key-driven OSD (bind in niri: qs -c flicker ipc call island <fn>)
         // Value keys: just change the value — core/OsdWatcher shows the OSD
         // for ANY change (also wpctl/brightnessctl bound in the compositor).
         // A press that cannot move the value (at an end) produces no change

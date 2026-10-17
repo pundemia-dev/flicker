@@ -23,7 +23,7 @@ Scope {
     readonly property bool enabled: root.cfg.semanticSearch ?? true
     readonly property bool allowed: root.enabled && (!root.discharging || (root.cfg.semanticOnBattery ?? false))
     readonly property string scripts: Quickshell.shellDir + "/scripts/wallpapers/"
-    readonly property string modelDir: (root.cfg.semanticModelDir ?? "~/.local/share/pillShell/models/mexma-siglip2").replace(/^~/, Quickshell.env("HOME"))
+    readonly property string modelDir: (root.cfg.semanticModelDir ?? "~/.local/share/flicker/models/mexma-siglip2").replace(/^~/, Quickshell.env("HOME"))
 
     property bool indexing: false
     property int done: 0

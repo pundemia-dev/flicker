@@ -47,7 +47,7 @@ Scope {
         screen: root.targetScreen
         color: "transparent"
         WlrLayershell.layer: WlrLayer.Overlay
-        WlrLayershell.namespace: "pillShell-keyboard"
+        WlrLayershell.namespace: "flicker-keyboard"
         WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
         WlrLayershell.exclusionMode: ExclusionMode.Ignore
         anchors.top: true
@@ -121,7 +121,7 @@ Scope {
         screen: root.targetScreen
         color: "transparent"
         WlrLayershell.layer: WlrLayer.Overlay
-        WlrLayershell.namespace: "pillShell-keyboard-probe"
+        WlrLayershell.namespace: "flicker-keyboard-probe"
         WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
         WlrLayershell.exclusionMode: ExclusionMode.Ignore
         anchors.top: true

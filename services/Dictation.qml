@@ -326,7 +326,7 @@ Item {
         typer.typeEnabled = root.typeEnabled && root._sink === "type";
         const sc = (root.streamCommand ?? "").trim();
         const cmd = (sc.length === 0 || sc === "stub") ? root._stub : sc;
-        const session = `${root._runtimeDir}/pillShell-dictation-${Date.now()}.jsonl`;
+        const session = `${root._runtimeDir}/flicker-dictation-${Date.now()}.jsonl`;
         root._sessionFile = session;
         stream.sessionId = root._sessionId;
         // Chained start (touch → FileView bind → backend): exact order,
@@ -626,7 +626,7 @@ Item {
     }
 
     function _effectiveCaptureFile(): string {
-        return root._migrateTmp(root.captureFile, "pillShell-dictation.wav");
+        return root._migrateTmp(root.captureFile, "flicker-dictation.wav");
     }
 
     function _removeSessionFile(path: string): void {

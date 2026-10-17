@@ -1,7 +1,7 @@
 .pragma library
 
 // Pure-QML stand-in for M3 expressive MaterialShapes (M3Shapes is a C++
-// plugin; pillShell stays QML-only): every shape is a polar radius function
+// plugin; Flicker stays QML-only): every shape is a polar radius function
 // r(θ) normalised to max 1, so a morph is just a per-angle lerp of two of
 // them — always the same point count, no correspondence problem.
 

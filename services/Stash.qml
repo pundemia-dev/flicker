@@ -16,7 +16,7 @@ Scope {
     property var events: null
 
     // $HOME/~-expanded tray dir.
-    readonly property string stashDir: root.expand(root.cfg?.stashDir ?? "/tmp/pillshell_stash")
+    readonly property string stashDir: root.expand(root.cfg?.stashDir ?? "/tmp/flicker_stash")
     // Rescan while the tray is on screen (files can change underneath it).
     property bool watching: false
     // A tile is being dragged OUT of the tray (native drag): the island must

@@ -9,7 +9,7 @@ import "indicators/glyphs"
 // the shell's own; colours stand in for the Theme tokens.
 FloatingWindow {
     id: win
-    title: "pillShell glyphs"
+    title: "Flicker glyphs"
     implicitWidth: grid.width + 24
     implicitHeight: grid.height + 24 + 140
     color: "#000000"

@@ -16,7 +16,7 @@ send other bytes: a
 rejected packet stalls EP0 of the whole keyboard/trackpad and the T2 resets it
 (~5 s, hidraw renumbers).
 
-Options (JSON): device (default /dev/pillshell-haptic, else sysfs scan),
+Options (JSON): device (default /dev/flicker-haptic, else sysfs scan),
 <effect>: {strength, softness} = the values at intensity 1.0.
 """
 import argparse, errno, fcntl, glob, json, os, sys, time
@@ -65,7 +65,7 @@ def scan():
 
 
 def device_path(opt):
-    dev = opt.get("device") or "/dev/pillshell-haptic"
+    dev = opt.get("device") or "/dev/flicker-haptic"
     if os.path.exists(dev):
         return dev
     nodes = scan()
@@ -81,7 +81,7 @@ def probe():
         print(dev)
         return 0
     print(f"actuator at {nodes[0]} is not writable — install {RULE} "
-          "(sudo install -m644 ... /etc/udev/rules.d/70-pillshell-haptic.rules; "
+          "(sudo install -m644 ... /etc/udev/rules.d/70-flicker-haptic.rules; "
           "sudo udevadm control --reload; sudo udevadm trigger -s hidraw)")
     return 2
 

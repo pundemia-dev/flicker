@@ -3,7 +3,7 @@
 
 Spawns pw-record itself (single direct child of the shell, so SIGINT/SIGTERM
 land here deterministically), streams raw s16le 16k mono to the WS and emits
-pillShell dictation JSONL (partial/final/error) to DICT_SESSION_FILE.
+Flicker dictation JSONL (partial/final/error) to DICT_SESSION_FILE.
 
 Transport is the session FILE (the shell tails it); stdout is deliberately
 NOT used — nothing drains the process stdout pipe, so printing every
@@ -48,7 +48,7 @@ try:
 except ImportError:
     _msg = {"type": "error", "message":
         "stream backend: python 'websockets' package missing "
-        "(need the pillshell-ws venv python)"}
+        "(need the flicker-ws venv python)"}
     _line = json.dumps(_msg, ensure_ascii=False)
     print(_line, file=sys.stderr, flush=True)
     _sess = os.environ.get("DICT_SESSION_FILE", "")

@@ -7,7 +7,7 @@ import "../config"
 // cliphist README pair; noctalia's old QML shell spawned the same, end-4
 // pings its service after every store). niri spawns its own watcher, driftwm
 // does not — so `watch: "auto"` starts ours unless an external one already
-// runs (checked once at start). Ours run as argv[0] `pillshell-clipwatch`, so
+// runs (checked once at start). Ours run as argv[0] `flicker-clipwatch`, so
 // the check never sees them (hot reload: the old instance's are still alive).
 // Every store prints a line → `revision` bumps → an open clipboard plugin
 // re-lists (image copies raise no clipboardTextChanged).
@@ -24,7 +24,7 @@ Scope {
     readonly property bool running: textWatch.running || imageWatch.running
 
     function watchCommand(type: string): var {
-        return ["bash", "-c", `exec -a pillshell-clipwatch wl-paste --type ${type} --watch sh -c 'cliphist store; echo stored'`];
+        return ["bash", "-c", `exec -a flicker-clipwatch wl-paste --type ${type} --watch sh -c 'cliphist store; echo stored'`];
     }
 
     function decide(): void {

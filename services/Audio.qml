@@ -98,9 +98,9 @@ Scope {
         return app === "pw-record" || app === "wf-recorder"
             || bin === "pw-record" || bin === "wf-recorder"
             || nm.indexOf("pw-record") !== -1 || nm.indexOf("wf-recorder") !== -1
-            // record.sh: its parecord stream (client pillshell_rec_audio)
+            // record.sh: its parecord stream (client flicker_rec_audio)
             // and the "both" mode mic/system loopbacks into the mix sink.
-            || app.indexOf("pillshell_rec") !== -1 || nm.indexOf("pillshell_rec") !== -1
+            || app.indexOf("flicker_rec") !== -1 || nm.indexOf("flicker_rec") !== -1
             // components/AudioBars: cava on the output monitor.
             || app === "cava" || bin === "cava" || nm === "cava";
     }

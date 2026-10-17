@@ -1,6 +1,6 @@
 # Trackpad haptics
 
-pillShell can tick the trackpad (Force Touch / haptic touchpads) on a few
+Flicker can tick the trackpad (Force Touch / haptic touchpads) on a few
 moments. The shell itself knows nothing about hardware: it sends abstract
 effects to a **backend** — a small long-running program that makes the
 device vibrate. Pick a bundled backend, or write your own in any language.
@@ -30,7 +30,7 @@ under a finger on the trackpad — on key presses you mostly *hear* the tick.
 2. Install the udev rule of that backend (needs root once):
    ```sh
    sudo install -m644 scripts/haptics/backends/<name>/udev.rules \
-        /etc/udev/rules.d/70-pillshell-<name>.rules
+        /etc/udev/rules.d/70-flicker-<name>.rules
    sudo udevadm control --reload
    sudo udevadm trigger            # re-applies rules to devices already plugged in
    ```

@@ -18,7 +18,7 @@ Scope {
 
     readonly property alias locked: sessionLock.locked
     readonly property var cfg: Config.data.lock ?? ({})
-    readonly property string shotDir: `${Quickshell.env("XDG_RUNTIME_DIR") || "/tmp"}/pillShell/lock`
+    readonly property string shotDir: `${Quickshell.env("XDG_RUNTIME_DIR") || "/tmp"}/flicker/lock`
     // Grab of this lock (one stamp per lock); "" = locked without a grab.
     property string stamp: ""
     property bool grabbing: false

@@ -66,7 +66,7 @@ Item {
     property var safeFillers: ["э", "м", "мм", "эм", "гм", "ммм", "хм", "хмм", "um", "uh", "uhm", "er", "ah", "hmm"]
     // Laughter survives the repeat collapser below.
     property var laughWords: ["ха", "аха", "хаха", "хе", "хехе", "lol", "лол"]
-    property string logFile: "/tmp/pillShell-dictation.jsonl"
+    property string logFile: "/tmp/flicker-dictation.jsonl"
 
     signal done(string text, string lang, string how)
     signal dropped(string text, string lang, string reason)
@@ -465,7 +465,7 @@ Item {
         const rt = (Quickshell.env("XDG_RUNTIME_DIR") ?? "").length > 0 ? Quickshell.env("XDG_RUNTIME_DIR") : "/tmp";
         const s = root.logFile ?? "";
         if (s.length === 0)
-            return `${rt}/pillShell-dictation.jsonl`;
+            return `${rt}/flicker-dictation.jsonl`;
         if (s.startsWith("/tmp/"))
             return `${rt}/${s.slice(5)}`;
         return s;

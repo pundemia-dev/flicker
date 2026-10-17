@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# stream-stub.sh — test streaming backend for pillShell dictation (no models).
+# stream-stub.sh — test streaming backend for Flicker dictation (no models).
 #
 # Contract (identical for the real Nemotron backend, see stream-nemotron.sh):
 #   stdout: JSON lines, one object per line:

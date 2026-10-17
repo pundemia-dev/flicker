@@ -2,9 +2,9 @@
 
 ## What this repo is
 
-pillShell — a Wayland desktop shell on Quickshell (pure QML, no C++/build step): a single
+Flicker — a Wayland desktop shell on Quickshell (pure QML, no C++/build step): a single
 "Dynamic Island" per monitor instead of a bar. The authoritative spec (Russian) is
-`pillShell.md` — read the relevant section before implementing any feature/gesture/animation.
+`flicker.md` — read the relevant section before implementing any feature/gesture/animation.
 Reference implementation: `~/.config/quickshell/pShell` (also see its `CLAUDE.md` and
 `docs/development/`). Per spec: check how pShell does something before writing an equivalent.
 
@@ -16,11 +16,11 @@ Not a git repo. No tests, no linter, no formatter.
   Current content: `import "core"` + `Shell {}`.
 - Smoke test: `timeout 8 quickshell -p $PWD 2>&1 | head -40` (needs a Wayland session; niri here).
 - Runtime logs: stderr and `/run/user/1000/quickshell/by-id/<id>/log.qslog`.
-- The user's live shell is pShell (separate `qs` process). Running pillShell in parallel is
+- The user's live shell is pShell (separate `qs` process). Running Flicker in parallel is
   safe; these warnings are EXPECTED and harmless: "Could not register notification server at
   org.freedesktop.Notifications", portal "Connection already associated with an application ID".
-- NEVER leave a background pillShell running: the user tests their own instance
-  (`qs -c pillShell`) — two same-config instances overlap on screen (looks like
+- NEVER leave a background Flicker running: the user tests their own instance
+  (`qs -c flicker`) — two same-config instances overlap on screen (looks like
   mismatched radii!) and IPC routing between them is ambiguous. Before starting
   one, check BOTH forms: `pgrep -af "quickshell|qs -c"`. Kill yours immediately
   after (`kill <PID>`, literal PID — `pkill -f`/subshell kills are blocked).
@@ -127,7 +127,7 @@ Not a git repo. No tests, no linter, no formatter.
   the segment-less release packet is fine too) — TWO CONCURRENT WRITERS race on the shared EP0
   and stall it (probe "parallel": 1 of ~45 overlapping pairs). 17:38 = my smoke instance + the
   user's shell. So the backend holds an exclusive flock on the device (second writer stays
-  silent, logs once) — NEVER run a second pillShell with haptics on. After EPIPE/ETIMEDOUT it
+  silent, logs once) — NEVER run a second Flicker with haptics on. After EPIPE/ETIMEDOUT it
   goes quiet until the HID node re-enumerates (logs effect/packet/gap); minIntervalMs 40 (rate is irrelevant) (`authorized` 0/1 on
   /sys/bus/usb/devices/7-5 was tried: keyboard+trackpad never came back, Oct 2026); plain write() of the exact packet
   length = EP0 SET_REPORT (no OUT endpoint). Test packets against a plain file
@@ -156,9 +156,9 @@ Not a git repo. No tests, no linter, no formatter.
   hot-reload). New tunable = add to BOTH the JsonAdapter defaults and config.json; read as
   `Config.data.<group>.<key>`. Pure visual tokens live in `services/Theme.qml`.
 - Lock is shell-level, not an island module: `modules/lock/LockScope.qml` (WlSessionLock +
-  `Pam.qml` + PAM config `assets/pam.d/pillshell`). Island hides while locked.
+  `Pam.qml` + PAM config `assets/pam.d/flicker`). Island hides while locked.
   Lock-in / unlock animation (user design, Oct 2026): `activate()` grabs every output FIRST
-  (grim PPM → `$XDG_RUNTIME_DIR/pillShell/lock`, 700, deleted on unlock; `grabTimeoutMs` /
+  (grim PPM → `$XDG_RUNTIME_DIR/flicker/lock`, 700, deleted on unlock; `grabTimeoutMs` /
   failure → lock anyway, from black), THEN locks — the surface's first frame is the grab (no
   seam; driftwm shows a blank Pending frame until our first commit). `LockBackdrop` runs
   `scripts/lock/regions.sh` (wallpaper wallr shows on that output — the fill-blur composite
@@ -209,7 +209,7 @@ Not a git repo. No tests, no linter, no formatter.
   half way, then Light; no home (Minimal / module) = just blur-fades in at the slot. Unlock waits
   for it too (`clockHome`). Time from Quickshell SystemClock ("hh:mm" like services/Clock).
   Verified with grim frames in the harness. Wrong-password lag = failure delays of BOTH pam_unix
-  and pam_faillock (1.5.x+ has its own) → `nodelay` on every line of assets/pam.d/pillshell
+  and pam_faillock (1.5.x+ has its own) → `nodelay` on every line of assets/pam.d/flicker
   (measured 1.9 s → 4 ms with a PamContext for user `nobody` — Quickshell refuses unknown users,
   and `nobody` never touches the real user's faillock tally).
   Keyboard pill on the lock (`LockKeyboardPill`, user): the session lock hides KeyboardOverlay,
@@ -470,7 +470,7 @@ Not a git repo. No tests, no linter, no formatter.
   over the open launcher only swaps the payload (`onPayloadChanged` → `applyPayload`).
   Apps launch through `launcher.apps.launchPrefix` (app2unit). Clipboard history is fed
   by `services/ClipboardWatch.qml` (Shell → Island → `launcherHost.clipboardWatch`): `watch: "auto"`
-  starts own `wl-paste --type text|image --watch cliphist store` (argv[0] `pillshell-clipwatch`,
+  starts own `wl-paste --type text|image --watch cliphist store` (argv[0] `flicker-clipwatch`,
   restarted on exit) unless an external one runs (niri spawns it, driftwm does NOT); each store bumps
   `revision` → an open clipboard plugin re-lists. Verified live on driftwm: text + PNG stored.
   Verified via IPC on the live instance + a headless harness (state machine, picker,
@@ -490,7 +490,7 @@ Not a git repo. No tests, no linter, no formatter.
   `cardSpacing`), parallax = art wider than the card shifted −d·parallax (clamped to the overscan).
   GIF/video play in the centre card `playDelayMs` after it rests (AnimatedImage / MediaPlayer+
   VideoOutput, muted, looped). Thumbs on demand (`thumbAhead` around the selection) via
-  `scripts/wallpapers/thumbs.sh` (ffmpeg, `thumbJobs` parallel) → `~/.cache/pillShell/wallpapers/
+  `scripts/wallpapers/thumbs.sh` (ffmpeg, `thumbJobs` parallel) → `~/.cache/flicker/wallpapers/
   <md5(path|mtime|size)>.jpg`; scan `scripts/wallpapers/scan.sh` (dot DIRS skipped; dot FILES = hidden wallpapers, listed with
   `hidden: true` — the user's folder has ~1350; thumb key ignores the dot), rescan
   only when the dir-mtime signature changes (poll `rescanMs` while active). Live preview (fade,
@@ -584,7 +584,7 @@ Not a git repo. No tests, no linter, no formatter.
   body stays black. Semantic search (Oct 2026, model chosen after a comparison: mexma-siglip2,
   MIT — MEXMA multilingual text + SigLIP 2 So400m/512 image, XM3600 text→image R@1 62.5 vs
   SigLIP 2 B 40.7 / So400m 48.1; ONNX encoders from the HF repo in
-  `~/.local/share/pillShell/models/mexma-siglip2`, sha256-checked): `scripts/wallpapers/clip.py`
+  `~/.local/share/flicker/models/mexma-siglip2`, sha256-checked): `scripts/wallpapers/clip.py`
   (uv script: onnxruntime/numpy/pillow/tokenizers) = a JSON-lines server (index / query /
   similar / forget / stop), vectors fp16 in `<thumbCache>/clip/`, image encoder loaded only while
   indexing, quits after `semanticIdleSec`; `services/WallpaperSemantic.qml` starts it on demand
@@ -680,7 +680,7 @@ Not a git repo. No tests, no linter, no formatter.
   tested: the actions themselves, the armed state, mouse.
 - Polkit agent (Oct 2026, refs: DMS PolkitService, end-4 ii, caelestia): `services/Polkit.qml`
   (Quickshell `PolkitAgent` in a Loader, `Config.polkit.enabled`; ONE agent per session —
-  a second pillShell / polkit-gnome just fails to register) → `started` opens module `polkit`
+  a second Flicker / polkit-gnome just fails to register) → `started` opens module `polkit`
   (`modules/polkit/`) on the focused output. Service keeps a `request` snapshot + `phase`
   (idle|input|checking|success) + `failCount` (field shakes via SpringAnimation). AuthFlow
   restarts PAM by itself after a wrong password; switching `selectedIdentity` cancels+restarts
@@ -1018,7 +1018,7 @@ Not a git repo. No tests, no linter, no formatter.
   meanwhile) up to `maxSec`; JSON lines listening/found/none/error; cover → `cachePath("shazam")`.
   Run = uv DIRECTLY (offline, one online retry if it died silently): uv forwards SIGTERM, python
   dies, parecord gets SIGPIPE — a bash wrapper kept them alive on cancel. Streams
-  `pillshell_rec_shazam` (monitor, hidden from the mic dot) / `pillshell_shazam_mic` (mic, dot
+  `flicker_rec_shazam` (monitor, hidden from the mic dot) / `flicker_shazam_mic` (mic, dot
   shows). Event key "shazam" with the new `hold` flag (Events: no life timer until a same-key
   non-hold replacement) + `indicators/glyphs/ShazamGlyph` (breathes while `args.listening`, pops
   on `found`; EventIcon now BINDS `item.args`, so in-place updates reach the glyph). Match =
@@ -1213,7 +1213,7 @@ Not a git repo. No tests, no linter, no formatter.
   shadow (verified Sep 2026). Build glows from layered translucent strokes
   instead (see Arcs).
 
-## Conventions (from pillShell.md)
+## Conventions (from flicker.md)
 
 - One file = one responsibility; ~200 lines is the split signal.
 - No hardcoded sizes/thresholds — Config/Theme only.
@@ -1343,7 +1343,7 @@ indicator: exclusion list `config.audio.micExclude` (substring, hot-reload)
 + last-added stack display (verified headless via parecord fake clients +
 debugState `mic` block: Telegram → +Discord → kill Discord → back).
 
-Simplified / not implemented yet (see pillShell.md for the intended behaviour):
+Simplified / not implemented yet (see flicker.md for the intended behaviour):
 - Frost (Oct 2026, user): per-module compositor blur only in `effects.frostModules`
   (QS + `notifications:center`), iOS 18 Control Center KNOCKOUT look fitted from the user's
   iPhone samples: backdrop = wall·0.765+38 → `Theme.frostBody` #3CA2A2A2, buttons =
@@ -1363,7 +1363,7 @@ Simplified / not implemented yet (see pillShell.md for the intended behaviour):
   set is held + shifted with the top-centred ghost); `Knockout.insideOutline` keeps holes
   inside the morphing rounded outline. Secondary layers (idle discs, rail disc, chips,
   pills, hover ✕) only fade alpha to `effects.frostLayerOpacity`. Independent of
-  `disableCompositorBlur`. Island layer namespace `pillShell-island`; niri needs a
+  `disableCompositorBlur`. Island layer namespace `flicker-island`; niri needs a
   `layer-rule` with `background-effect { xray false }` (added to ~/.config/niri/config.kdl)
   or it blurs only the wallpaper; driftwm blurs windows under layer surfaces by itself
   (verified there). Accent colours (qsFill/Blue/Green, slider icons) from the samples.
@@ -1488,7 +1488,7 @@ Simplified / not implemented yet (see pillShell.md for the intended behaviour):
   separately and muxes per segment (`-c:v copy -af apad -shortest`, silent track for
   "none" so concat stays compatible). Region = `-o <output> -F crop=w:h:x:y` (physical px, even
   w/h), NOT `-g`: driftwm 0.19 screencopy ignores the region offset (always the top-left
-  corner, verified Oct 2026; IPC `Compositor.startRecording(region)` still uses `-g`). All its PipeWire nodes are `pillshell_rec*` →
+  corner, verified Oct 2026; IPC `Compositor.startRecording(region)` still uses `-g`). All its PipeWire nodes are `flicker_rec*` →
   ignored by the mic indicator. Island controls: `RecordingActionsModule` (dot, h:mm:ss, speed drum
   `SpeedRuler` → `Recorder.speed` (`recorder.speeds`/`ruler`), discard,
   audio cycle, pause, stop; layout copied from the user's iOS reference shot, scaled 96/182 —

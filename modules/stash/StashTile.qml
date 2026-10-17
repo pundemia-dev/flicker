@@ -51,7 +51,7 @@ Item {
     // Generated thumbs (PDF first page / video frame) are cached by name.
     // Keyed by a path hash (a sanitized name made every Cyrillic name of
     // the same length collide); regenerated when the file is newer.
-    readonly property string thumbFile: `/tmp/pillshell_stash_thumbs/${Qt.md5(root.filePath)}.png`
+    readonly property string thumbFile: `/tmp/flicker_stash_thumbs/${Qt.md5(root.filePath)}.png`
     property string genThumb: ""
     readonly property string thumbSource: root.isImage ? root.fileUrl : (root.genThumb !== "" ? "file://" + root.genThumb : "")
     readonly property bool hasThumb: thumb.ready && root.thumbSource !== ""
@@ -70,7 +70,7 @@ Item {
 
     Process {
         id: thumbGen
-        command: ["bash", "-c", `f=${root.stash.shq(root.thumbFile)}; [ "$f" -nt ${root.stash.shq(root.filePath)} ] && exit 0; mkdir -p /tmp/pillshell_stash_thumbs; `
+        command: ["bash", "-c", `f=${root.stash.shq(root.thumbFile)}; [ "$f" -nt ${root.stash.shq(root.filePath)} ] && exit 0; mkdir -p /tmp/flicker_stash_thumbs; `
             + (root.isPdf
                 ? `pdftoppm -r 80 -singlefile -png -l 1 ${root.stash.shq(root.filePath)} "\${f%.png}"`
                 : `ffmpeg -v error -y -ss 1 -i ${root.stash.shq(root.filePath)} -frames:v 1 -vf scale=256:-1 "$f"`)]

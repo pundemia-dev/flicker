@@ -105,7 +105,7 @@ Item {
             return;
         if (recProc.running) {
             root.regionPending = false;
-            Quickshell.execDetached(["notify-send", "-a", "pillShell", I18n.tr("Still saving the previous recording")]);
+            Quickshell.execDetached(["notify-send", "-a", "Flicker", I18n.tr("Still saving the previous recording")]);
             return;
         }
         const a = root.audioModes.includes(audio) ? audio : root.defaultAudio();
@@ -228,7 +228,7 @@ Item {
             if (discard)
                 Quickshell.execDetached(["rm", "-f", root.file]);
             else
-                Quickshell.execDetached(["bash", "-c", `if [ -s ${f} ]; then a=$(notify-send -a pillShell -A default=${root.shq(I18n.tr("Open"))} ${root.shq(I18n.tr("Recording saved"))} ${f}); [ "$a" = default ] && xdg-open ${f}; else notify-send -a pillShell ${root.shq(I18n.tr("Recording failed"))} ${root.shq(I18n.tr("wf-recorder exited without a file"))}; fi`]);
+                Quickshell.execDetached(["bash", "-c", `if [ -s ${f} ]; then a=$(notify-send -a Flicker -A default=${root.shq(I18n.tr("Open"))} ${root.shq(I18n.tr("Recording saved"))} ${f}); [ "$a" = default ] && xdg-open ${f}; else notify-send -a Flicker ${root.shq(I18n.tr("Recording failed"))} ${root.shq(I18n.tr("wf-recorder exited without a file"))}; fi`]);
         }
     }
 

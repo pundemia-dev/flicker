@@ -13,8 +13,8 @@ import socket, json, time, struct, re, subprocess, asyncio, ssl, ipaddress
 
 MCAST = '224.0.0.167'
 PORT  = 53317
-ANNOUNCE_ALIAS = "pillShell Stash"
-FINGERPRINT = "pillshell_stash_discover"
+ANNOUNCE_ALIAS = "Flicker Stash"
+FINGERPRINT = "flicker_stash_discover"
 
 # Enumerate every IPv4 interface (name, ip, prefixlen). A VPN makes the
 # kernel's multicast route point at the tunnel, so we can't trust a single

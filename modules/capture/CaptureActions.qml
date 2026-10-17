@@ -70,9 +70,9 @@ Scope {
             parts.push(`wl-copy -t image/png < ${root.shq(file)}`);
         if (save && root.saveDir) {
             const path = `${root.saveDir}/screenshot-${root.stamp()}.png`;
-            parts.push(`mkdir -p ${root.shq(root.saveDir)} && cp ${root.shq(file)} ${root.shq(path)} && notify-send -a pillShell ${root.shq(I18n.tr("Screenshot saved"))} ${root.shq(path)}`);
+            parts.push(`mkdir -p ${root.shq(root.saveDir)} && cp ${root.shq(file)} ${root.shq(path)} && notify-send -a Flicker ${root.shq(I18n.tr("Screenshot saved"))} ${root.shq(path)}`);
         } else {
-            parts.push(`notify-send -a pillShell ${root.shq(I18n.tr("Screenshot copied"))}`);
+            parts.push(`notify-send -a Flicker ${root.shq(I18n.tr("Screenshot copied"))}`);
         }
         return parts.join(" && ");
     }
@@ -99,7 +99,7 @@ Scope {
     }
 
     function copyText(text: string, summary: string): void {
-        const note = summary ? ` && notify-send -a pillShell ${root.shq(summary)}` : "";
+        const note = summary ? ` && notify-send -a Flicker ${root.shq(summary)}` : "";
         Quickshell.execDetached(["bash", "-c", `printf '%s' ${root.shq(text)} | wl-copy${note}`]);
     }
 
@@ -126,7 +126,7 @@ Scope {
             if (root.events)
                 root.events.post({ key: "lens:error", glyph: "error", icon: "", color: "accentRed", texts: ["Google Lens", I18n.tr("Upload failed")] });
             else
-                Quickshell.execDetached(["notify-send", "-a", "pillShell", "Google Lens", I18n.tr("Upload failed")]);
+                Quickshell.execDetached(["notify-send", "-a", "Flicker", "Google Lens", I18n.tr("Upload failed")]);
         }
     }
 

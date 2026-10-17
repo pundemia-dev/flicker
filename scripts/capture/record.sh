@@ -66,7 +66,7 @@ speedctl="$out.speedctl"
 discardflag="$out.discard"
 outdir="$(dirname "$out")"
 mkdir -p "$outdir"
-segdir="$outdir/.pillshell_rec_$$"
+segdir="$outdir/.flicker_rec_$$"
 mkdir -p "$segdir"
 
 enc_args=(--pixel-format yuv420p)
@@ -79,8 +79,8 @@ seg_modules=()
 audio_dev=""
 mic_dev=""
 
-# Unload pillshell_rec leftovers from a crashed session.
-pactl list short modules 2>/dev/null | grep pillshell_rec | cut -f1 | while read -r m; do
+# Unload flicker_rec leftovers from a crashed session.
+pactl list short modules 2>/dev/null | grep flicker_rec | cut -f1 | while read -r m; do
     pactl unload-module "$m" 2>/dev/null
 done
 
@@ -156,11 +156,11 @@ start_seg() {
         # client-name lets the shell's mic indicator ignore this stream;
         # low latency: on SIGINT parecord drops its unflushed buffer (the
         # default ~2s buffer lost most of a short segment).
-        parecord --device="$audio_dev" --client-name=pillshell_rec_audio --latency-msec=50 --rate=48000 --file-format=wav "$cur.wav" &
+        parecord --device="$audio_dev" --client-name=flicker_rec_audio --latency-msec=50 --rate=48000 --file-format=wav "$cur.wav" &
         apid=$!
     fi
     if [ -n "$mic_dev" ]; then
-        parecord --device="$mic_dev" --client-name=pillshell_rec_mic --latency-msec=50 --rate=48000 --file-format=wav "$cur.mic.wav" &
+        parecord --device="$mic_dev" --client-name=flicker_rec_mic --latency-msec=50 --rate=48000 --file-format=wav "$cur.mic.wav" &
         mpid=$!
     fi
 }

@@ -4,7 +4,7 @@
 Linux 6.18+ exposes HID haptic touchpads (HID usage page 0x0E: Elan and other
 Windows-Precision haptic pads, Apple trackpads once their driver lands) as evdev
 force feedback with effect type FF_HAPTIC. This backend uploads one effect per
-pillShell effect (EVIOCSFF) and plays it by writing an EV_FF event — no device
+Flicker effect (EVIOCSFF) and plays it by writing an EV_FF event — no device
 specific bytes, the kernel driver does the talking.
 
 Only FF_HAPTIC devices are used, never FF_RUMBLE (that is gamepads: auto mode

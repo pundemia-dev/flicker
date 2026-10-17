@@ -25,7 +25,7 @@ Item {
 
     Process {
         running: root.active
-        command: ["bash", "-c", `cfg="$(mktemp -t pillshell_cava.XXXXXX)"
+        command: ["bash", "-c", `cfg="$(mktemp -t flicker_cava.XXXXXX)"
 printf '[general]\\nbars = %d\\nframerate = %d\\n[input]\\nmethod = pulse\\nsource = auto\\n[output]\\nchannels = mono\\nmethod = raw\\nraw_target = /dev/stdout\\ndata_format = ascii\\nascii_max_range = 100\\nbar_delimiter = 59\\nframe_delimiter = 10\\n' ${root.bars} ${root.cfg?.framerate ?? 30} > "$cfg"
 (sleep 2; rm -f "$cfg") &
 exec cava -p "$cfg"`]

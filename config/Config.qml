@@ -912,7 +912,7 @@ Singleton {
                         })
                 })
             property var dictation: ({
-                    captureFile: "/tmp/pillShell-dictation.wav",
+                    captureFile: "/tmp/flicker-dictation.wav",
                     transcribeCommand: "",
                     // STT language: "auto" lets the engine detect ru/en on the
                     // fly; "ru"/"en" pins it (faster + more accurate).
@@ -999,7 +999,7 @@ Singleton {
                     // trailing decode + margin. A watchdog kill during a
                     // graceful stop finishes off the tailed file, not _fail.
                     stopTimeoutMs: 7000,
-                    logFile: "/tmp/pillShell-dictation.jsonl",
+                    logFile: "/tmp/flicker-dictation.jsonl",
                     // Hallucination drop-list: keep SHORT and engine-
                     // specific. Whole-match only, but a real utterance
                     // equal to a list entry is still dropped silently —
@@ -1433,7 +1433,7 @@ Singleton {
                             // unless semanticOnBattery; the server quits after
                             // semanticIdleSec.
                             semanticSearch: true,
-                            semanticModelDir: "~/.local/share/pillShell/models/mexma-siglip2",
+                            semanticModelDir: "~/.local/share/flicker/models/mexma-siglip2",
                             semanticThreads: 6,
                             semanticIdleSec: 300,
                             semanticOnBattery: false,
@@ -1782,8 +1782,8 @@ Singleton {
             // springs, dim/crosshair, region editor (annotation toolbar, palette),
             // colour picker, OCR/Lens panels, window mode, smart regions.
             property var capture: ({
-                    screenshotFile: "/tmp/pillShell-shot.png",
-                    tempDir: "/tmp/pillShell-capture",
+                    screenshotFile: "/tmp/flicker-shot.png",
+                    tempDir: "/tmp/flicker-capture",
                     saveDir: "~/Pictures/Screenshots",
                     copyToClipboard: true,
                     modes: ["shot", "record", "color", "window", "ai", "scan"],
@@ -1863,7 +1863,7 @@ Singleton {
             // sizes are derived (modules/stash/StashMetrics.js); tile radius
             // is concentric (island.radius - padding).
             property var stash: ({
-                    stashDir: "/tmp/pillshell_stash",
+                    stashDir: "/tmp/flicker_stash",
                     dropMode: "copy",
                     watchMs: 1500,
                     columns: 5,
@@ -1905,7 +1905,7 @@ Singleton {
                     dashedBorderGapLength: 6,
                     localsend: true,
                     receive: false,
-                    alias: "pillShell Stash",
+                    alias: "Flicker Stash",
                     downloadDir: "$HOME/Downloads",
                     pickerWidth: 380,
                     visibleDevicesMax: 4,

@@ -64,16 +64,16 @@ if not files_payload:
     die("No files found")
 
 # Identity fingerprint = SHA-256 of our TLS cert (shared with the receive
-# server in ~/.cache/pillshell_localsend). Generated on demand if absent so
+# server in ~/.cache/flicker_localsend). Generated on demand if absent so
 # sending works even when the receive server has never run.
-CACHE_DIR = os.path.expanduser("~/.cache/pillshell_localsend")
+CACHE_DIR = os.path.expanduser("~/.cache/flicker_localsend")
 CERT = os.path.join(CACHE_DIR, "cert.pem")
 KEY = os.path.join(CACHE_DIR, "key.pem")
 if not (os.path.exists(CERT) and os.path.exists(KEY)):
     os.makedirs(CACHE_DIR, exist_ok=True)
     subprocess.run([
         "openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes",
-        "-keyout", KEY, "-out", CERT, "-days", "3650", "-subj", "/CN=pillShell Stash",
+        "-keyout", KEY, "-out", CERT, "-days", "3650", "-subj", "/CN=Flicker Stash",
     ], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 with open(CERT) as _cf:
     FINGERPRINT = hashlib.sha256(ssl.PEM_cert_to_DER_cert(_cf.read())).hexdigest()
@@ -91,9 +91,9 @@ def post(path, data, headers, timeout):
 
 body = json.dumps({
     "info": {
-        "alias": "pillShell Stash",
+        "alias": "Flicker Stash",
         "version": "2.1",
-        "deviceModel": "pillShell",
+        "deviceModel": "Flicker",
         "deviceType": "desktop",
         "fingerprint": FINGERPRINT,
         "port": PORT,

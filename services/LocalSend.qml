@@ -33,7 +33,7 @@ Scope {
         if (!root.enabled || !files || files.length === 0)
             return false;
         if (root.phase === "sending") {
-            Quickshell.execDetached(["notify-send", "-a", "pillShell", "LocalSend", I18n.tr("Wait for the current transfer to finish")]);
+            Quickshell.execDetached(["notify-send", "-a", "Flicker", "LocalSend", I18n.tr("Wait for the current transfer to finish")]);
             return false;
         }
         root.pendingFiles = files;
@@ -143,7 +143,7 @@ Scope {
     // Session toggle (stash tray antenna button); `receive` in config is
     // the startup default. Not written back: config.json is hand-edited.
     property bool receiving: root.enabled && (root.cfg?.receive ?? false)
-    readonly property string deviceName: root.cfg?.alias ?? "pillShell Stash"
+    readonly property string deviceName: root.cfg?.alias ?? "Flicker Stash"
     property bool serverReady: false
     // Request awaiting a decision OR mid-transfer (null when idle).
     // { sessionId, alias, files:[{id,name,size,type}], totalSize, isText?, text? }
@@ -264,7 +264,7 @@ Scope {
             if (!root.receiving)
                 return;
             console.warn("[LocalSend] receive server exited:", code);
-            Quickshell.execDetached(["notify-send", "-a", "pillShell", "LocalSend", I18n.tr("Receiving failed to start (port 53317 busy?)")]);
+            Quickshell.execDetached(["notify-send", "-a", "Flicker", "LocalSend", I18n.tr("Receiving failed to start (port 53317 busy?)")]);
             root.receiving = false;
         }
     }

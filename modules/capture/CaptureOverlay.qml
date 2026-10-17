@@ -31,7 +31,7 @@ PanelWindow {
     screen: root.targetScreen
     color: "transparent"
     WlrLayershell.layer: WlrLayer.Overlay
-    WlrLayershell.namespace: "pillShell-capture"
+    WlrLayershell.namespace: "flicker-capture"
     // Only the screen being worked on takes the keyboard (one exclusive
     // surface; text annotations / the colour field type into it).
     WlrLayershell.keyboardFocus: root.capture.activeScreen === root.name ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None

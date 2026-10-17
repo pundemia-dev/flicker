@@ -24,7 +24,7 @@ Scope {
         if (d.length)
             return d.replace(/^~/, Quickshell.env("HOME"));
         const x = Quickshell.env("XDG_CACHE_HOME");
-        return ((x && x.length) ? x : Quickshell.env("HOME") + "/.cache") + "/pillShell/wallpapers";
+        return ((x && x.length) ? x : Quickshell.env("HOME") + "/.cache") + "/flicker/wallpapers";
     }
 
     readonly property bool allowed: (root.cfg.warmup ?? true) && (!root.discharging || (root.cfg.warmupOnBattery ?? false))

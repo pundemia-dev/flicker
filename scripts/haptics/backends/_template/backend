@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Template for a pillShell haptics backend — copy this directory, rename it,
+"""Template for a Flicker haptics backend — copy this directory, rename it,
 fill in the three TODOs. Full contract: docs/haptics.md.
 
   backend probe              exit 0 = usable (print the device), 1 = no such

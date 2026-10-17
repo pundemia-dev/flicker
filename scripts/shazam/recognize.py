@@ -20,8 +20,8 @@ every --step seconds with the last up-to-12 s of audio, until a match or
 The cover is downloaded to <cache>/<track key>.jpg ("" when it failed).
 Python < 3.14: shazamio-core has no 3.14 wheels (source build = minutes);
 audioop-lts: pydub (a shazamio import) needs audioop, gone in 3.13.
-Stream names `pillshell_rec_shazam` (monitor, ignored by the mic indicator)
-/ `pillshell_shazam_mic` (mic, shows the privacy dot).
+Stream names `flicker_rec_shazam` (monitor, ignored by the mic indicator)
+/ `flicker_shazam_mic` (mic, shows the privacy dot).
 """
 
 import argparse
@@ -84,7 +84,7 @@ async def main():
     ap.add_argument("--probe", type=float, default=1.0, help="auto: seconds of output checked")
     ap.add_argument("--silence", type=int, default=300, help="auto: peak (of 32767) below = silent")
     ap.add_argument("--device", default="", help="PulseAudio source (tests)")
-    ap.add_argument("--cache", default=os.path.expanduser("~/.cache/pillShell/shazam"))
+    ap.add_argument("--cache", default=os.path.expanduser("~/.cache/flicker/shazam"))
     a = ap.parse_args()
 
     from shazamio import Shazam
@@ -93,7 +93,7 @@ async def main():
 
     async def record(source):
         device = a.device or ("@DEFAULT_MONITOR@" if source == "monitor" else "@DEFAULT_SOURCE@")
-        name = "pillshell_rec_shazam" if source == "monitor" else "pillshell_shazam_mic"
+        name = "flicker_rec_shazam" if source == "monitor" else "flicker_shazam_mic"
         proc = await asyncio.create_subprocess_exec(
             "parecord", "--raw", "--format=s16le", f"--rate={RATE}", "--channels=1",
             "--latency-msec=50", f"--device={device}", f"--client-name={name}",
