@@ -41,7 +41,7 @@ Singleton {
             id: adapter
             property var island: ({
                     height: 36,
-                    radius: 22,
+                    radius: 32,
                     maxWidth: 560,
                     moduleWidth: 560,
                     moduleHeight: 210,
@@ -794,8 +794,8 @@ Singleton {
                     flowMaxActions: 4,
                     // Notification card: left avatar/icon diameter; the app-icon
                     // badge overlapping the avatar's bottom-right rim.
-                    avatarSize: 56,
-                    badgeSize: 16,
+                    avatarSize: 50,
+                    badgeSize: 24,
                     // Dropped on arrival (no card, no history): every given
                     // field is a case-insensitive regex that must match
                     // (app = appName, summary, body). Default: blueman's
@@ -1214,7 +1214,7 @@ Singleton {
             property var launcher: ({
                     width: 620,
                     panelWidth: 330,
-                    radius: 32,
+                    radius: 20,
                     padding: 12,
                     gap: 10,
                     inputHeight: 52,
@@ -1524,9 +1524,9 @@ Singleton {
             // Per-module island sizes (island.moduleWidth/Height = fallback).
             // "notifications" splits by payload mode: notifications:flow/center.
             property var modules: ({
-                    player: ({ width: 448, height: 230 }),
+                    player: ({ width: 360, height: 170 }),
                     notifications: ({ width: 520, height: 180 }),
-                    "notifications:flow": ({ width: 520, height: 150 }),
+                    "notifications:flow": ({ width: 490, height: 90 }),
                     "notifications:center": ({ width: 520, height: 460 }),
                     osd: ({ width: 340, height: 60, radius: 20 }),
                     dictation: ({ width: 480, height: 132 }),

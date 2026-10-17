@@ -148,8 +148,12 @@ thumbnails, duplicate search, semantic indexing
 -   [`networkmanager`](https://gitlab.freedesktop.org/NetworkManager/NetworkManager)
 -   `upower`, `bluez`
 -   [`grim`](https://sr.ht/~emersion/grim), [`wf-recorder`](https://github.com/ammen99/wf-recorder), [`ffmpeg`](https://ffmpeg.org), `imagemagick`, `wl-clipboard`
--   [`tesseract`](https://github.com/tesseract-ocr/tesseract), `zbar`
+-   [`tesseract`](https://github.com/tesseract-ocr/tesseract) + `tesseract-data-eng`, `zbar`
+-   `python` + `python-pillow` (lock screen, wallpaper duplicates)
+-   `curl`, `jq`, `libnotify`, `xdg-utils`, `xdg-user-dirs`, `glib2`, `psmisc`, `polkit`, `openssl`
+-   `zip`, `libarchive`, `poppler`, `file` (stash: archives, PDF thumbnails)
 -   `qt6-base`, `qt6-declarative`, `qt6-multimedia`
+-   Fonts: `otf-san-francisco` (AUR), `ttf-jetbrains-mono-nerd`, tabler-icons 3.31.0 (`install.sh` downloads it)
 
 Optional:
 
@@ -157,7 +161,7 @@ Optional:
 -   [`wallr`](https://github.com/programmersd21/wallr), [`matugen`](https://github.com/InioX/matugen): wallpapers, accent colour
 -   [`uv`](https://github.com/astral-sh/uv): Python helpers (Shazam, transcription, semantic search, smart regions)
 -   [`llama-server`](https://github.com/ggml-org/llama.cpp): dictation refine
--   [`app2unit`](https://github.com/Vladimir-csp/app2unit), `wtype`, `cava`, `udisks2`
+-   [`app2unit`](https://github.com/Vladimir-csp/app2unit), `wtype`, `cava`, `udisks2`, `7zip`
 
 </details>
 
@@ -166,8 +170,9 @@ Optional:
 ```sh
 git clone https://github.com/pundemia-dev/flicker ~/.config/quickshell/flicker
 cd ~/.config/quickshell/flicker
-./install.sh   # optional parts: models, wallpapers, PAM config… idempotent, safe to re-run
-qs -c flicker
+./install.sh   # checks dependencies, fonts, models, Python helpers; idempotent
+qs -c flicker  # the first start writes config/config.json
+./install.sh   # once more: steps that edit the config (dictation Refine)
 ```
 
 ## Usage

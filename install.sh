@@ -1,22 +1,96 @@
 #!/usr/bin/env bash
-# install.sh — one-stop setup for flicker. Grows over time: every manual
+# install.sh — one-stop setup for Flicker. Grows over time: every manual
 # setup step lands here as a new section. Idempotent: safe to re-run,
-# finished steps detect themselves and skip.
+# finished steps detect themselves and skip. Never uses sudo itself: steps
+# that need root print the exact command instead.
 set -u
 
-PILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+FLICKER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CONFIG="$FLICKER_DIR/config/config.json"
 
-# --- 0. Prerequisites ---
-# Refine (sections 1-2) needs llama-server; without it those sections are
-# skipped, the rest still runs.
-HAVE_LLAMA=1
-command -v llama-server >/dev/null 2>&1 || {
-  echo "warning: llama-server not found in PATH — skipping the Refine sections (1-2)" >&2
-  HAVE_LLAMA=0
-}
+have() { command -v "$1" >/dev/null 2>&1; }
 
-if [[ $HAVE_LLAMA == 1 ]]; then
+# --- 0. Dependencies (checked, not installed) ---
+# Arch package per command; the shell starts without the optional ones, the
+# feature in the comment just stays dead.
+echo "0. dependencies..."
+declare -A PKG=(
+  [quickshell]=quickshell [grim]=grim [wl-copy]=wl-clipboard [wpctl]=wireplumber
+  [pw-record]=pipewire-audio [parecord]=libpulse [pactl]=libpulse
+  [brightnessctl]=brightnessctl [nmcli]=networkmanager [upower]=upower
+  [bluetoothctl]=bluez-utils [notify-send]=libnotify [xdg-open]=xdg-utils
+  [xdg-user-dir]=xdg-user-dirs [curl]=curl [jq]=jq [ffmpeg]=ffmpeg
+  [magick]=imagemagick [python3]=python [file]=file [gio]=glib2
+  [fuser]=psmisc [lsblk]=util-linux [udisksctl]=udisks2 [pkexec]=polkit
+  [openssl]=openssl [zip]=zip [bsdtar]=libarchive [pdftoppm]=poppler
+  # capture: recording, OCR, code scan
+  [wf-recorder]=wf-recorder [tesseract]=tesseract [zbarimg]=zbar
+  # optional: clipboard history, typing (dictation), visualizer, app launch, 7z
+  [cliphist]=cliphist [wtype]=wtype [cava]=cava [app2unit]=app2unit-git [7z]=7zip
+  # optional: wallpapers + accent colour, Python helpers
+  [wallr]=wallr-bin [matugen]=matugen [uv]=uv
+)
+missing=()
+for t in "${!PKG[@]}"; do have "$t" || missing+=("${PKG[$t]}"); done
+# Pillow: lock-screen dissolve (scripts/lock/diff.py), caret calibration,
+# wallpaper duplicates — all run on the system python3.
+python3 -c "import PIL" 2>/dev/null || missing+=(python-pillow)
+# OCR language data (capture AI mode): English at least.
+if have tesseract && ! tesseract --list-langs 2>/dev/null | grep -qx eng; then
+  missing+=(tesseract-data-eng)
+fi
+if (( ${#missing[@]} )); then
+  mapfile -t missing < <(printf '%s\n' "${missing[@]}" | sort -u)
+  echo "   missing: ${missing[*]}"
+  echo "   install: paru -S --needed ${missing[*]}   (some are AUR: wallr-bin, app2unit-git)"
+else
+  echo "   all present"
+fi
+
+# --- 0a. Fonts ---
+# SF Pro Display = UI text, JetBrainsMono Nerd Font = event glyphs (packages);
+# tabler-icons = every icon. Tabler is pinned: 3.31.0 has all codepoints the
+# shell uses (newer webfonts moved the filled media icons to another font).
+echo "0a. fonts..."
+have fc-list || echo "   note: fc-list (fontconfig) not found — font checks skipped"
+font_ok() { fc-list ":family=$1" family 2>/dev/null | grep -q .; }
+if have fc-list; then
+  font_ok "SF Pro Display" || echo "   missing font: SF Pro Display — paru -S otf-san-francisco"
+  font_ok "JetBrainsMono Nerd Font" || echo "   missing font: JetBrainsMono Nerd Font — sudo pacman -S ttf-jetbrains-mono-nerd"
+  if font_ok "tabler-icons"; then
+    echo "   tabler-icons present"
+  else
+    TABLER_VER=3.31.0
+    TABLER_SHA=c63cae0ba30b9b7309a8df66684bee1daf4862b4ce4387dee9a2b22a28ded29c
+    TABLER_DIR="$HOME/.local/share/fonts/tabler-icons"
+    TABLER_FILE="$TABLER_DIR/tabler-icons.ttf"
+    mkdir -p "$TABLER_DIR"
+    echo "   downloading tabler-icons $TABLER_VER..."
+    if curl -4 -sfL -o "$TABLER_FILE.part" \
+        "https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@$TABLER_VER/dist/fonts/tabler-icons.ttf" \
+      && echo "$TABLER_SHA  $TABLER_FILE.part" | sha256sum -c --quiet 2>/dev/null; then
+      mv "$TABLER_FILE.part" "$TABLER_FILE"
+      fc-cache -f "$TABLER_DIR" >/dev/null 2>&1
+      echo "   tabler-icons installed: $TABLER_FILE"
+    else
+      rm -f "$TABLER_FILE.part"
+      echo "   error: tabler-icons download failed or checksum mismatch — re-run" >&2
+    fi
+  fi
+fi
+
+# --- 0b. Config ---
+# config.json is git-ignored: the shell writes it with every default on its
+# first start. Sections that edit it need that full file — a config group
+# (property var) is replaced WHOLE by what the file holds, so a partial file
+# would drop every other key of the group.
+[[ -f "$CONFIG" ]] || echo "0b. config.json not created yet — start the shell once (qs -c flicker), then re-run ./install.sh"
+
 # --- 1. Refine model (Gemma 4 E2B Q4_0, ~2.7 GB, public repo, no auth) ---
+# Dictation's LLM cleanup; needs llama-server, skipped without it.
+if ! have llama-server; then
+  echo "1-2. llama-server not found — skipping dictation Refine (paru -S llama.cpp)"
+else
 MODEL_DIR="$HOME/.cache/llama"
 MODEL_FILE="$MODEL_DIR/gemma-4-E2B-it-Q4_0.gguf"
 MODEL_PART="$MODEL_FILE.part"
@@ -33,11 +107,14 @@ else
 fi
 
 # --- 2. Enable Refine in the live config (config.json is git-ignored) ---
+if [[ ! -f "$CONFIG" ]]; then
+  echo "2. skipped: no config.json yet (see 0b)"
+else
 echo "2. enabling Refine in config.json..."
-PILL_DIR="$PILL_DIR" python3 - <<'EOF'
+CONFIG="$CONFIG" python3 - <<'EOF'
 import json
 import os
-p = os.path.join(os.environ["PILL_DIR"], "config", "config.json")
+p = os.environ["CONFIG"]
 cfg = json.load(open(p))
 d = cfg["dictation"]
 d["refineEnabled"] = True
@@ -52,23 +129,14 @@ json.dump(cfg, open(tmp, "w"), ensure_ascii=False, indent=2)
 os.replace(tmp, p)
 print("   refineEnabled=true, server managed by the shell")
 EOF
-fi # HAVE_LLAMA
+fi # config.json
+fi # llama-server
 
 # --- 3. Wallpapers (launcher carousel, wallr backend) ---
 echo "3. wallpapers..."
-# Tools: wallr = the wallpaper daemon; ffmpeg = thumbnails; magick =
-# fill-blur composites; matugen = accent colour (optional); uv = the search
+# Tools (checked in 0): wallr = the wallpaper daemon; ffmpeg = thumbnails;
+# magick = fill-blur composites; matugen = accent colour; uv = the search
 # server's Python env; Pillow = duplicate finder; gio = trash.
-missing=()
-for t in wallr ffmpeg magick uv gio python3; do
-  command -v "$t" >/dev/null 2>&1 || missing+=("$t")
-done
-command -v matugen >/dev/null 2>&1 || echo "   note: matugen not found — the accent colour from the wallpaper stays off"
-python3 -c "import PIL" 2>/dev/null || missing+=("python-pillow")
-if (( ${#missing[@]} )); then
-  echo "   missing: ${missing[*]}"
-  echo "   install: sudo pacman -S --needed ffmpeg imagemagick uv glib2 python-pillow && yay -S wallr-bin"
-fi
 
 # 3a. Search model: visheratin/mexma-siglip2 (MIT) ONNX encoders, ~1 GB.
 # Resumable into .part, sha256-checked against the Hugging Face LFS hashes.
@@ -98,23 +166,7 @@ for f in "${SEM_FILES[@]}"; do
 done
 echo "   search model: $SEM_DIR"
 
-# 3b. The search server's Python deps into uv's cache, so the shell can start
-# it offline (WallpaperSemantic runs `uv run --offline` first).
-if command -v uv >/dev/null 2>&1; then
-  if RUST_LOG=warn uv sync --quiet --script "$PILL_DIR/scripts/wallpapers/clip.py"; then
-    echo "   search server env ready"
-  else
-    echo "   warning: could not prepare the clip.py env (it is retried online on first use)"
-  fi
-  # Shazam (services/Shazam): same offline-first start; records with parecord.
-  if RUST_LOG=warn uv sync --quiet --script "$PILL_DIR/scripts/shazam/recognize.py"; then
-    echo "   shazam env ready"
-  else
-    echo "   warning: could not prepare the shazam env (it is retried online on first use)"
-  fi
-fi
-
-# 3c. Folder and autostart hints (nothing is changed here).
+# 3b. Folder and autostart hints (nothing is changed here).
 [[ -d "$HOME/Pictures/Wallpapers" ]] || echo "   note: ~/Pictures/Wallpapers does not exist (launcher.wallpapers.dirs)"
 for f in "$HOME/.config/driftwm/config.toml" "$HOME/.config/niri/config.kdl"; do
   [[ -f "$f" ]] || continue
@@ -123,4 +175,51 @@ for f in "$HOME/.config/driftwm/config.toml" "$HOME/.config/niri/config.kdl"; do
   fi
 done
 
-echo "done. toggle dictation and watch 'refine server ready' in the qslog."
+# --- 4. Python helper envs into uv's cache ---
+# The shell starts every uv script `uv run --offline` first (an online start
+# re-resolves deps: ~55 s instead of ~2 s). Transcription (whisperx + torch,
+# several GB) is left to its first use.
+echo "4. python helpers..."
+if have uv; then
+  for s in wallpapers/clip.py shazam/recognize.py capture/regions.py; do
+    if RUST_LOG=warn uv sync --quiet --script "$FLICKER_DIR/scripts/$s"; then
+      echo "   $s env ready"
+    else
+      echo "   warning: could not prepare the $s env (it is retried online on first use)"
+    fi
+  done
+  # Dictation's websocket client (stream-nemotron.sh looks for this venv).
+  WS_VENV="$HOME/.local/share/flicker-ws"
+  if "$WS_VENV/bin/python" -c "import websockets" 2>/dev/null; then
+    echo "   dictation venv ready"
+  elif RUST_LOG=warn uv venv --quiet "$WS_VENV" && RUST_LOG=warn uv pip install --quiet --python "$WS_VENV/bin/python" websockets; then
+    echo "   dictation venv created: $WS_VENV"
+  else
+    echo "   warning: could not create $WS_VENV"
+  fi
+fi
+if [[ ! -x "$HOME/.local/bin/nemo-speech" ]]; then
+  echo "   note: no nemo-speech — dictation stays on the test stub (dictation.streamCommand);"
+  echo "         see scripts/dictation/nemo-speech.service for the real backend"
+fi
+
+# --- 5. Trackpad haptics (optional, needs a udev rule = root) ---
+echo "5. haptics..."
+haptic_found=0
+for b in "$FLICKER_DIR"/scripts/haptics/backends/*/; do
+  name=$(basename "$b")
+  [[ "$name" == _* ]] && continue
+  "$b/backend" probe >/dev/null 2>&1; code=$?
+  case $code in
+    0) echo "   $name: usable"; haptic_found=1 ;;
+    2) # Rule file name from the rules' own "# Install:" line.
+       rule=$(grep -oE '/etc/udev/rules\.d/[^ ]+\.rules' "$b/udev.rules" | head -1)
+       echo "   $name: hardware found, no access — run:"
+       echo "     sudo install -m644 ${b}udev.rules ${rule:-/etc/udev/rules.d/70-flicker-$name.rules}"
+       echo "     sudo udevadm control --reload && sudo udevadm trigger"
+       haptic_found=1 ;;
+  esac
+done
+(( haptic_found )) || echo "   no haptic trackpad found (fine)"
+
+echo "done. start the shell: qs -c flicker"
