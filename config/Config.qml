@@ -9,6 +9,40 @@ Singleton {
 
     property alias data: adapter
     property bool ready: false
+    // Change events until this time are our own write (set() below): not
+    // re-read, a slider drag would jump back to the value written earlier.
+    property real ownWriteUntil: 0
+
+    // Value at a dotted path ("launcher.clipboard.autoPaste").
+    function get(path: string): var {
+        let o = adapter;
+        for (const k of path.split(".")) {
+            if (o === undefined || o === null)
+                return undefined;
+            o = o[k];
+        }
+        return o;
+    }
+
+    // Settings window: change one key. The group is replaced at once (live,
+    // bindings see a new object); config.json gets the pending changes after
+    // writeDelay, patched into the file's own text (writeAdapter() would
+    // sort every key — a whole-file diff of the hand-ordered config).
+    property var pending: ({})
+    function set(path: string, value: var): void {
+        root.pending[path] = value;
+        const keys = path.split(".");
+        const copy = v => (v && typeof v === "object" && !Array.isArray(v)) ? Object.assign({}, v) : {};
+        const top = copy(adapter[keys[0]]);
+        let o = top;
+        for (let i = 1; i < keys.length - 1; i++) {
+            o[keys[i]] = copy(o[keys[i]]);
+            o = o[keys[i]];
+        }
+        o[keys[keys.length - 1]] = value;
+        adapter[keys[0]] = top;
+        writeDelay.restart();
+    }
 
     // Quiet period after the last change event before re-reading the file
     // (cannot live in the config itself).
@@ -16,6 +50,33 @@ Singleton {
         id: reloadDebounce
         interval: 150
         onTriggered: configFile.reload()
+    }
+
+    Timer {
+        id: writeDelay
+        interval: 300
+        onTriggered: {
+            let file = {};
+            try {
+                file = JSON.parse(configFile.text());
+            } catch (e) {
+                console.warn(`Config: config.json unreadable, not written: ${e}`);
+                return;
+            }
+            for (const path in root.pending) {
+                const keys = path.split(".");
+                let o = file;
+                for (const k of keys.slice(0, -1)) {
+                    if (!o[k] || typeof o[k] !== "object" || Array.isArray(o[k]))
+                        o[k] = {};
+                    o = o[k];
+                }
+                o[keys[keys.length - 1]] = root.pending[path];
+            }
+            root.pending = {};
+            root.ownWriteUntil = Date.now() + 1000;
+            configFile.setText(JSON.stringify(file, null, 2) + "\n");
+        }
     }
 
     FileView {
@@ -27,8 +88,7 @@ Singleton {
         // immediate reload parsed the half-written file ("unterminated
         // object") and the event of the final write was lost, so the edit
         // never applied until the next save.
-        onFileChanged: reloadDebounce.restart()
-        onAdapterUpdated: if (root.ready) writeAdapter()
+        onFileChanged: if (Date.now() > root.ownWriteUntil) reloadDebounce.restart()
         onLoaded: root.ready = true
         onLoadFailed: err => {
             if (err === FileViewError.FileNotFound) {

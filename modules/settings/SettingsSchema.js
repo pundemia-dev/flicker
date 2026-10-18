@@ -1,0 +1,449 @@
+.pragma library
+.import "../launcher/plugins/wallpapers/WallSettingsList.js" as Wall
+
+// What the settings window shows: module BEHAVIOUR only (user decision —
+// no paddings / radii / springs, those stay in config.json). Strings are
+// English I18n keys, translated at the display site.
+//
+// SIDEBAR = clusters of sections (gaps between clusters, iOS style).
+// Section { id, title, glyph (tabler), tint (Theme colour name), groups }.
+// Group { title?, footer?, rows }.
+// Row { key (dotted config path), label, kind, ... }:
+//   bool                  switch
+//   choice  options       [{ value, label }]; `segments` = inline segmented
+//                         control instead of the pull-down menu
+//   number  min max step  raw config units; shown as value / scale with
+//           scale suffix  `decimals` places + suffix; `slider` = a slider
+//           decimals      under the label instead of the stepper
+//   text                  inline field; `array` = string list joined by
+//                         spaces (argv / paths)
+//   set     options       multi-select drill-down; the config holds the
+//                         checked values (`invert`: the unchecked ones)
+//   page    page          drill-down to { title, groups }
+// Any row may carry `footer`-free `keywords` (search) and `glyph` + `tint`
+// (icon tile). store "wallpaper" = launcher.wallpapers via the wallpaper
+// service (the carousel's overrides, so both panels show the same values).
+
+const S = 1000; // ms → s
+
+function opts(list) {
+    return list.map(v => typeof v === "object" ? v : { value: v, label: String(v) });
+}
+
+const LANGS = [{ value: "auto", label: "Automatic" }, { value: "en", label: "English" }, { value: "ru", label: "Russian" }];
+
+// Carousel settings panel pages → groups (same rows, same store).
+function wallGroups() {
+    return Wall.PAGES.map(p => ({
+        title: p.title,
+        rows: p.rows.filter(r => r.kind === "bool" || r.kind === "choice")
+            .map(r => Object.assign({}, r, { store: "wallpaper" }))
+    }));
+}
+
+const SIDEBAR = [
+    [
+        {
+            id: "general", title: "General", glyph: "", tint: "settingsGrey",
+            groups: [
+                { rows: [
+                    { key: "i18n.language", label: "Language", kind: "choice", options: LANGS, keywords: "locale translation" }
+                ] },
+                { title: "Effects", footer: "Turns off every compositor blur behind the island and its modules.", rows: [
+                    { key: "effects.disableBlur", label: "Disable blur", kind: "bool" },
+                    { key: "effects.frost", label: "Frosted modules", kind: "bool", keywords: "glass blur" },
+                    { key: "effects.frostModules", label: "Frosted", kind: "set", options: [
+                        { value: "quicksettings", label: "Quick Settings" },
+                        { value: "notifications:center", label: "Notification Center" },
+                        { value: "prompter", label: "Teleprompter" }
+                    ] }
+                ] }
+            ]
+        }
+    ],
+    [
+        {
+            id: "island", title: "Island", glyph: "", tint: "qsIndigo",
+            groups: [
+                { title: "Minimal", footer: "How long the island stays expanded before it shrinks back to the strip.", rows: [
+                    { key: "timings.minimalIdleMs", label: "Collapse after", kind: "number", min: 1000, max: 15000, step: 500, scale: S, decimals: 1, suffix: " s" },
+                    { key: "timings.moduleIdleFromMinimalMs", label: "Close module after", kind: "number", min: 1000, max: 15000, step: 500, scale: S, decimals: 1, suffix: " s" }
+                ] },
+                { title: "Indicators", footer: "A new indicator briefly unfolds the bar while the island is minimal.", rows: [
+                    { key: "indicators.peekEnabled", label: "Peek on new indicator", kind: "bool" },
+                    { key: "indicators.peekShowMs", label: "Peek for", kind: "number", min: 1000, max: 10000, step: 500, scale: S, decimals: 1, suffix: " s" },
+                    { key: "indicators.peekIgnore", label: "Peeking indicators", kind: "set", invert: true, options: [
+                        { value: "music", label: "Music" }, { value: "timer", label: "Timer" },
+                        { value: "privacy", label: "Microphone / camera" }, { value: "dictation", label: "Dictation" },
+                        { value: "event", label: "Events" }
+                    ] },
+                    { key: "indicators.musicTimerRing", label: "Timer ring around the cover", kind: "bool" }
+                ] },
+                { title: "Gestures", footer: "How far to drag before a gesture opens its module.", rows: [
+                    { key: "gestures.sideDragThreshold", label: "Quick Settings / Notifications", kind: "number", min: 10, max: 120, step: 2, suffix: " px" },
+                    { key: "gestures.dashboardDragThreshold", label: "Dashboard", kind: "number", min: 10, max: 120, step: 2, suffix: " px" }
+                ] }
+            ]
+        },
+        {
+            id: "events", title: "Events", glyph: "", tint: "qsOrange",
+            groups: [
+                { footer: "Short messages in the bar: one at a time, queued ones show for a shorter time.", rows: [
+                    { key: "events.enabled", label: "Events", kind: "bool" },
+                    { key: "events.showMs", label: "Show for", kind: "number", min: 1000, max: 15000, step: 500, scale: S, decimals: 1, suffix: " s" },
+                    { key: "events.showQueuedMs", label: "Show queued for", kind: "number", min: 1000, max: 15000, step: 500, scale: S, decimals: 1, suffix: " s" }
+                ] },
+                { title: "Sources", rows: [
+                    { key: "events.charging", label: "Charger", kind: "bool" },
+                    { key: "events.batteryFull", label: "Battery full", kind: "bool" },
+                    { key: "events.batteryCritical", label: "Battery critical", kind: "bool" },
+                    { key: "events.bluetooth", label: "Bluetooth devices", kind: "bool" },
+                    { key: "events.wifi", label: "Wi-Fi", kind: "bool" },
+                    { key: "events.audioOutput", label: "Audio output", kind: "bool" },
+                    { key: "events.displays", label: "Displays", kind: "bool" },
+                    { key: "events.drives", label: "Drives", kind: "bool" },
+                    { key: "events.caffeine", label: "Caffeine", kind: "bool" },
+                    { key: "events.shazam", label: "Shazam", kind: "bool" },
+                    { key: "events.transcribe", label: "Transcription", kind: "bool" },
+                    { key: "events.pacman", label: "Package manager", kind: "bool" },
+                    { key: "events.download", label: "Downloads", kind: "bool" },
+                    { key: "events.updates", label: "Updates", kind: "bool" }
+                ] },
+                { footer: "Updates are announced only right after boot, not on a shell restart. 0 = always.", rows: [
+                    { key: "events.updatesMaxUptimeSec", label: "Updates: boot window", kind: "number", min: 0, max: 900, step: 30, suffix: " s" }
+                ] }
+            ]
+        },
+        {
+            id: "status", title: "Status", glyph: "降", tint: "settingsTeal",
+            groups: [
+                { footer: "Progress rings in the drop right of the island.", rows: [
+                    { key: "status.enabled", label: "Status drop", kind: "bool" }
+                ] },
+                { title: "Show progress of", rows: [
+                    { key: "status.timer", label: "Timer", kind: "bool" },
+                    { key: "status.recordSaving", label: "Saving a recording", kind: "bool" },
+                    { key: "status.transcribe", label: "Transcription", kind: "bool" },
+                    { key: "status.shazam", label: "Shazam", kind: "bool" },
+                    { key: "status.localSend", label: "LocalSend", kind: "bool" },
+                    { key: "status.lens", label: "Google Lens upload", kind: "bool" },
+                    { key: "status.pacman", label: "Package manager", kind: "bool" },
+                    { key: "status.download", label: "Downloads", kind: "bool" },
+                    { key: "status.modelDownload", label: "Model downloads", kind: "bool" },
+                    { key: "status.refineWarmup", label: "Dictation model loading", kind: "bool" },
+                    { key: "status.wallpaperWarmup", label: "Wallpaper thumbnails", kind: "bool" },
+                    { key: "status.wallpaperDupes", label: "Wallpaper duplicates scan", kind: "bool" }
+                ] }
+            ]
+        }
+    ],
+    [
+        {
+            id: "notifications", title: "Notifications", glyph: "", tint: "accentRed",
+            groups: [
+                { footer: "Low-urgency notifications go straight to the Notification Center.", rows: [
+                    { key: "notifications.onlyUrgentToast", label: "Hide low-urgency toasts", kind: "bool" },
+                    { key: "notifications.flowShowMs", label: "Show toast for", kind: "number", min: 1000, max: 20000, step: 500, scale: S, decimals: 1, suffix: " s" },
+                    { key: "notifications.flowShowQueuedMs", label: "Show queued toast for", kind: "number", min: 1000, max: 20000, step: 500, scale: S, decimals: 1, suffix: " s" },
+                    { key: "notifications.flowMaxActions", label: "Action buttons", kind: "number", min: 0, max: 6, step: 1 }
+                ] },
+                { title: "Fullscreen ticker", footer: "Notifications while a window is fullscreen scroll by in the strip.", rows: [
+                    { key: "notifications.tickerSpeed", label: "Scroll speed", kind: "number", min: 20, max: 200, step: 10, suffix: " px/s" },
+                    { key: "notifications.tickerHoldMs", label: "Hold before scrolling", kind: "number", min: 0, max: 5000, step: 100, scale: S, decimals: 1, suffix: " s" }
+                ] },
+                { title: "Notification Center", rows: [
+                    { key: "notifications.historyLimit", label: "Keep", kind: "number", min: 10, max: 500, step: 10, suffix: " notifications" },
+                    { key: "notifications.games", label: "Games when empty", kind: "set", options: [
+                        { value: "dino", label: "Dino" }, { value: "flappy", label: "Flappy" }
+                    ] }
+                ] }
+            ]
+        },
+        {
+            id: "quicksettings", title: "Quick Settings", glyph: "", tint: "qsBlue",
+            groups: [
+                { rows: [
+                    { key: "quicksettings.sessionButton", label: "Session button", kind: "bool" },
+                    { key: "quicksettings.editButton", label: "Edit button", kind: "bool" },
+                    { key: "quicksettings.holdMs", label: "Hold to edit", kind: "number", min: 200, max: 1500, step: 50, scale: S, decimals: 2, suffix: " s" },
+                    { key: "quicksettings.wheelStep", label: "Slider wheel step", kind: "number", min: 0.01, max: 0.2, step: 0.01, scale: 0.01, suffix: " %" }
+                ] }
+            ]
+        },
+        {
+            id: "osd", title: "Volume & Brightness", glyph: "", tint: "settingsPink",
+            groups: [
+                { title: "On-screen display", footer: "Shown on any change, from keys or other apps. Quick Settings sliders stay quiet.", rows: [
+                    { key: "osd.watch", label: "Show on change", kind: "bool" },
+                    { key: "osd.watchMicVolume", label: "Microphone volume too", kind: "bool" },
+                    { key: "timings.osdAutoCloseMs", label: "Hide after", kind: "number", min: 500, max: 5000, step: 100, scale: S, decimals: 1, suffix: " s" }
+                ] },
+                { title: "Steps", rows: [
+                    { key: "audio.volumeStep", label: "Volume step", kind: "number", min: 0.01, max: 0.2, step: 0.01, scale: 0.01, suffix: " %" },
+                    { key: "audio.maxVolume", label: "Maximum volume", kind: "number", min: 1, max: 1.5, step: 0.05, scale: 0.01, suffix: " %" },
+                    { key: "brightness.step", label: "Brightness step", kind: "number", min: 0.01, max: 0.25, step: 0.01, scale: 0.01, suffix: " %" }
+                ] }
+            ]
+        },
+        {
+            id: "keyboard", title: "Keyboard", glyph: "", tint: "settingsGrey",
+            groups: [
+                { footer: "A pill under the text cursor when the layout or Caps Lock changes.", rows: [
+                    { key: "keyboard.enabled", label: "Keyboard pill", kind: "bool" },
+                    { key: "keyboard.layout", label: "On layout switch", kind: "bool" },
+                    { key: "keyboard.caps", label: "On Caps Lock", kind: "bool" },
+                    { key: "keyboard.followCaret", label: "Follow the text cursor", kind: "bool" },
+                    { key: "keyboard.layoutShowMs", label: "Show for", kind: "number", min: 300, max: 5000, step: 100, scale: S, decimals: 1, suffix: " s" }
+                ] }
+            ]
+        },
+        {
+            id: "haptics", title: "Haptics", glyph: "", tint: "settingsPurple",
+            groups: [
+                { footer: "Trackpad feedback. auto = the first backend that works on this machine.", rows: [
+                    { key: "haptics.enabled", label: "Haptics", kind: "bool" },
+                    { key: "haptics.backend", label: "Backend", kind: "choice", options: [
+                        { value: "auto", label: "Automatic" }, { value: "evdev-haptic", label: "evdev-haptic" }, { value: "apple-t2", label: "apple-t2" }
+                    ] }
+                ] },
+                { title: "Strength", rows: [
+                    { key: "haptics.intensity.click", label: "Click", kind: "number", slider: true, min: 0, max: 1, step: 0.05, scale: 0.01, suffix: " %" },
+                    { key: "haptics.intensity.deep", label: "Deep press", kind: "number", slider: true, min: 0, max: 1, step: 0.05, scale: 0.01, suffix: " %" },
+                    { key: "haptics.intensity.release", label: "Release", kind: "number", slider: true, min: 0, max: 1, step: 0.05, scale: 0.01, suffix: " %" },
+                    { key: "haptics.intensity.tick", label: "Tick", kind: "number", slider: true, min: 0, max: 1, step: 0.05, scale: 0.01, suffix: " %" }
+                ] },
+                { title: "Where", rows: [
+                    { key: "haptics.quickSettings", label: "Quick Settings", kind: "bool" },
+                    { key: "haptics.limits", label: "Volume / brightness limits", kind: "bool" },
+                    { key: "haptics.polkit", label: "Authentication", kind: "bool" },
+                    { key: "haptics.wallpapers", label: "Wallpaper carousel", kind: "bool" },
+                    { key: "haptics.timer", label: "Timer ruler", kind: "bool" },
+                    { key: "haptics.recordSpeed", label: "Recording speed ruler", kind: "bool" }
+                ] }
+            ]
+        }
+    ],
+    [
+        {
+            id: "launcher", title: "Launcher", glyph: "", tint: "qsBlue",
+            groups: [
+                { rows: [
+                    { key: "launcher.disabled", label: "Plugins", kind: "set", invert: true, options: [
+                        { value: "apps", label: "Apps" }, { value: "clipboard", label: "Clipboard" },
+                        { value: "wallpapers", label: "Wallpapers" }, { value: "prompter", label: "Teleprompter" }
+                    ] },
+                    { key: "launcher.maxShown", label: "Results shown", kind: "number", min: 3, max: 12, step: 1 },
+                    { key: "launcher.magicSymbol", label: "Plugin prefix", kind: "text" },
+                    { key: "launcher.apps.terminal", label: "Terminal", kind: "text", array: true, keywords: "kitty foot" }
+                ] },
+                { title: "Clipboard", footer: "auto = own wl-paste watchers unless the compositor runs one.", rows: [
+                    { key: "launcher.clipboard.historyLimit", label: "Keep", kind: "number", min: 10, max: 1000, step: 10, suffix: " items" },
+                    { key: "launcher.clipboard.autoPaste", label: "Paste after picking", kind: "bool" },
+                    { key: "launcher.clipboard.pasteCommand", label: "Paste command", kind: "text" },
+                    { key: "launcher.clipboard.watch", label: "Watch clipboard", kind: "choice", segments: true, options: [
+                        { value: "auto", label: "Auto" }, { value: true, label: "On" }, { value: false, label: "Off" }
+                    ] }
+                ] }
+            ]
+        },
+        {
+            id: "wallpapers", title: "Wallpapers", glyph: "", tint: "settingsCyan",
+            groups: [
+                { title: "Library", rows: [
+                    { key: "launcher.wallpapers.dirs", label: "Folders", kind: "text", array: true },
+                    { key: "launcher.wallpapers.recursive", label: "Include subfolders", kind: "bool" },
+                    { key: "launcher.wallpapers.semanticSearch", label: "Search by description", kind: "bool" }
+                ] }
+            ].concat(wallGroups())
+        },
+        {
+            id: "dashboard", title: "Dashboard", glyph: "", tint: "qsIndigo",
+            groups: [
+                { title: "Weather", rows: [
+                    { key: "dashboard.weatherLocation", label: "Location", kind: "text" },
+                    { key: "dashboard.useFahrenheit", label: "Units", kind: "choice", segments: true, options: [
+                        { value: false, label: "°C" }, { value: true, label: "°F" }
+                    ] }
+                ] },
+                { title: "Sensors", footer: "Temperatures above these turn the sensor yellow, then red.", rows: [
+                    { key: "dashboard.tempWarm", label: "Warm", kind: "number", min: 40, max: 100, step: 5, suffix: " °C" },
+                    { key: "dashboard.tempHot", label: "Hot", kind: "number", min: 50, max: 110, step: 5, suffix: " °C" }
+                ] }
+            ]
+        },
+        {
+            id: "capture", title: "Capture", glyph: "", tint: "settingsGrey",
+            groups: [
+                { title: "Screenshots", rows: [
+                    { key: "capture.defaultMode", label: "Opens in", kind: "choice", options: [
+                        { value: "shot", label: "Screenshot" }, { value: "record", label: "Recording" },
+                        { value: "window", label: "Window" }, { value: "color", label: "Colour picker" },
+                        { value: "scan", label: "Scan" }, { value: "ai", label: "AI" }
+                    ] },
+                    { key: "capture.saveDir", label: "Save to", kind: "text" },
+                    { key: "capture.copyToClipboard", label: "Copy to clipboard", kind: "bool" },
+                    { key: "capture.smartRegions", label: "Smart regions", kind: "bool" },
+                    { key: "capture.ocrDefaultLang", label: "Text recognition", kind: "choice", options: [
+                        { value: "auto", label: "Last used" }, { value: "all", label: "All languages" },
+                        { value: "eng", label: "English" }, { value: "rus", label: "Russian" }, { value: "eng+rus", label: "English + Russian" }
+                    ] }
+                ] },
+                { title: "Recording", rows: [
+                    { key: "recorder.recordDir", label: "Save to", kind: "text" },
+                    { key: "recorder.audioDefault", label: "Audio", kind: "choice", options: [
+                        { value: "auto", label: "Last choice" }, { value: "none", label: "None" },
+                        { value: "system", label: "System" }, { value: "mic", label: "Microphone" }, { value: "both", label: "System + microphone" }
+                    ] },
+                    { key: "recorder.maxFps", label: "Frame rate", kind: "choice", segments: true, options: opts([30, 60, 120]) },
+                    { key: "recorder.hwAccel", label: "Hardware encoding", kind: "bool" },
+                    { key: "recorder.region.show", label: "Dim outside the region", kind: "bool" }
+                ] }
+            ]
+        },
+        {
+            id: "dictation", title: "Dictation", glyph: "", tint: "qsOrange",
+            groups: [
+                { footer: "Following the layout pins the language to it: faster and more accurate, but speak the layout's language.", rows: [
+                    { key: "dictation.followLayout", label: "Language from layout", kind: "bool" },
+                    { key: "dictation.language", label: "Language", kind: "choice", options: LANGS },
+                    { key: "dictation.typeEnabled", label: "Type the text", kind: "bool" },
+                    { key: "dictation.typeDelayMs", label: "Typing delay", kind: "number", min: 0, max: 50, step: 1, suffix: " ms" }
+                ] },
+                { title: "Refine", footer: "A local LLM cleans up punctuation and slips. Keep it loaded to skip the ~20 s cold start.", rows: [
+                    { key: "dictation.refineEnabled", label: "Refine with LLM", kind: "bool" },
+                    { key: "dictation.refineModel", label: "Model", kind: "text" },
+                    { key: "dictation.refineIdleTtlS", label: "Keep loaded", kind: "number", min: 0, max: 3600, step: 60, scale: 60, suffix: " min" }
+                ] },
+                { title: "Transcription", rows: [
+                    { key: "", label: "File transcription", kind: "page", page: {
+                        title: "File transcription",
+                        groups: [
+                            { footer: "WhisperX on the CPU. Bigger models are slower and more accurate.", rows: [
+                                { key: "transcribe.model", label: "Model", kind: "choice", options: opts(["tiny", "base", "small", "medium", "large-v3", "large-v3-turbo"]) },
+                                { key: "transcribe.language", label: "Language", kind: "choice", options: LANGS },
+                                { key: "transcribe.computeType", label: "Precision", kind: "choice", segments: true, options: opts(["int8", "float16", "float32"]) },
+                                { key: "transcribe.vad", label: "Voice detection", kind: "choice", segments: true, options: opts(["pyannote", "silero"]) },
+                                { key: "transcribe.align", label: "Word timings", kind: "bool" }
+                            ] },
+                            { title: "Speakers", footer: "Needs a Hugging Face token and the accepted pyannote terms.", rows: [
+                                { key: "transcribe.diarize", label: "Tell speakers apart", kind: "bool" },
+                                { key: "transcribe.minSpeakers", label: "At least", kind: "number", min: 0, max: 10, step: 1 },
+                                { key: "transcribe.maxSpeakers", label: "At most", kind: "number", min: 0, max: 10, step: 1 }
+                            ] }
+                        ]
+                    } }
+                ] }
+            ]
+        },
+        {
+            id: "stash", title: "Stash & LocalSend", glyph: "", tint: "accentYellow",
+            groups: [
+                { title: "Stash", rows: [
+                    { key: "stash.dropMode", label: "Dropped files", kind: "choice", segments: true, options: [
+                        { value: "copy", label: "Copy" }, { value: "symlink", label: "Link" }
+                    ] }
+                ] },
+                { title: "LocalSend", footer: "Incoming transfers ask for confirmation in the island.", rows: [
+                    { key: "stash.localsend", label: "LocalSend", kind: "bool" },
+                    { key: "stash.receive", label: "Receive files", kind: "bool" },
+                    { key: "stash.alias", label: "Device name", kind: "text" },
+                    { key: "stash.downloadDir", label: "Save to", kind: "text" }
+                ] }
+            ]
+        },
+        {
+            id: "timer", title: "Timer", glyph: "", tint: "timerAccent",
+            groups: [
+                { rows: [
+                    { key: "timer.defaultMinutes", label: "Default", kind: "number", min: 1, max: 120, step: 1, suffix: " min" },
+                    { key: "timer.maxMinutes", label: "Ruler up to", kind: "number", min: 10, max: 600, step: 10, suffix: " min" },
+                    { key: "timer.openOnFinish", label: "Open when done", kind: "bool" }
+                ] },
+                { title: "Alarm", rows: [
+                    { key: "timer.alarmSound", label: "Sound", kind: "text" },
+                    { key: "timer.alarmMaxSec", label: "Ring for at most", kind: "number", min: 5, max: 300, step: 5, suffix: " s" }
+                ] }
+            ]
+        },
+        {
+            id: "shazam", title: "Shazam", glyph: "", tint: "shazam",
+            groups: [
+                { footer: "Automatic listens to what the computer plays, the microphone when it is silent.", rows: [
+                    { key: "shazam.source", label: "Listen to", kind: "choice", segments: true, options: [
+                        { value: "auto", label: "Auto" }, { value: "monitor", label: "Computer" }, { value: "mic", label: "Microphone" }
+                    ] },
+                    { key: "shazam.maxSec", label: "Give up after", kind: "number", min: 5, max: 60, step: 5, suffix: " s" },
+                    { key: "shazam.historyLimit", label: "Keep", kind: "number", min: 10, max: 500, step: 10, suffix: " songs" }
+                ] }
+            ]
+        },
+        {
+            id: "prompter", title: "Teleprompter", glyph: "", tint: "qsGreen",
+            groups: [
+                { footer: "Voice follows your speech, auto scrolls at the set pace, manual waits for the wheel.", rows: [
+                    { key: "prompter.mode", label: "Scrolling", kind: "choice", segments: true, options: [
+                        { value: "voice", label: "Voice" }, { value: "auto", label: "Auto" }, { value: "manual", label: "Manual" }
+                    ] },
+                    { key: "prompter.wpm", label: "Auto pace", kind: "number", min: 60, max: 260, step: 10, suffix: " wpm" },
+                    { key: "prompter.language", label: "Voice language", kind: "choice", options: LANGS },
+                    { key: "prompter.dir", label: "Scripts folder", kind: "text" }
+                ] }
+            ]
+        }
+    ],
+    [
+        {
+            id: "battery", title: "Battery", glyph: "", tint: "qsGreen",
+            groups: [
+                { footer: "Charge limit 0 = read it from the system (100 % without one).", rows: [
+                    { key: "battery.warnPercent", label: "Warning at", kind: "number", min: 5, max: 80, step: 5, suffix: " %" },
+                    { key: "battery.lowPercent", label: "Low at", kind: "number", min: 5, max: 50, step: 1, suffix: " %" },
+                    { key: "battery.criticalPercent", label: "Critical at", kind: "number", min: 1, max: 20, step: 1, suffix: " %" },
+                    { key: "battery.chargeLimit", label: "Charge limit", kind: "number", min: 0, max: 100, step: 5, suffix: " %" }
+                ] }
+            ]
+        },
+        {
+            id: "session", title: "Lock & Session", glyph: "", tint: "qsBlue",
+            groups: [
+                { title: "Lock screen", rows: [
+                    { key: "lock.dissolve", label: "Dissolve windows", kind: "bool" },
+                    { key: "lock.avatar", label: "Avatar", kind: "text" }
+                ] },
+                { title: "Session menu", rows: [
+                    { key: "session.actions", label: "Actions", kind: "set", options: [
+                        { value: "lock", label: "Lock" }, { value: "logout", label: "Log Out" },
+                        { value: "suspend", label: "Sleep" }, { value: "hibernate", label: "Hibernate" },
+                        { value: "reboot", label: "Restart" }, { value: "poweroff", label: "Shut Down" }
+                    ] },
+                    { key: "session.defaultAction", label: "Selected first", kind: "choice", options: [
+                        { value: "lock", label: "Lock" }, { value: "logout", label: "Log Out" },
+                        { value: "suspend", label: "Sleep" }, { value: "hibernate", label: "Hibernate" },
+                        { value: "reboot", label: "Restart" }, { value: "poweroff", label: "Shut Down" }
+                    ] },
+                    { key: "session.confirm", label: "Confirm", kind: "bool" },
+                    { key: "session.lockOnSuspend", label: "Lock before sleep", kind: "bool" }
+                ] },
+                { title: "Authentication", rows: [
+                    { key: "polkit.enabled", label: "Polkit agent", kind: "bool" },
+                    { key: "polkit.preferCurrentUser", label: "Ask for my password first", kind: "bool" }
+                ] }
+            ]
+        },
+        {
+            id: "network", title: "Network", glyph: "", tint: "qsBlue",
+            groups: [
+                { rows: [
+                    { key: "network.hotspotName", label: "Hotspot name", kind: "text" },
+                    { key: "network.portalUrl", label: "Captive portal page", kind: "text" }
+                ] }
+            ]
+        }
+    ]
+];
+
+const SECTIONS = [].concat(...SIDEBAR);
+
+function section(id) {
+    return SECTIONS.find(s => s.id === id) ?? SECTIONS[0];
+}

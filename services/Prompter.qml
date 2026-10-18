@@ -28,6 +28,9 @@ Scope {
     property var doc: ({ blocks: [], words: [] })
     property int cursor: 0
     property string mode: root.cfg?.mode ?? "voice"
+    // setMode (IPC, the module) breaks the binding: a config change still wins.
+    readonly property string cfgMode: root.cfg?.mode ?? "voice"
+    onCfgModeChanged: root.setMode(root.cfgMode)
     property bool paused: false
     // voice: "starting" | "listening" | "lost" | "error"; else idle.
     property string voiceState: "idle"

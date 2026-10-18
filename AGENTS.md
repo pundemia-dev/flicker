@@ -42,6 +42,8 @@ user's data) live outside the repo: `CLAUDE.local.md` (git-ignored) and `~/.clau
   keyboardDemo layout|caps, shazam (listen / cancel), timer (module toggle), timerStart <min>, timerPause (toggle), timerCancel, stashTranscript <path>, stashPreview <path>,
   statusDemo <name> <percent> (<0 = spinning) / statusDemoEnd <name> / statusNext (= swipe on the drop),
   `dictation` (start/stop/toggle/cancel/status),
+  `settings` (open / section <id> / close / toggle — the settings window, section ids in
+  `modules/settings/SettingsSchema.js`),
   `prompter` (open <path>, clipboard, text <s>, show/close/toggle, pause, mode voice|auto|manual,
   move <n words>, next/prev (block), status).
 
@@ -150,6 +152,17 @@ user's data) live outside the repo: `CLAUDE.local.md` (git-ignored) and `~/.clau
   bar holds its shape (`Island.arcsHold`) until the tuck reaches `arcs.collapseAt`, then
   collapses to Minimal; hiding arcs use the bar width frozen at hide time (horizontal) and
   the live island centre (vertical).
+- Settings window (`modules/settings/`, Oct 2026, user design: iOS tiles / large title /
+  search / grouped inset lists / drill-down + end-4 nav rail, content card, config-file
+  button; NOT macOS). The ONE ordinary app window of the shell (`FloatingWindow` =
+  xdg-toplevel, the WM places / tiles / closes it), lazily created by `SettingsScope` in
+  Shell. Content = `SettingsSchema.js`: module BEHAVIOUR only (user: no paddings / radii /
+  springs there; but anything about a module's behaviour that can annoy must be there).
+  Writes go through `Config.set(path, value)`: the adapter group is replaced live and the
+  pending paths are PATCHED into config.json's own text after 300 ms (`writeAdapter()`
+  sorts every key — never use it); our own write's change event is not re-read.
+  Wallpaper rows use the carousel panel's rows + overrides (`store: "wallpaper"`).
+  Pages are created on push and destroyed on pop (springs); a section switch = blur-fade.
 - Config: `config/config.json` watched by `config/Config.qml` (pragma Singleton, JsonAdapter,
   hot-reload). New tunable = add to BOTH the JsonAdapter defaults and config.json; read as
   `Config.data.<group>.<key>`. Pure visual tokens live in `services/Theme.qml`.

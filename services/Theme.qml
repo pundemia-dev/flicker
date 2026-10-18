@@ -184,6 +184,24 @@ QtObject {
     // Barely-there light glow around buttons (components/GlowRim) so they
     // read on dark content: total spread px, 1px rings, innermost alpha.
     // Keep the alpha tiny — at ~0.2 it reads as an outline (user).
+    // Settings window (modules/settings): iOS dark grouped lists inside an
+    // end-4 style content card. Window + sidebar, the card, group cells
+    // (pressed), inset hairlines, secondary text (values, footers).
+    readonly property color settingsBg: "#000000"
+    readonly property color settingsCard: "#0E0E10"
+    readonly property color settingsGroup: "#1C1C1E"
+    readonly property color settingsPressed: "#2C2C2E"
+    readonly property color settingsSeparator: "#38383A"
+    readonly property color settingsSecondary: "#8E8E93"
+    // Section tile tints that the palette above lacks (iOS system colours).
+    readonly property color settingsGrey: "#8E8E93"
+    readonly property color settingsPink: "#FF2D55"
+    readonly property color settingsTeal: "#30B0C7"
+    readonly property color settingsPurple: "#BF5AF2"
+    readonly property color settingsCyan: "#32ADE6"
+    // Pull-down menu (choice rows) over the page.
+    readonly property color settingsMenu: "#F02C2C2E"
+    readonly property color settingsMenuShade: "#66000000"
     readonly property color buttonGlow: "#FFFFFF"
     readonly property real buttonGlowWidth: 6
     readonly property int buttonGlowRings: 6

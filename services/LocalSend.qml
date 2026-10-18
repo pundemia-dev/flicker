@@ -143,7 +143,15 @@ Scope {
     // Session toggle (stash tray antenna button); `receive` in config is
     // the startup default. Not written back: config.json is hand-edited.
     property bool receiving: root.enabled && (root.cfg?.receive ?? false)
+    // The tray toggle breaks the binding: a config change (settings window)
+    // still switches it.
+    readonly property bool receiveWanted: root.enabled && (root.cfg?.receive ?? false)
+    onReceiveWantedChanged: root.receiving = root.receiveWanted
     readonly property string deviceName: root.cfg?.alias ?? "Flicker Stash"
+    // A new name reaches a running receiver only through a restart: stop
+    // it, onExited starts it again with the new --alias.
+    property bool renaming: false
+    onDeviceNameChanged: if (server.running) root.renaming = true
     property bool serverReady: false
     // Request awaiting a decision OR mid-transfer (null when idle).
     // { sessionId, alias, files:[{id,name,size,type}], totalSize, isText?, text? }
@@ -249,7 +257,7 @@ Scope {
 
     Process {
         id: server
-        running: root.receiving
+        running: root.receiving && !root.renaming
         command: ["python3", `${root.scriptsDir}/receive.py`, "--alias", root.deviceName, "--stash-dir", root.stashDir]
         stdinEnabled: true
         stdout: SplitParser {
@@ -261,6 +269,10 @@ Scope {
         // Died on its own (port 53317 busy — e.g. pShell's receiver — or a
         // crash): switch the toggle off instead of showing a dead server on.
         onExited: code => {
+            if (root.renaming) {
+                root.renaming = false;
+                return;
+            }
             if (!root.receiving)
                 return;
             console.warn("[LocalSend] receive server exited:", code);

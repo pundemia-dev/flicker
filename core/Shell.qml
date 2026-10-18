@@ -6,6 +6,7 @@ import "../compositor"
 import "../modules/lock"
 import "../modules/capture"
 import "../modules/keyboard"
+import "../modules/settings"
 
 Scope {
     id: root
@@ -161,6 +162,9 @@ Scope {
         drives: eventDrivesService
         downloads: downloadWatchService
     }
+
+    // Settings window (an ordinary app window; IPC `settings`).
+    SettingsScope { theme: themeService; wallpaper: wallpaperService }
 
     OsdWatcher {
         registry: islandRegistry

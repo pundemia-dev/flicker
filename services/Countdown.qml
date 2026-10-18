@@ -20,6 +20,10 @@ Scope {
     // Setup value on the ruler (minutes, 0..maxMinutes), kept for the
     // session: the module reopens on the last choice.
     property int setupMinutes: root.cfg.defaultMinutes ?? 10
+    // The ruler breaks the binding above: a new default (settings window)
+    // still lands while no timer is set.
+    readonly property int defaultMinutes: root.cfg.defaultMinutes ?? 10
+    onDefaultMinutesChanged: if (!root.active) root.setupMinutes = root.defaultMinutes
 
     property real totalMs: 0
     property real endAt: 0          // epoch ms while running
