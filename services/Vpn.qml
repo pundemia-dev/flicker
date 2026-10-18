@@ -35,6 +35,9 @@ Scope {
     property string busy: ""
     property string selecting: ""
     property string error: ""
+    // Up but the probe through it has failed for quicksettings.vpn.stallMs:
+    // the node is dead (status "offline" instead of an endless "connecting").
+    property bool stalled: false
 
     property bool pinging: false
     property int pingMs: -1
@@ -47,14 +50,19 @@ Scope {
     // Switched on (wanted up), whatever the probe says.
     readonly property bool on: root.busy === "start" || root.busy === "restart" || (root.busy !== "stop"
         && (root.unit === "active" || root.unit === "activating" || root.unit === "reloading"))
-    // inactive | connecting | active | disconnecting | failed | unavailable
+    // inactive | connecting | active | offline | disconnecting | failed |
+    // unavailable
     readonly property string status: {
         if (!root.installed)
             return root.polled ? "unavailable" : "inactive";
         if (root.busy === "stop" || root.unit === "deactivating")
             return "disconnecting";
-        if (root.on)
-            return root.unit === "active" && root.online && (root.busy === "" || root.busy === "autostart") ? "active" : "connecting";
+        if (root.on) {
+            const idle = root.busy === "" || root.busy === "autostart";
+            if (root.unit === "active" && idle)
+                return root.online ? "active" : root.stalled ? "offline" : "connecting";
+            return "connecting";
+        }
         return root.unit === "failed" ? "failed" : "inactive";
     }
 
@@ -114,6 +122,7 @@ Scope {
         root.busy = kind;
         root.error = "";
         op.kind = kind;
+        op.arg = args[1] ?? "";
         op.command = [root.script, ...args];
         op.running = true;
     }
@@ -121,6 +130,7 @@ Scope {
     Process {
         id: op
         property string kind: ""
+        property string arg: ""
         stdout: StdioCollector {
             id: opOut
         }
@@ -137,7 +147,11 @@ Scope {
                         ? I18n.tr("Subscription failed") : I18n.tr("VPN failed"));
             } else if (op.kind === "subscribe" || op.kind === "update") {
                 root.post("vpn:sub", "qsBlue", I18n.tr("Subscription updated"));
+            } else if (op.kind === "select" && root.up) {
+                root.events.cancel("vpn:off");
+                root.post("vpn:on", "qsBlue", `VPN · ${op.arg}`);
             }
+            root.stalled = false;
             root.refresh();
             settle.restart();
         }
@@ -179,6 +193,22 @@ Scope {
     Timer {
         id: settle
         interval: 8000
+    }
+    Timer {
+        id: stall
+        interval: root.cfg.stallMs ?? 12000
+        running: root.unit === "active" && !root.online && root.busy === "" && !root.stalled
+        onTriggered: root.stalled = true
+    }
+    onOnlineChanged: if (root.online) root.stalled = false
+    onUnitChanged: if (root.unit !== "active") root.stalled = false
+    onStalledChanged: {
+        if (!arm.armed)
+            return;
+        if (root.stalled)
+            root.post("vpn:error", "accentRed", I18n.tr("VPN: no connection"));
+        else if (root.online)
+            root.events.cancel("vpn:error");
     }
 
     Process {

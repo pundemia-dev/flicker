@@ -3,8 +3,11 @@
 # Replicates Throne's Subscription::RawUpdater dispatch/parse behaviour and
 # emits a sing-box >= 1.12 (target 1.13.12) configuration.
 #
-# Argv: <config_path> <raw_subscription_file>
+# Argv: <config_path> <raw_subscription_file> [extras_path]
 # Exit 0 on success (config written), 1 on failure (no nodes / read error).
+# extras_path: link parameters sing-box has no field for but Xray does
+# (REALITY spiderX, gRPC authority / multi mode), JSON { tag: { ... } } —
+# for xray_split.py, which moves such nodes to Xray.
 
 import sys
 import re
@@ -19,6 +22,7 @@ OUTBOUNDS = []     # proxy outbounds (everything except wireguard)
 ENDPOINTS = []     # wireguard endpoints (sing-box >= 1.11)
 ORDER_TAGS = []    # tags in subscription order (proxies + endpoints mixed)
 _USED_TAGS = set()
+EXTRAS = {}        # tag -> Xray-only link parameters (see the header)
 
 UTLS_FP = {
     "chrome", "firefox", "safari", "edge", "ios", "android",
@@ -46,6 +50,19 @@ def add_outbound(ob):
     ob["tag"] = _uniq_tag(ob.get("tag"))
     OUTBOUNDS.append(ob)
     ORDER_TAGS.append(ob["tag"])
+
+
+def remember_extras(tag, q):
+    """Xray-only parameters of a share link (sing-box drops them)."""
+    e = {}
+    if q.get("spx"):
+        e["spiderX"] = q["spx"]
+    if q.get("authority"):
+        e["authority"] = q["authority"]
+    if q.get("mode", "").lower() == "multi" and q.get("type", "").lower() == "grpc":
+        e["multiMode"] = True
+    if e:
+        EXTRAS[tag] = e
 
 
 def add_endpoint(ep):
@@ -218,6 +235,7 @@ def parse_vless(line):
     if tr:
         ob["transport"] = tr
     add_outbound(ob)
+    remember_extras(ob["tag"], q)
 
 
 def parse_vmess(line):
@@ -278,6 +296,7 @@ def parse_trojan(line):
     if tr:
         ob["transport"] = tr
     add_outbound(ob)
+    remember_extras(ob["tag"], q)
 
 
 def parse_hysteria2(line):
@@ -1141,10 +1160,12 @@ def build_config():
             "strategy": ""
         })
 
-    # Catch-all правило для dns-direct
+    # Catch-all: everything else resolves through the proxy (dns-remote), so
+    # the ISP does not see the names; only the proxy servers' own domains
+    # (above) go direct, otherwise reaching a node would need the node.
     dns_rules.append({
         "action": "route",
-        "server": "dns-direct",
+        "server": "dns-remote",
         "strategy": ""
     })
 
@@ -1178,7 +1199,7 @@ def build_config():
             "cache_file": {
                 "enabled": True,
                 "store_fakeip": True,
-                "store_rdrc": True
+                "store_dns": True
             },
             "clash_api": {
                 "default_mode": ""
@@ -1255,6 +1276,7 @@ def main():
     if len(sys.argv) < 3:
         sys.exit(1)
     config_path, raw_file = sys.argv[1], sys.argv[2]
+    extras_path = sys.argv[3] if len(sys.argv) > 3 else None
     try:
         with open(raw_file, "r", encoding="utf-8", errors="replace") as f:
             raw = f.read().strip()
@@ -1270,6 +1292,9 @@ def main():
 
     with open(config_path, "w", encoding="utf-8") as f:
         json.dump(build_config(), f, indent=2, ensure_ascii=False)
+    if extras_path:
+        with open(extras_path, "w", encoding="utf-8") as f:
+            json.dump(EXTRAS, f, ensure_ascii=False)
     sys.stderr.write("parsed %d node(s)\n" % len(ORDER_TAGS))
 
 

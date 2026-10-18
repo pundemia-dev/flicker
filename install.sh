@@ -29,6 +29,9 @@ declare -A PKG=(
   [cliphist]=cliphist [wtype]=wtype [cava]=cava [app2unit]=app2unit-git [7z]=7zip
   # optional: wallpapers + accent colour, Python helpers
   [wallr]=wallr-bin [matugen]=matugen [uv]=uv
+  # optional: VPN card (sing-box = TUN engine, Xray = its gRPC / XHTTP
+  # nodes), its speed test
+  [sing-box]=sing-box [xray]=xray-bin [speedtest-cli]=speedtest-cli
 )
 missing=()
 for t in "${!PKG[@]}"; do have "$t" || missing+=("${PKG[$t]}"); done
@@ -42,7 +45,7 @@ fi
 if (( ${#missing[@]} )); then
   mapfile -t missing < <(printf '%s\n' "${missing[@]}" | sort -u)
   echo "   missing: ${missing[*]}"
-  echo "   install: paru -S --needed ${missing[*]}   (some are AUR: wallr-bin, app2unit-git)"
+  echo "   install: paru -S --needed ${missing[*]}   (some are AUR: wallr-bin, app2unit-git, xray-bin)"
 else
   echo "   all present"
 fi
@@ -221,5 +224,18 @@ for b in "$FLICKER_DIR"/scripts/haptics/backends/*/; do
   esac
 done
 (( haptic_found )) || echo "   no haptic trackpad found (fine)"
+
+# --- 6. VPN card (optional, polkit rule = root) ---
+# Start / stop without a password prompt: a polkit rule limited to the
+# sing-box and xray units (scripts/vpn/vpn.sh setup asks for it once).
+# The rules directory is root-only, so this cannot tell whether it is in.
+echo "6. vpn..."
+if have sing-box; then
+  echo "   sing-box present; for start / stop without a password, once:"
+  echo "     $FLICKER_DIR/scripts/vpn/vpn.sh setup"
+  have xray || echo "   note: no xray — gRPC / XHTTP nodes stay on sing-box (gRPC usually fails)"
+else
+  echo "   no sing-box (VPN card reads \"Not installed\", fine)"
+fi
 
 echo "done. start the shell: qs -c flicker"

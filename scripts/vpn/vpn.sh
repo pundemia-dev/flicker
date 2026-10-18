@@ -59,18 +59,24 @@ uses_xray() {
     [ ! -e "$view" ] && [ -s "$legacy_nodes" ]
 }
 
-# The panel's view of $config: { profile, profiles: [{ tag, type }], xray }.
-# $1 = nodes moved to Xray ("tag<TAB>type" lines; empty file / none = none).
+# The panel's view of $config: { profile, profiles: [{ tag, type (shown),
+# base, xray, insecure }], xray }. $1 = nodes moved to Xray
+# ("tag<TAB>type<TAB>flags" lines; empty file / none = none).
 view_of() {
     local xn='{}'
-    [ -s "${1:-}" ] && xn=$(jq -Rn '[inputs | split("\t") | select(length == 2) | { key: .[0], value: (.[1] + " · xray") }] | from_entries' "$1")
+    [ -s "${1:-}" ] && xn=$(jq -Rn '[inputs | split("\t") | select(length >= 2)
+        | { key: .[0], value: { base: .[1], insecure: ((.[2] // "") | contains("insecure")) } }] | from_entries' "$1")
     jq -c --arg ms "$(selector)" --argjson xn "$xn" '
         . as $c
-        | (([$c.outbounds[]?, $c.endpoints[]?] | map(select(.tag | type == "string") | { key: .tag, value: .type }) | from_entries) + $xn) as $types
+        | ([$c.outbounds[]?, $c.endpoints[]?] | map(select(.tag | type == "string") | { key: .tag, value: .type }) | from_entries) as $types
         | ([$c.outbounds[]? | select(.type == "selector" and .tag == $ms)][0]) as $sel
-        | {
+        | def node($t): ($xn[$t]) as $x
+            | if $x then { tag: $t, base: $x.base, xray: true, insecure: $x.insecure,
+                           type: ($x.base + " · xray" + (if $x.insecure then " · ⚠ cert checked" else "" end)) }
+              else { tag: $t, base: ($types[$t] // ""), xray: false, insecure: false, type: ($types[$t] // "") } end;
+        {
             profile: (if $sel then ($sel.default // $sel.outbounds[0] // "") else "" end),
-            profiles: (if $sel then [$sel.outbounds[]? | { tag: ., type: ($types[.] // "") }] else [] end),
+            profiles: (if $sel then [$sel.outbounds[]? | node(.)] else [] end),
             xray: ($xn != {})
         }' "$config"
 }
@@ -81,7 +87,9 @@ write_view() {
     local nodes=${1:-} own="" tmp
     if [ -z "$nodes" ] && [ -r "$view" ]; then
         own=$(mktemp) || return 1
-        jq -r '.profiles[] | select(.type | endswith(" · xray")) | "\(.tag)\t\(.type | rtrimstr(" · xray"))"' "$view" >"$own"
+        # (A view from before base / xray existed: parse the shown type.)
+        jq -r '.profiles[] | select(.xray // (.type | endswith(" · xray")))
+            | "\(.tag)\t\(.base // (.type | rtrimstr(" · xray")))\t\(if .insecure then "insecure" else "" end)"' "$view" >"$own"
         nodes=$own
     fi
     tmp=$(mktemp) || return 1
@@ -214,8 +222,9 @@ _apply)
     tmp=$(mktemp) || err "mktemp"
     xtmp=$(mktemp) || err "mktemp"
     ntmp=$(mktemp) || err "mktemp"
-    trap 'rm -f "$tmp" "$xtmp" "$ntmp"' EXIT
-    python3 -I "$here/sub_parser.py" "$tmp" "$2" || err "no nodes in the subscription"
+    etmp=$(mktemp) || err "mktemp"
+    trap 'rm -f "$tmp" "$xtmp" "$ntmp" "$etmp"' EXIT
+    python3 -I "$here/sub_parser.py" "$tmp" "$2" "$etmp" || err "no nodes in the subscription"
     # Keep the chosen node across an update (the parser defaults to the first,
     # often a provider's placeholder) if the new subscription still has it.
     keep=$([ -r "$config" ] && jq -r --arg ms "$(selector)" \
@@ -226,7 +235,7 @@ _apply)
     fi
     # gRPC / XHTTP nodes to Xray (only when it is installed).
     if xuid=$(id -u xray 2>/dev/null) && command -v xray >/dev/null; then
-        python3 -I "$here/xray_split.py" "$tmp" "$xtmp" "$ntmp" "$xuid" || err "xray split failed"
+        python3 -I "$here/xray_split.py" "$tmp" "$xtmp" "$ntmp" "$xuid" "$etmp" || err "xray split failed"
     fi
     sing-box check -c "$tmp" || err "sing-box rejected the generated config"
     if [ -s "$ntmp" ]; then

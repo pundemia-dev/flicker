@@ -13,7 +13,10 @@
 # random each run): other local programs cannot ride the tunnel through them.
 #
 # Argv: <sing-box config (rewritten in place)> <xray config out>
-#       <nodes out: "tag<TAB>type" per moved node> <xray uid> [base port]
+#       <nodes out: "tag<TAB>type<TAB>flags" per moved node> <xray uid>
+#       [extras (sub_parser.py's Xray-only link parameters)] [base port]
+# flags: "insecure" = the link asked to skip the certificate check, which
+# Xray no longer can (allowInsecure was removed in 2026-06): it verifies.
 # Exit 0 = written (no moved node → empty nodes file, no Xray config);
 # 1 = bad input.
 
@@ -29,12 +32,17 @@ def warn(msg):
     sys.stderr.write("xray_split: %s\n" % msg)
 
 
-def stream(ob):
+def stream(ob, extra):
     tr = ob.get("transport") or {}
     tls = ob.get("tls") or {}
     s = {"network": tr["type"]}
     if tr["type"] == "grpc":
-        s["grpcSettings"] = {"serviceName": tr.get("service_name", "")}
+        g = {"serviceName": tr.get("service_name", "")}
+        if extra.get("authority"):
+            g["authority"] = extra["authority"]
+        if extra.get("multiMode"):
+            g["multiMode"] = True
+        s["grpcSettings"] = g
     else:
         x = {}
         if tr.get("path"):
@@ -58,6 +66,8 @@ def stream(ob):
             "publicKey": reality.get("public_key", ""),
             "shortId": reality.get("short_id", ""),
         }
+        if extra.get("spiderX"):
+            r["spiderX"] = extra["spiderX"]
         s["realitySettings"] = r
         return s
     s["security"] = "tls"
@@ -75,7 +85,7 @@ def stream(ob):
     return s
 
 
-def outbound(ob, tag):
+def outbound(ob, tag, extra):
     t = ob["type"]
     addr, port = ob["server"], ob["server_port"]
     if t == "vless":
@@ -87,18 +97,23 @@ def outbound(ob, tag):
                     "security": ob.get("security", "auto")}
     else:
         settings = {"address": addr, "port": port, "password": ob["password"]}
-    return {"tag": tag, "protocol": t, "settings": settings, "streamSettings": stream(ob)}
+    return {"tag": tag, "protocol": t, "settings": settings, "streamSettings": stream(ob, extra)}
 
 
 def main():
     if len(sys.argv) < 5:
         sys.exit(1)
     sb_path, xray_path, nodes_path, uid = sys.argv[1:5]
-    base = int(sys.argv[5]) if len(sys.argv) > 5 else 20801
+    extras_path = sys.argv[5] if len(sys.argv) > 5 else ""
+    base = int(sys.argv[6]) if len(sys.argv) > 6 else 20801
     try:
         with open(sb_path, encoding="utf-8") as f:
             cfg = json.load(f)
         uid = int(uid)
+        extras = {}
+        if extras_path:
+            with open(extras_path, encoding="utf-8") as f:
+                extras = json.load(f)
     except Exception as e:
         warn(str(e))
         sys.exit(1)
@@ -112,7 +127,7 @@ def main():
         i = len(nodes)
         port = base + i
         try:
-            outbounds.append(outbound(ob, "out-%d" % i))
+            outbounds.append(outbound(ob, "out-%d" % i, extras.get(ob.get("tag"), {})))
         except KeyError as e:
             warn("%s: missing %s, left to sing-box" % (ob.get("tag"), e))
             continue
@@ -121,7 +136,8 @@ def main():
                          "settings": {"auth": "password", "udp": True, "ip": "127.0.0.1",
                                       "accounts": [{"user": user, "pass": password}]}})
         rules.append({"inboundTag": ["in-%d" % i], "outboundTag": "out-%d" % i})
-        nodes.append((ob["tag"], ob["type"]))
+        insecure = bool((ob.get("tls") or {}).get("insecure"))
+        nodes.append((ob["tag"], ob["type"], "insecure" if insecure else ""))
         tag = ob["tag"]
         ob.clear()
         ob.update({"type": "socks", "tag": tag, "server": "127.0.0.1",
@@ -147,8 +163,8 @@ def main():
     with open(sb_path, "w", encoding="utf-8") as f:
         json.dump(cfg, f, indent=2, ensure_ascii=False)
     with open(nodes_path, "w", encoding="utf-8") as f:
-        for tag, t in nodes:
-            f.write("%s\t%s\n" % (tag, t))
+        for tag, t, flags in nodes:
+            f.write("%s\t%s\t%s\n" % (tag, t, flags))
     sys.stderr.write("xray_split: %d node(s) to Xray\n" % len(nodes))
 
 

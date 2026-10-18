@@ -38,7 +38,7 @@ user's data) live outside the repo: `CLAUDE.local.md` (git-ignored) and `~/.clau
   window|ai|scan), captureScreen (= Enter in the active tool), captureCancel, session (session menu toggle), screenshot
   (instant, no overlay), record (toggle), recordPause, recordControls, dashboard, player, lock, close, minimal, island, osd, debugState,
   volumeUp/Down/Mute, micMute, brightnessUp/Down, playPause, nextTrack, prevTrack, playerSeek <s>),
-  `island powerSave` (Low Power Mode toggle), `island airplane` (Airplane Mode toggle), `island vpn` (VPN = sing-box unit toggle; panel + backend `scripts/vpn/vpn.sh`), `lock` (activate/isLocked — deliberately NO unlock/toggle over IPC; unlocking needs PAM),
+  `island powerSave` (Low Power Mode toggle), `island airplane` (Airplane Mode toggle), `island vpn` (VPN on/off, see VPN below), `lock` (activate/isLocked — deliberately NO unlock/toggle over IPC; unlocking needs PAM),
   keyboardDemo layout|caps, shazam (listen / cancel), timer (module toggle), timerStart <min>, timerPause (toggle), timerCancel, stashTranscript <path>, stashPreview <path>,
   statusDemo <name> <percent> (<0 = spinning) / statusDemoEnd <name> / statusNext (= swipe on the drop),
   `dictation` (start/stop/toggle/cancel/status),
@@ -350,7 +350,7 @@ user's data) live outside the repo: `CLAUDE.local.md` (git-ignored) and `~/.clau
   flip to that tab, over "+" = new tab), bottom-right arc = resize (nearest allowed size),
   "−" = hide, footer chips add back, «Готово»/tap on empty/module close saves.
   Expanded card (Oct 2026, user design): long press on a card with a panel
-  (`QsCardFactory.panelFor`: wifi, bluetooth) → `QsExpander` = a thin QS wrapper over the
+  (`QsCardFactory.panelFor`: wifi, bluetooth, vpn) → `QsExpander` = a thin QS wrapper over the
   GENERIC `components/DropExpand.qml` (user: reusable on any button, click or hold —
   `components/DropExpandArea.qml` trigger; `open(source, {panel, width, height, radius,
   sourceRadius, layer, color (value or live function), payload})`, panel item gets
@@ -367,9 +367,13 @@ user's data) live outside the repo: `CLAUDE.local.md` (git-ignored) and `~/.clau
   surface), card-size layer scaled into the shape, blur-fades out; panel laid out at its final
   size, scaled with the shape, blur-fades in on grow (FadeBlur). Fill = card look (accent × onP)
   → `Theme.qsPanelBg` (a touch darker than frostButton). The rest of QS does NOT change
-  (user: no dim/blur): the module's `backdrop` layer is cut out under the shape by an inverted
-  binary MultiEffect mask (`cutout`, inset `cutInset`, follows the flight deform), so nothing
-  in the same window reads through the translucent panel. Frost: the shape is NOT a hole —
+  (no dim): the module's `backdrop` layer is cut out under the shape by an inverted
+  binary MultiEffect mask (`cutout`, inset `cutInset`, follows the flight deform), and the
+  shape draws the grid BLURRED under its fill instead (user, Oct 2026: blur what is behind,
+  not a hole — `DropExpand.backdrop` = the `viewport` item at `backdropPos`, ShaderEffectSource
+  + MultiEffect blur `expand.blurMax`, masked to the shape inset `cutInset`; `expand.blurBehind:
+  false` = the old bare cut). The sharp grid must stay cut out, or it shows through the blur's
+  translucent edges/gaps. Frost: the shape is NOT a hole —
   the module's `knockoutClear` ({x,y,w,h,r,m,inset} via ModuleHost) makes Island cut its tint
   out under the shape with the same inverted mask (`frostClearMask`); card holes stay as they
   are (dropping / cutting the holes of partly covered cards recoloured them — the "artifacts"). Fast springs (user): drop 14, fly / grow / fades 12, handoff 0.5. Tap outside = the
@@ -446,6 +450,40 @@ user's data) live outside the repo: `CLAUDE.local.md` (git-ignored) and `~/.clau
   them: 4x2↔2x2 morph frames, 4x4/4x6 layouts, page slide + rail.
   NOT live-tested (no mouse tool): drag-move (incl. across tabs), resize arc, remove/add,
   taps, slider drags, swipe paging/close zone, wheel.
+- VPN (Oct 2026, user port of their dots-hyprland "ii" Vpn service): QS card `vpn` (catalog
+  BUTTON_WIDE, starts hidden) + expanded `panels/VpnPanel` (PanelHeader with `shape: "cookie9"`
+  = MorphDot disc: `spinning` while up, `busy` leaps through random MorphShape kinds — NOT
+  M3Shapes, see Lock; node list, ping / speedtest-cli pills, autostart switch, restart, logs
+  (terminal `journalctl -f -u sing-box -u xray`), subscription URL form), IPC `island vpn`,
+  `services/Vpn.qml` (Shell → Island `vpn` → services map + IslandIpc), backend
+  `scripts/vpn/vpn.sh`. Engine = system unit `sing-box.service` (Arch: User=sing-box, runs
+  `-C /etc/sing-box` = merges EVERY *.json there — never write temp/backup *.json into it).
+  Nodes = the first `selector` outbound's list, active = its `default` (switch = rewrite +
+  try-restart; sing-box only restores a cached choice made via Clash API, so the default
+  wins). Status = `vpn.sh state` JSON poll: unit + an HTTP probe through it (`curl -4`),
+  `connecting` until the probe answers, `offline` after `stallMs` without it (+ event).
+  Subscriptions: `sub_parser.py` (user's own, Throne-style) → sing-box JSON (DNS: proxy
+  servers' domains direct, everything else `dns-remote` through the proxy; `store_dns`, not
+  the deprecated `store_rdrc`) + an extras JSON of link params sing-box has no field for.
+  Arch's sing-box is built WITHOUT `with_grpc`: its lite gRPC sends `:authority` = the SNI
+  (for REALITY the camouflage domain) and Xray servers drop the stream ("connection upload
+  handshake: io: read/write on closed pipe"). So `xray_split.py` moves gRPC / XHTTP nodes
+  (vless/vmess/trojan) to Xray (`xray-bin`, `xray.service` User=xray): one Xray outbound per
+  node behind its own 127.0.0.1:20801+ SOCKS inbound (user/password, fresh random per import),
+  the sing-box outbound of the same tag becomes a socks client to it (selector unchanged);
+  Xray's uid is excluded from the TUN (`tun.exclude_uid`) + routed direct (`user_id` rule) —
+  no loop. Xray 26.3.27's own TUN inbound only raises the interface (routes / loop avoidance
+  are the OS's job; `autoSystemRoutingTable` exists only on main), hence sing-box stays the
+  engine. Xray picks the config format by EXTENSION: `xray run -test -format json` on mktemp
+  files. Xray removed `allowInsecure` (2026-06): such nodes verify (view type "⚠ cert
+  checked"). Secrets: both configs root:<unit user> 0640, `.bak` 0600; the panel reads
+  `/etc/flicker-vpn/view.json` (0644, written by the root halves: profile, profiles
+  [{tag, type, base, xray, insecure}], xray). Privileges: root halves (`_select`, `_apply`) via
+  pkexec (the shell's polkit agent asks); start/stop via systemctl + polkit, `vpn.sh setup`
+  installs a rule limited to the two units (deliberately NOT "pkexec this script without a
+  password" like the original: the script lives in a user-writable dir). An update keeps the
+  chosen node if the new subscription still has it. "😪 Auto Selector"-style entries are
+  real server-side auto-select profiles (user) — keep them.
 - Launcher (`modules/launcher/`, Oct 2026) = pShell launcher port, only the apps + clipboard
   plugins. `LauncherModule` (host: plate-less search row, hairline divider (`launcher.dividerInset/Width`, `Theme.launcherDivider`, centred in `gap`, short of the edges) / list / plate-less side panel behind a vertical hairline (the same `panelGap` list edge → line → panel content, counted in `LauncherMetrics.islandSize`; the list narrows by `panelListShrink` (0.3) while the panel is open, rendered width on the island's own `Spring {}` so both move in step; `panelDividerInset` short of both the horizontal divider and the island bottom, fades with the panel)) + `LauncherManager`
   (pShell ModuleManager: default → `!` picker → active plugin pill; Backspace on empty steps

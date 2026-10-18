@@ -239,6 +239,8 @@ Item {
                     return I18n.tr("Disconnecting…");
                 case "failed":
                     return I18n.tr("Failed");
+                case "offline":
+                    return I18n.tr("No connection");
                 case "active":
                     return vpn.profile || I18n.tr("Connected");
                 }

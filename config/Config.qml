@@ -1157,9 +1157,11 @@ Singleton {
                         dnd: false
                     }),
                     // VPN card (services/Vpn, scripts/vpn/vpn.sh): state poll
-                    // period (1 s while a change settles).
+                    // period (1 s while a change settles); up but the probe
+                    // through it failing this long = "No connection" + event.
                     vpn: ({
-                        pollMs: 5000
+                        pollMs: 5000,
+                        stallMs: 12000
                     }),
                     // Expanded card (QsExpander = components/DropExpand, long
                     // press on a card with a panel; motion in `dropExpand`):
