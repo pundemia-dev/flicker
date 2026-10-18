@@ -162,10 +162,10 @@ def build_transport(net, q, host_header=""):
     path = q.get("path", "") or "/"
     host = host_header or q.get("host", "")
     if net in ("ws", "websocket"):
-        t = {"type": "websocket", "path": path}
+        # sing-box's type name is "ws" ("websocket" fails its check).
+        t = {"type": "ws", "path": path}
         if host:
             t["headers"] = {"Host": host}
-        ed = q.get("ed") or q.get("eh")
         try:
             if q.get("ed"):
                 t["max_early_data"] = int(q.get("ed"))
@@ -712,7 +712,7 @@ def _clash_node_to_singbox(p):
             for k, v in hdr.items():
                 if k.lower() == "host":
                     host = v
-            ob["transport"] = {"type": "websocket", "path": path}
+            ob["transport"] = {"type": "ws", "path": path}
             if host:
                 ob["transport"]["headers"] = {"Host": host}
         elif net == "grpc":
