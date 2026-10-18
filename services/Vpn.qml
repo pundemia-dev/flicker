@@ -14,6 +14,10 @@ import "../config"
 // asks). Ping / speed test are separate and may run alongside.
 // Kill switch (`vpn.sh killswitch`): an nftables block raised with sing-box
 // that outlives a crash; only a stop (setActive(false) / release()) lowers it.
+// Split routing (Config `vpn.routing`, the settings window) and the user's own
+// sing-box JSON overlay (`vpn.sh edit`) take effect on applyRouting() (pkexec,
+// sing-box restarts; a config it cannot start with is rolled back);
+// `pending` = either differs from what is applied.
 Scope {
     id: root
     required property var events
@@ -34,10 +38,17 @@ Scope {
     // (crashed / failed): no traffic until the VPN is back or released.
     property bool killswitch: false
     property bool blocking: false
+    // The routing in force (as last applied) and whether the overlay file
+    // changed since.
+    property var appliedRouting: ({})
+    property bool customPending: false
+    readonly property var routing: Config.data.vpn?.routing ?? ({})
+    readonly property bool routingPending: root.canon(root.routing) !== root.canon(root.appliedRouting)
+    readonly property bool pending: root.installed && (root.routingPending || root.customPending)
     property bool polled: false
 
     // Running operation: "" | start | stop | restart | autostart | killswitch
-    // | select | update | subscribe.
+    // | select | update | subscribe | routing.
     property string busy: ""
     property string selecting: ""
     property string error: ""
@@ -98,6 +109,23 @@ Scope {
     function release(): void {
         if (root.busy === "" && root.blocking)
             root.run("stop", ["stop"]);
+    }
+    // Routing + overlay into force; refresh = download the geosite / geoip
+    // lists again even if fresh.
+    function applyRouting(refresh: bool): void {
+        if (root.installed && root.busy === "")
+            root.run("routing", ["apply", JSON.stringify(root.routing)].concat(refresh ? ["refresh"] : []));
+    }
+    // The overlay (~/.config/flicker/vpn/custom.json) in an editor in the
+    // user's terminal; applyRouting() puts it in force.
+    function editConfig(): void {
+        Quickshell.execDetached((Config.data.launcher?.apps?.terminal ?? ["kitty"]).concat([root.script, "edit"]));
+    }
+    // Key-order-free JSON, defaults filled in (routing comparison).
+    function canon(r: var): string {
+        const sort = v => Array.isArray(v) ? v.map(sort) : v && typeof v === "object"
+            ? Object.keys(v).sort().reduce((o, k) => (o[k] = sort(v[k]), o), {}) : v;
+        return JSON.stringify(sort({ final: r?.final ?? "proxy", rules: r?.rules ?? [] }));
     }
     // The unit's journal, followed, in the user's terminal.
     function openLogs(): void {
@@ -161,9 +189,11 @@ Scope {
                 console.info("[vpn]", op.kind, "failed:", root.error);
                 if (code !== 126 && code !== 127)
                     root.post("vpn:error", "accentRed", op.kind === "subscribe" || op.kind === "update"
-                        ? I18n.tr("Subscription failed") : I18n.tr("VPN failed"));
+                        ? I18n.tr("Subscription failed") : op.kind === "routing" ? I18n.tr("Routing failed") : I18n.tr("VPN failed"));
             } else if (op.kind === "subscribe" || op.kind === "update") {
                 root.post("vpn:sub", "qsBlue", I18n.tr("Subscription updated"));
+            } else if (op.kind === "routing") {
+                root.post("vpn:sub", "qsBlue", I18n.tr("Routing applied"));
             } else if (op.kind === "select" && root.up) {
                 root.events.cancel("vpn:off");
                 root.post("vpn:on", "qsBlue", `VPN · ${op.arg}`);
@@ -191,6 +221,9 @@ Scope {
                     root.subscription = s.subscription;
                     root.killswitch = s.killswitch ?? false;
                     root.blocking = s.blocking ?? false;
+                    if (root.canon(s.routing) !== root.canon(root.appliedRouting))
+                        root.appliedRouting = s.routing ?? {};
+                    root.customPending = s.customPending ?? false;
                 } catch (e) {
                     console.warn("[vpn] bad state:", text);
                 }

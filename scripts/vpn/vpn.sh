@@ -10,14 +10,25 @@
 # (xray_split.py, keyed), and while there are any xray.service
 # starts / stops / restarts with sing-box.
 # The configs hold the nodes' secrets: root:<unit user> 0640. What the panel
-# needs (nodes, types, the active one, whether Xray is in use) is written
-# next to them, secret-free, to /etc/flicker-vpn/view.json (0644).
+# needs (nodes, types, the active one, whether Xray is in use, the applied
+# routing) is written next to them, secret-free, to /etc/flicker-vpn/view.json
+# (0644).
+# config.json = compose(base, routing, overlay) (routing.py): base = the
+# subscription's config (sub_parser + xray_split, /etc/flicker-vpn/base.json,
+# root 0600), routing = the shell's `vpn.routing` (direct / proxy / block
+# rules by domain, IP, process, geosite / geoip), overlay = the user's own
+# sing-box JSON (~/.config/flicker/vpn/custom.json), applied last. Root keeps
+# copies of the applied routing / overlay and the geosite / geoip rule-sets
+# (/etc/flicker-vpn/{routing,custom}.json, rules/), so a subscription update
+# or a node switch recomposes the same way.
 #
 #   state              one JSON line: { installed, unit (systemctl
 #                      is-active), enabled (autostart), online (a probe
 #                      through it answered), profile, profiles:
 #                      [{ tag, type }], subscription, killswitch (on),
-#                      blocking (its table is up while sing-box is not) }
+#                      blocking (its table is up while sing-box is not),
+#                      routing (the applied one), customPending (the
+#                      overlay file differs from the applied one) }
 #   start | stop | restart
 #                      systemctl start / stop / restart sing-box (polkit
 #                      asks, unless the `setup` rule is installed)
@@ -36,7 +47,15 @@
 #                      the user, then (root) parse + `sing-box check` +
 #                      install config.json, restart the unit if it runs
 #   update             subscribe again with the remembered URL
-#   ping               latency of an HTTP probe: "OK:<ms>" / "ERR:"
+#   apply [json] [refresh]
+#                      routing (json = the shell's `vpn.routing`; without it
+#                      the last one) + the overlay: validate, download the
+#                      geosite / geoip rule-sets it needs (as the user; older
+#                      than a day or `refresh` = again), then (root) compose,
+#                      `sing-box check`, install, restart the unit if it runs
+#   edit               the overlay in $VISUAL / $EDITOR (a skeleton first);
+#                      `apply` puts it in force
+#   ping              latency of an HTTP probe: "OK:<ms>" / "ERR:"
 #   speedtest          speedtest-cli --simple (ERR_MISSING without it)
 #   setup              (root, once) polkit rule: the active local session of
 #                      the calling user may start / stop / restart
@@ -54,6 +73,13 @@ legacy_nodes=/etc/xray/flicker-nodes.tsv
 probe=http://cp.cloudflare.com/generate_204
 state_dir=${XDG_STATE_HOME:-$HOME/.local/state}/flicker/vpn
 sub_file=$state_dir/subscription
+routing_file=$state_dir/routing.json
+custom_file=${XDG_CONFIG_HOME:-$HOME/.config}/flicker/vpn/custom.json
+rules_cache=${XDG_CACHE_HOME:-$HOME/.cache}/flicker/vpn/rules
+base=/etc/flicker-vpn/base.json
+routing_etc=/etc/flicker-vpn/routing.json
+custom_etc=/etc/flicker-vpn/custom.json
+rules_etc=/etc/flicker-vpn/rules
 rule=/etc/polkit-1/rules.d/50-flicker-vpn.rules
 ks_unit=flicker-vpn-killswitch
 ks_unit_file=/etc/systemd/system/$ks_unit.service
@@ -75,14 +101,20 @@ uses_xray() {
     [ ! -e "$view" ] && [ -s "$legacy_nodes" ]
 }
 
+# sha256 of a file, "" when missing.
+hash_of() {
+    [ -f "$1" ] && sha256sum <"$1" | cut -c1-64
+}
+
 # The panel's view of $config: { profile, profiles: [{ tag, type (shown),
-# base, xray, insecure }], xray }. $1 = nodes moved to Xray
-# ("tag<TAB>type<TAB>flags" lines; empty file / none = none).
+# base, xray, insecure }], xray, routing, customHash }. $1 = nodes moved to
+# Xray ("tag<TAB>type<TAB>flags" lines; empty file / none = none).
 view_of() {
-    local xn='{}'
+    local xn='{}' r='{}'
     [ -s "${1:-}" ] && xn=$(jq -Rn '[inputs | split("\t") | select(length >= 2)
         | { key: .[0], value: { base: .[1], insecure: ((.[2] // "") | contains("insecure")) } }] | from_entries' "$1")
-    jq -c --arg ms "$(selector)" --argjson xn "$xn" '
+    [ -s "$routing_etc" ] && r=$(jq -c . "$routing_etc" 2>/dev/null || echo '{}')
+    jq -c --arg ms "$(selector)" --argjson xn "$xn" --argjson r "$r" --arg ch "$(hash_of "$custom_etc")" '
         . as $c
         | ([$c.outbounds[]?, $c.endpoints[]?] | map(select(.tag | type == "string") | { key: .tag, value: .type }) | from_entries) as $types
         | ([$c.outbounds[]? | select(.type == "selector" and .tag == $ms)][0]) as $sel
@@ -93,8 +125,61 @@ view_of() {
         {
             profile: (if $sel then ($sel.default // $sel.outbounds[0] // "") else "" end),
             profiles: (if $sel then [$sel.outbounds[]? | node(.)] else [] end),
-            xray: ($xn != {})
+            xray: ($xn != {}),
+            routing: $r,
+            customHash: $ch
         }' "$config"
+}
+
+# Root: compose $config's content from base $1 (routing $2, overlay $3) into
+# $4, then `sing-box check` it. Prints ERR: and fails on either.
+compose() {
+    local out
+    out=$(python3 -I "$here/routing.py" compose "$1" "$2" "$3" "$rules_etc" "$4") || { echo "$out"; return 1; }
+    out=$(sing-box check -c "$4" 2>&1) ||
+        { echo "ERR:sing-box: $(printf '%s' "$out" | sed 's/\x1b\[[0-9;]*m//g' | tail -n 1)"; return 1; }
+}
+
+# Root: the rule-sets routing $1 needs, from the user's download dir $2
+# (regular .srs files only) to $rules_etc; ones no longer needed go.
+install_rules() {
+    local f rest keep=" "
+    mkdir -p "$rules_etc"
+    while IFS=$'\t' read -r f rest; do
+        keep="$keep$f "
+        [ -n "${2:-}" ] && [ -f "$2/$f" ] && [ ! -L "$2/$f" ] && [ "$(head -c3 "$2/$f")" = SRS ] &&
+            install -m 644 "$2/$f" "$rules_etc/$f"
+    done < <(python3 -I "$here/routing.py" rulesets "$1")
+    for f in "$rules_etc"/*.srs; do
+        [ -e "$f" ] && [ "${keep#* "${f##*/}" }" = "$keep" ] && rm -f "$f"
+    done
+    return 0
+}
+
+# User: download the rule-sets routing $1 needs to $rules_cache (each from
+# the first source that has it); ones younger than a day are kept unless $2.
+fetch_rules() {
+    local list line f u got
+    list=$(python3 -I "$here/routing.py" rulesets "$1") || err "${list#ERR:}"
+    [ -n "$list" ] || return 0
+    mkdir -p "$rules_cache"
+    while IFS= read -r line; do
+        IFS=$'\t' read -r -a parts <<<"$line"
+        f=${parts[0]}
+        [ -z "${2:-}" ] && [ -n "$(find "$rules_cache/$f" -mmin -1440 2>/dev/null)" ] && continue
+        got=""
+        for u in "${parts[@]:1}"; do
+            if curl -4 -sfL --connect-timeout 10 -m 120 "$u" -o "$rules_cache/$f.part" &&
+                [ "$(head -c3 "$rules_cache/$f.part")" = SRS ]; then
+                mv "$rules_cache/$f.part" "$rules_cache/$f"
+                got=1
+                break
+            fi
+        done
+        rm -f "$rules_cache/$f.part"
+        # A stale copy beats none (GitHub unreachable right now).
+        [ -n "$got" ] || [ -s "$rules_cache/$f" ] || err "cannot download ${f%.srs}"
+    done <<<"$list"
 }
 
 # Root: rewrite the view from $config. $1 = the Xray node list of a fresh
@@ -207,8 +292,10 @@ state)
     fi
     jq -nc --argjson v "${v:-{\}}" --arg unit "$st" --argjson enabled "$enabled" --argjson installed "$installed" \
         --argjson online "$online" --argjson sub "$sub" --argjson ks "$ks" --argjson blocking "$blocking" \
+        --arg ch "$(hash_of "$custom_file")" \
         '{ installed: $installed, unit: $unit, enabled: $enabled, online: $online, subscription: $sub,
-        killswitch: $ks, blocking: $blocking, profile: ($v.profile // ""), profiles: ($v.profiles // []) }'
+        killswitch: $ks, blocking: $blocking, profile: ($v.profile // ""), profiles: ($v.profiles // []),
+        routing: ($v.routing // {}), customPending: ($ch != ($v.customHash // "")) }'
     ;;
 start | restart | enable | disable)
     # Xray first: sing-box's shadowsocks outbounds point at it. The kill
@@ -250,7 +337,32 @@ subscribe)
     trap 'rm -f "$raw"' EXIT
     curl -4 -sfL -m 20 -A sing-box "$url" -o "$raw" || err "download failed"
     [ -s "$raw" ] || err "empty subscription"
-    pkexec "$self" _apply "$raw"
+    # The applied routing's rule-sets, refreshed along with the nodes.
+    [ -s "$routing_etc" ] && fetch_rules "$routing_etc"
+    pkexec "$self" _apply "$raw" "$rules_cache"
+    ;;
+apply)
+    mkdir -p "$state_dir"
+    [ -n "${2:-}" ] && printf '%s\n' "$2" >"$routing_file"
+    [ -s "$routing_file" ] || echo '{}' >"$routing_file"
+    out=$(python3 -I "$here/routing.py" check "$routing_file" "$custom_file") || err "${out#ERR:}"
+    fetch_rules "$routing_file" "${3:-}"
+    exec pkexec "$self" _routing "$routing_file" "$custom_file" "$rules_cache"
+    ;;
+edit)
+    if [ ! -e "$custom_file" ]; then
+        mkdir -p "$(dirname "$custom_file")"
+        # Merged over the generated config (routing.py): rules here go first.
+        printf '%s\n' '{' '  "route": { "rules": [] },' '  "dns": { "rules": [] }' '}' >"$custom_file"
+    fi
+    ed=${VISUAL:-${EDITOR:-}}
+    if [ -z "$ed" ]; then
+        for e in nvim vim nano vi; do
+            command -v "$e" >/dev/null && { ed=$e; break; }
+        done
+    fi
+    # shellcheck disable=SC2086 # "$EDITOR" may carry flags
+    exec $ed "$custom_file"
     ;;
 update)
     [ -s "$sub_file" ] || err "no subscription"
@@ -279,10 +391,14 @@ _select)
         '.outbounds[] | select(.type == "selector" and .tag == $ms) | .outbounds | index($tag) != null' \
         "$config" >/dev/null || err "no node $2"
     tmp=$(mktemp) || err "mktemp"
-    jq --arg ms "$ms" --arg tag "$2" \
-        '(.outbounds[] | select(.type == "selector" and .tag == $ms) | .default) = $tag' \
-        "$config" >"$tmp" || { rm -f "$tmp"; err "jq failed"; }
-    install -m 640 -g "$unit" "$tmp" "$config" && rm -f "$tmp"
+    sel='(.outbounds[] | select(.type == "selector" and .tag == $ms) | .default) = $tag'
+    jq --arg ms "$ms" --arg tag "$2" "$sel" "$config" >"$tmp" || { rm -f "$tmp"; err "jq failed"; }
+    install -m 640 -g "$unit" "$tmp" "$config"
+    # The base too, or the next recompose would switch back.
+    if [ -f "$base" ]; then
+        jq --arg ms "$ms" --arg tag "$2" "$sel" "$base" >"$tmp" && install -m 600 "$tmp" "$base"
+    fi
+    rm -f "$tmp"
     write_view || err "view update failed"
     systemctl try-restart "$unit" || err "restart failed"
     echo "OK:$2"
@@ -354,6 +470,11 @@ _apply)
         python3 -I "$here/xray_split.py" "$tmp" "$xtmp" "$ntmp" "$xuid" "$etmp" || err "xray split failed"
     fi
     sing-box check -c "$tmp" || err "sing-box rejected the generated config"
+    # $tmp = the new base; the config = it + the applied routing / overlay.
+    install_rules "$routing_etc" "${3:-}"
+    ctmp=$(mktemp) || err "mktemp"
+    trap 'rm -f "$tmp" "$xtmp" "$ntmp" "$etmp" "$ctmp"' EXIT
+    out=$(compose "$tmp" "$routing_etc" "$custom_etc" "$ctmp") || err "${out#ERR:}"
     if [ -s "$ntmp" ]; then
         # Format by extension otherwise, and mktemp names have none.
         out=$(xray run -test -format json -config "$xtmp" 2>&1) ||
@@ -362,7 +483,9 @@ _apply)
     mkdir -p "$(dirname "$config")"
     # Backups hold the same secrets: root only.
     [ -f "$config" ] && install -m 600 "$config" "$config.bak"
-    install -m 640 -g "$unit" "$tmp" "$config"
+    mkdir -p "$(dirname "$base")"
+    install -m 600 "$tmp" "$base"
+    install -m 640 -g "$unit" "$ctmp" "$config"
     if [ -s "$ntmp" ]; then
         mkdir -p "$(dirname "$xray_config")"
         [ -f "$xray_config" ] && install -m 600 "$xray_config" "$xray_config.bak"
@@ -379,6 +502,46 @@ _apply)
     fi
     systemctl try-restart "$unit" || err "restart failed"
     echo "OK:applied"
+    ;;
+_routing)
+    [ "$(id -u)" -eq 0 ] || err "root only"
+    # $2 routing, $3 overlay (may be missing), $4 rule-set downloads — the
+    # user's files: regular files only.
+    for f in "$2" "$3"; do
+        [ ! -L "$f" ] || err "$f is a symlink"
+    done
+    out=$(python3 -I "$here/routing.py" check "$2" "$3") || err "${out#ERR:}"
+    # Before the base existed the config was one (nothing composed in yet).
+    b=$base
+    [ -f "$b" ] || b=$config
+    [ -f "$b" ] || err "no config yet: import a subscription first"
+    install_rules "$2" "$4"
+    ctmp=$(mktemp) || err "mktemp"
+    trap 'rm -f "$ctmp"' EXIT
+    out=$(compose "$b" "$2" "$3" "$ctmp") || err "${out#ERR:}"
+    mkdir -p "$(dirname "$base")"
+    [ -f "$base" ] || install -m 600 "$config" "$base"
+    [ -f "$config" ] && install -m 600 "$config" "$config.bak"
+    install -m 640 -g "$unit" "$ctmp" "$config"
+    # Restart and make sure it stays up: what `check` cannot see fails only
+    # at start. If it does not come up, the previous config goes back (and
+    # the copies below stay the old ones, so the change is still pending).
+    if systemctl is-active -q "$unit"; then
+        systemctl restart "$unit" || err "restart failed"
+        sleep 3
+        if ! systemctl is-active -q "$unit"; then
+            why=$(journalctl -u "$unit" -n 20 -o cat --since "-10s" 2>/dev/null | grep -iE 'fatal|error' | tail -n 1 |
+                sed 's/\x1b\[[0-9;]*m//g')
+            install -m 640 -g "$unit" "$config.bak" "$config"
+            systemctl restart "$unit"
+            err "sing-box did not start with it, previous config restored${why:+: $why}"
+        fi
+    fi
+    install -m 644 "$2" "$routing_etc"
+    # The overlay may name its own servers / keys: root only.
+    if [ -f "$3" ]; then install -m 600 "$3" "$custom_etc"; else rm -f "$custom_etc"; fi
+    write_view || err "view update failed"
+    echo "OK:routing applied"
     ;;
 *)
     sed -n '2,/^set -u$/{/^set -u$/!p}' "$self"

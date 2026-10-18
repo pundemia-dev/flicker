@@ -495,6 +495,28 @@ user's data) live outside the repo: `CLAUDE.local.md` (git-ignored) and `~/.clau
   start incl. boot raises it; a crash / failure leaves it up (state `blocking`, status
   `blocked`, panel "Release block" = `vpn.sh stop`); only `vpn.sh stop` lowers it — a manual
   `systemctl stop sing-box` does NOT. Verified in an `unshare -rn` netns with dummy links.
+  Split routing + config overlay (`routing.py`): config.json = compose(base, routing,
+  overlay). base = `/etc/flicker-vpn/base.json` (sub_parser + xray_split, root 0600; `_select`
+  edits it too, or a recompose would switch back). routing = Config `vpn.routing` ({ final:
+  proxy|direct, rules: [{ action: proxy|direct|block, match: [...], enabled }] }, first match
+  wins; matchers domain:/full:/keyword:/regexp:/ip:/process:/path:/protocol:/geosite:/geoip:
+  `name[@source]`, sources runetfreedom → metacubex → sagernet, .srs downloaded by the USER
+  half with `curl -4` to ~/.cache/flicker/vpn/rules (fresh for a day; a stale copy beats none),
+  root copies the needed ones to /etc/flicker-vpn/rules as `local` binary rule-sets). Each rule
+  = an inline rule-set `flicker-r<i>` (+ geo sets) → one route rule; protocol: is a route field
+  (not allowed in rule-sets), `ip_is_private` is NOT allowed in rule-sets either (LAN = a fixed
+  route rule, always direct — before this LAN went through the proxy). DNS mirrors it
+  (`flicker-d<i>` = the domain kinds + geosite: direct → dns-direct, proxy → dns-remote, block
+  → reject; the catch-all follows `final`). overlay = ~/.config/flicker/vpn/custom.json
+  (`vpn.sh edit`, panel "Edit config"): deep merge, null deletes, tagged arrays merge by tag,
+  route/dns rules go in front (after sniff / hijack-dns / Xray's uid rule). `sing-box check`
+  validates NO tag references (dangling outbound / DNS server / rule-set pass it and fail at
+  start): routing.py `check_refs` does. `vpn.sh apply [json] [refresh]` → pkexec `_routing`:
+  compose, check, install, restart; not up 3 s later → `.bak` restored, error, copies
+  (/etc/flicker-vpn/{routing,custom}.json) not updated so it stays pending. view.json carries
+  `routing` + `customHash`; Vpn.qml `pending` = canon(Config routing) ≠ applied, or the
+  overlay's hash changed → panel "Apply routing changes". Tested end to end with /etc mapped to
+  a scratch dir, pkexec = `unshare -r`, systemctl stubbed.
 - Launcher (`modules/launcher/`, Oct 2026) = pShell launcher port, only the apps + clipboard
   plugins. `LauncherModule` (host: plate-less search row, hairline divider (`launcher.dividerInset/Width`, `Theme.launcherDivider`, centred in `gap`, short of the edges) / list / plate-less side panel behind a vertical hairline (the same `panelGap` list edge → line → panel content, counted in `LauncherMetrics.islandSize`; the list narrows by `panelListShrink` (0.3) while the panel is open, rendered width on the island's own `Spring {}` so both move in step; `panelDividerInset` short of both the horizontal divider and the island bottom, fades with the panel)) + `LauncherManager`
   (pShell ModuleManager: default → `!` picker → active plugin pill; Backspace on empty steps

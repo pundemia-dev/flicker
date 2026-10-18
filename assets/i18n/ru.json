@@ -425,5 +425,9 @@
   "Kill switch · traffic blocked": "Kill switch · трафик заблокирован",
   "Release block": "Снять блокировку",
   "Releasing…": "Снимаю блокировку…",
-  "VPN down · traffic blocked": "VPN упал · трафик заблокирован"
+  "VPN down · traffic blocked": "VPN упал · трафик заблокирован",
+  "Routing failed": "Маршрутизация не применилась",
+  "Routing applied": "Маршрутизация применена",
+  "Edit config": "Изменить конфиг",
+  "Apply routing changes": "Применить маршрутизацию"
 }

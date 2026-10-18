@@ -281,6 +281,24 @@ Item {
             topPadding: 8
             spacing: 6
 
+            // Something in routing / the overlay differs from what is in
+            // force: put it in (sing-box restarts).
+            Row {
+                visible: (root.vpn?.pending ?? false) || root.busy === "routing"
+                x: root.pad
+                height: visible ? root.fieldH : 0
+                PanelPill {
+                    height: parent.height
+                    pc: root.pc
+                    theme: root.theme
+                    frost: root.frost
+                    filled: true
+                    dim: root.busy !== ""
+                    text: root.busy === "routing" ? I18n.tr("Applying…") : I18n.tr("Apply routing changes")
+                    onClicked: root.vpn?.applyRouting(false)
+                }
+            }
+
             // Ping / speed test (through whatever route is up — the VPN's
             // when it is on).
             Row {
@@ -342,8 +360,8 @@ Item {
                 onToggled: root.vpn?.setKillswitch(!checked)
             }
 
-            // Release (kill switch blocking), restart (while on) and the
-            // unit's journal in a terminal.
+            // Release (kill switch blocking), restart (while on), the unit's
+            // journal and the config overlay in a terminal.
             Row {
                 x: root.pad
                 spacing: 8
@@ -376,6 +394,19 @@ Item {
                     text: I18n.tr("Logs")
                     onClicked: {
                         root.vpn?.openLogs();
+                        root.closeRequested();
+                    }
+                }
+                // The user's own sing-box JSON (merged over the generated
+                // config) in the terminal.
+                PanelPill {
+                    height: parent.height
+                    pc: root.pc
+                    theme: root.theme
+                    frost: root.frost
+                    text: I18n.tr("Edit config")
+                    onClicked: {
+                        root.vpn?.editConfig();
                         root.closeRequested();
                     }
                 }

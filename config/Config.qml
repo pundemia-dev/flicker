@@ -1268,6 +1268,20 @@ Singleton {
                     sizeStrength: 7.0,
                     sizeFloor: 0.0
                 })
+            // VPN service (services/Vpn, scripts/vpn): split routing, put in
+            // force by Vpn.applyRouting() (pkexec, restarts sing-box). final =
+            // where unmatched traffic goes (proxy | direct); rules in order,
+            // first match wins: { action: proxy | direct | block, match:
+            // ["geoip:ru", "geosite:youtube[@source]", "domain:x.com",
+            // "full:", "keyword:", "regexp:", "ip:1.2.3.0/24", "process:steam",
+            // "path:/usr/bin/x", "protocol:bittorrent"], enabled }. Syntax and
+            // sources: scripts/vpn/routing.py. LAN always goes direct.
+            property var vpn: ({
+                    routing: ({
+                            final: "proxy",
+                            rules: []
+                        })
+                })
             // Launcher (modules/launcher, pShell port): island size derived in
             // LauncherMetrics.js (radius = padding + inputHeight / 2, concentric
             // with the search pill). "!" in the search field picks a plugin;
