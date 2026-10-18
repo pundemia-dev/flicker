@@ -241,6 +241,8 @@ Item {
                     return I18n.tr("Failed");
                 case "offline":
                     return I18n.tr("No connection");
+                case "blocked":
+                    return I18n.tr("Traffic blocked");
                 case "active":
                     return vpn.profile || I18n.tr("Connected");
                 }

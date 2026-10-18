@@ -5,3 +5,4 @@ temp/
 
 # Machine-specific agent notes
 CLAUDE.local.md
+__pycache__/

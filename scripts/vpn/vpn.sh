@@ -6,8 +6,8 @@
 # active one = its `default`. Ported from the dots-hyprland (ii)
 # virtualprivatenetwork.sh; subscriptions are parsed by sub_parser.py.
 # Nodes sing-box cannot carry (gRPC: its lite transport fails against Xray
-# servers; XHTTP) go to Xray (xray.service) behind local SOCKS ports
-# (xray_split.py, password-protected), and while there are any xray.service
+# servers; XHTTP) go to Xray (xray.service) behind local shadowsocks-2022 ports
+# (xray_split.py, keyed), and while there are any xray.service
 # starts / stops / restarts with sing-box.
 # The configs hold the nodes' secrets: root:<unit user> 0640. What the panel
 # needs (nodes, types, the active one, whether Xray is in use) is written
@@ -16,12 +16,20 @@
 #   state              one JSON line: { installed, unit (systemctl
 #                      is-active), enabled (autostart), online (a probe
 #                      through it answered), profile, profiles:
-#                      [{ tag, type }], subscription }
+#                      [{ tag, type }], subscription, killswitch (on),
+#                      blocking (its table is up while sing-box is not) }
 #   start | stop | restart
 #                      systemctl start / stop / restart sing-box (polkit
 #                      asks, unless the `setup` rule is installed)
 #   enable | disable   autostart at boot (systemctl enable / disable;
 #                      polkit always asks — unit files are not in the rule)
+#   killswitch on|off  (root via pkexec) the kill switch: while it is on,
+#                      starting sing-box also raises flicker-vpn-killswitch
+#                      .service (a drop-in `Wants=`), an nftables table that
+#                      rejects all outgoing traffic except loopback, the TUN,
+#                      sing-box's / Xray's own (by uid) and the LAN (DNS
+#                      excepted). It outlives a crashed sing-box: only `stop`
+#                      takes it down ("release" in the panel).
 #   select <tag>       make <tag> the selector default (root), restart the
 #                      unit if it runs
 #   subscribe <url>    remember the URL (user state, 0600), download it as
@@ -32,7 +40,8 @@
 #   speedtest          speedtest-cli --simple (ERR_MISSING without it)
 #   setup              (root, once) polkit rule: the active local session of
 #                      the calling user may start / stop / restart
-#                      sing-box.service and xray.service without a password. Deliberately NOT
+#                      sing-box.service, xray.service and the kill switch
+#                      unit without a password. Deliberately NOT
 #                      "pkexec this script without a password": the script
 #                      lives in a user-writable directory.
 set -u
@@ -46,6 +55,13 @@ probe=http://cp.cloudflare.com/generate_204
 state_dir=${XDG_STATE_HOME:-$HOME/.local/state}/flicker/vpn
 sub_file=$state_dir/subscription
 rule=/etc/polkit-1/rules.d/50-flicker-vpn.rules
+ks_unit=flicker-vpn-killswitch
+ks_unit_file=/etc/systemd/system/$ks_unit.service
+ks_dropin=/etc/systemd/system/$unit.service.d/flicker-killswitch.conf
+ks_rules=/etc/flicker-vpn/killswitch.nft
+ks_table="inet flicker_killswitch"
+# sub_parser.py names the TUN this; the kill switch lets it through.
+tun_name=flicker-tun
 self=$(realpath "$0")
 here=$(dirname "$self")
 
@@ -99,6 +115,58 @@ write_view() {
     return $ok
 }
 
+# Root: the polkit rule for user $1 (see `setup`).
+write_rule() {
+    mkdir -p "$(dirname "$rule")"
+    cat >"$rule" <<EOF
+// Flicker VPN card (scripts/vpn/vpn.sh setup): ${1} may start / stop
+// ${unit}.service, xray.service and ${ks_unit}.service from the active local
+// session without a password.
+polkit.addRule(function (action, subject) {
+    if (action.id == "org.freedesktop.systemd1.manage-units" &&
+        ["${unit}.service", "xray.service", "${ks_unit}.service"].indexOf(action.lookup("unit")) >= 0 &&
+        ["start", "stop", "restart", "try-restart"].indexOf(action.lookup("verb")) >= 0 &&
+        subject.user == "${1}" && subject.local && subject.active)
+        return polkit.Result.YES;
+});
+EOF
+    chmod 644 "$rule"
+}
+
+# Root: the kill switch's ruleset — output only (this host's own traffic).
+# The VPN's own paths first, then the LAN minus DNS (the router would
+# forward the names to the ISP), then reject (fails fast instead of hanging).
+# `ct status dnat`: sing-box's auto_redirect sends TCP to its local port in
+# the nat output hook, and the filter hook still sees the pre-NAT interface.
+write_ks_rules() {
+    local uids
+    uids=$(id -u "$unit") || return 1
+    id -u xray >/dev/null 2>&1 && uids="$uids, $(id -u xray)"
+    mkdir -p "$(dirname "$ks_rules")"
+    cat >"$ks_rules" <<EOF
+# Flicker VPN kill switch (scripts/vpn/vpn.sh), loaded by ${ks_unit}.service.
+table ${ks_table}
+delete table ${ks_table}
+table ${ks_table} {
+    chain output {
+        type filter hook output priority filter; policy accept;
+        oifname "lo" accept
+        oifname "${tun_name}" accept
+        meta skuid { ${uids} } accept
+        ct status dnat accept
+        meta l4proto { tcp, udp } th dport { 53, 853 } reject
+        ip daddr { 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 169.254.0.0/16, 224.0.0.0/4, 255.255.255.255 } accept
+        ip6 daddr { fe80::/10, ff00::/8 } accept
+        meta l4proto tcp reject with tcp reset
+        reject with icmpx admin-prohibited
+    }
+}
+EOF
+    chmod 644 "$ks_rules"
+}
+
+ks_on() { [ -e "$ks_dropin" ]; }
+
 # Tag of the first selector outbound (empty = none).
 selector() {
     jq -r '[.outbounds[]? | select(.type == "selector") | .tag][0] // empty' "$config" 2>/dev/null
@@ -122,6 +190,14 @@ state)
     fi
     sub=false
     [ -s "$sub_file" ] && sub=true
+    ks=false
+    ks_on && ks=true
+    # Traffic held back: the table is up and sing-box is not (crashed,
+    # failed, stopped behind Flicker's back).
+    blocking=false
+    if systemctl is-active -q "$ks_unit" && ! systemctl is-active -q "$unit"; then
+        blocking=true
+    fi
     # The view; an install from before it existed: the config, if readable.
     v=""
     if [ -r "$view" ]; then
@@ -130,11 +206,13 @@ state)
         v=$(view_of "$legacy_nodes")
     fi
     jq -nc --argjson v "${v:-{\}}" --arg unit "$st" --argjson enabled "$enabled" --argjson installed "$installed" \
-        --argjson online "$online" --argjson sub "$sub" '{ installed: $installed, unit: $unit, enabled: $enabled,
-        online: $online, subscription: $sub, profile: ($v.profile // ""), profiles: ($v.profiles // []) }'
+        --argjson online "$online" --argjson sub "$sub" --argjson ks "$ks" --argjson blocking "$blocking" \
+        '{ installed: $installed, unit: $unit, enabled: $enabled, online: $online, subscription: $sub,
+        killswitch: $ks, blocking: $blocking, profile: ($v.profile // ""), profiles: ($v.profiles // []) }'
     ;;
 start | restart | enable | disable)
-    # Xray first: sing-box's socks outbounds point at it.
+    # Xray first: sing-box's shadowsocks outbounds point at it. The kill
+    # switch (if on) comes up with sing-box by itself (its drop-in).
     if uses_xray; then
         systemctl "$1" xray "$unit" || err "systemctl $1 failed"
     else
@@ -142,12 +220,19 @@ start | restart | enable | disable)
     fi
     ;;
 stop)
-    # Stop Xray too even if no node needs it any more.
-    if systemctl is-active -q xray; then
-        systemctl stop "$unit" xray || err "systemctl stop failed"
-    else
-        systemctl stop "$unit" || err "systemctl stop failed"
-    fi
+    # Stop Xray too even if no node needs it any more. A deliberate stop is
+    # the one thing that lowers the kill switch (also after a crash).
+    units=("$unit")
+    systemctl is-active -q xray && units+=(xray)
+    systemctl is-active -q "$ks_unit" && units+=("$ks_unit")
+    systemctl stop "${units[@]}" || err "systemctl stop failed"
+    ;;
+killswitch)
+    case "${2:-}" in
+    on | off) ;;
+    *) err "usage: killswitch on|off" ;;
+    esac
+    exec pkexec "$self" _killswitch "$2" "$(id -un)"
     ;;
 select)
     [ -n "${2:-}" ] || err "usage: select <tag>"
@@ -181,21 +266,7 @@ speedtest)
     ;;
 setup)
     [ "$(id -u)" -eq 0 ] || exec pkexec "$self" setup "$(id -un)"
-    user=${2:?user}
-    mkdir -p "$(dirname "$rule")"
-    cat >"$rule" <<EOF
-// Flicker VPN card (scripts/vpn/vpn.sh setup): ${user} may start / stop
-// ${unit}.service and xray.service from the active local session without a
-// password.
-polkit.addRule(function (action, subject) {
-    if (action.id == "org.freedesktop.systemd1.manage-units" &&
-        ["${unit}.service", "xray.service"].indexOf(action.lookup("unit")) >= 0 &&
-        ["start", "stop", "restart", "try-restart"].indexOf(action.lookup("verb")) >= 0 &&
-        subject.user == "${user}" && subject.local && subject.active)
-        return polkit.Result.YES;
-});
-EOF
-    chmod 644 "$rule"
+    write_rule "${2:?user}"
     echo "OK:$rule"
     ;;
 
@@ -215,6 +286,51 @@ _select)
     write_view || err "view update failed"
     systemctl try-restart "$unit" || err "restart failed"
     echo "OK:$2"
+    ;;
+_killswitch)
+    [ "$(id -u)" -eq 0 ] || err "root only"
+    if [ "$2" = on ]; then
+        command -v nft >/dev/null || err "nft (nftables) is not installed"
+        write_ks_rules || err "no $unit user"
+        nft -c -f "$ks_rules" || err "nft rejected the kill switch rules"
+        cat >"$ks_unit_file" <<EOF
+# Flicker VPN kill switch (scripts/vpn/vpn.sh): pulled in by ${unit}.service,
+# stopped only by "vpn.sh stop" — it outlives a crashed sing-box.
+[Unit]
+Description=Flicker VPN kill switch
+Before=${unit}.service xray.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/nft -f ${ks_rules}
+ExecStop=-/usr/bin/nft delete table ${ks_table}
+EOF
+        mkdir -p "$(dirname "$ks_dropin")"
+        printf '[Unit]\nWants=%s.service\n' "$ks_unit" >"$ks_dropin"
+        # A config from before the TUN had a fixed name: name it, or the
+        # table would block the VPN's own interface.
+        if [ -r "$config" ] && ! jq -e --arg n "$tun_name" \
+            '[.inbounds[]? | select(.type == "tun")] | all(.interface_name == $n)' "$config" >/dev/null; then
+            tmp=$(mktemp) || err "mktemp"
+            jq --arg n "$tun_name" '(.inbounds[]? | select(.type == "tun") | .interface_name) = $n' "$config" >"$tmp" &&
+                sing-box check -c "$tmp" && install -m 640 -g "$unit" "$tmp" "$config"
+            rm -f "$tmp"
+            systemctl try-restart "$unit"
+        fi
+        # The password-free rule (if installed) learns the new unit.
+        [ -e "$rule" ] && [ -n "${3:-}" ] && write_rule "$3"
+        systemctl daemon-reload
+        if systemctl is-active -q "$unit"; then
+            systemctl start "$ks_unit" || err "kill switch failed to start"
+        fi
+    else
+        systemctl stop "$ks_unit" 2>/dev/null
+        rm -f "$ks_dropin"
+        rmdir "$(dirname "$ks_dropin")" 2>/dev/null
+        systemctl daemon-reload
+    fi
+    echo "OK:killswitch $2"
     ;;
 _apply)
     [ "$(id -u)" -eq 0 ] || err "root only"
@@ -265,7 +381,7 @@ _apply)
     echo "OK:applied"
     ;;
 *)
-    sed -n '2,30p' "$self"
+    sed -n '2,/^set -u$/{/^set -u$/!p}' "$self"
     exit 2
     ;;
 esac

@@ -1205,23 +1205,15 @@ def build_config():
                 "default_mode": ""
             }
         },
+        # TUN only: no local proxy / DNS port (any local program could ride
+        # an unauthenticated one; TUN's hijack-dns already takes all DNS).
         "inbounds": [
-            {
-                "listen": "127.0.0.1",
-                "listen_port": 5533,
-                "tag": "dns-in",
-                "type": "direct"
-            },
-            {
-                "listen": "127.0.0.1",
-                "listen_port": 2080,
-                "tag": "mixed-in",
-                "type": "mixed"
-            },
             {
                 "address": ["172.19.0.1/24"],
                 "auto_redirect": True,
                 "auto_route": True,
+                # Fixed: the kill switch (vpn.sh) lets exactly this through.
+                "interface_name": "flicker-tun",
                 "mtu": 1500,
                 "route_exclude_address": ["127.0.0.0/8"],
                 "stack": "system",
@@ -1246,20 +1238,7 @@ def build_config():
             "rules": [
                 {
                     "action": "sniff",
-                    "inbound": "dns-in"
-                },
-                {
-                    "action": "hijack-dns",
-                    "inbound": "dns-in",
-                    "protocol": "dns"
-                },
-                {
-                    "action": "reject",
-                    "inbound": "dns-in"
-                },
-                {
-                    "action": "sniff",
-                    "inbound": ["mixed-in", "tun-in"]
+                    "inbound": "tun-in"
                 },
                 {
                     "action": "hijack-dns",

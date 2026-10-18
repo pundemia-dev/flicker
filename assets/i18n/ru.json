@@ -419,5 +419,11 @@
   "Logs": "Логи",
   "Restart service": "Перезапустить",
   "No connection": "Нет соединения",
-  "VPN: no connection": "VPN: нет соединения"
+  "VPN: no connection": "VPN: нет соединения",
+  "Kill switch": "Kill switch",
+  "Traffic blocked": "Трафик заблокирован",
+  "Kill switch · traffic blocked": "Kill switch · трафик заблокирован",
+  "Release block": "Снять блокировку",
+  "Releasing…": "Снимаю блокировку…",
+  "VPN down · traffic blocked": "VPN упал · трафик заблокирован"
 }

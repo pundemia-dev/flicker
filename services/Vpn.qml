@@ -12,6 +12,8 @@ import "../config"
 // polkit check (no prompt once `vpn.sh setup` installed the rule), node
 // switch and subscription install through pkexec (the shell's polkit agent
 // asks). Ping / speed test are separate and may run alongside.
+// Kill switch (`vpn.sh killswitch`): an nftables block raised with sing-box
+// that outlives a crash; only a stop (setActive(false) / release()) lowers it.
 Scope {
     id: root
     required property var events
@@ -28,10 +30,14 @@ Scope {
     property string profile: ""
     property var profiles: []
     property bool subscription: false
+    // Kill switch on; blocking = its table is up while sing-box is not
+    // (crashed / failed): no traffic until the VPN is back or released.
+    property bool killswitch: false
+    property bool blocking: false
     property bool polled: false
 
-    // Running operation: "" | start | stop | restart | autostart | select |
-    // update | subscribe.
+    // Running operation: "" | start | stop | restart | autostart | killswitch
+    // | select | update | subscribe.
     property string busy: ""
     property string selecting: ""
     property string error: ""
@@ -51,7 +57,7 @@ Scope {
     readonly property bool on: root.busy === "start" || root.busy === "restart" || (root.busy !== "stop"
         && (root.unit === "active" || root.unit === "activating" || root.unit === "reloading"))
     // inactive | connecting | active | offline | disconnecting | failed |
-    // unavailable
+    // blocked (off, kill switch holding traffic) | unavailable
     readonly property string status: {
         if (!root.installed)
             return root.polled ? "unavailable" : "inactive";
@@ -63,6 +69,8 @@ Scope {
                 return root.online ? "active" : root.stalled ? "offline" : "connecting";
             return "connecting";
         }
+        if (root.blocking)
+            return "blocked";
         return root.unit === "failed" ? "failed" : "inactive";
     }
 
@@ -81,6 +89,15 @@ Scope {
     function setAutostart(on: bool): void {
         if (root.installed && root.busy === "" && on !== root.enabled)
             root.run("autostart", [on ? "enable" : "disable"]);
+    }
+    function setKillswitch(on: bool): void {
+        if (root.installed && root.busy === "" && on !== root.killswitch)
+            root.run("killswitch", ["killswitch", on ? "on" : "off"]);
+    }
+    // Lift a kill switch left blocking by a dead sing-box (a plain stop).
+    function release(): void {
+        if (root.busy === "" && root.blocking)
+            root.run("stop", ["stop"]);
     }
     // The unit's journal, followed, in the user's terminal.
     function openLogs(): void {
@@ -172,6 +189,8 @@ Scope {
                     if (JSON.stringify(s.profiles) !== JSON.stringify(root.profiles))
                         root.profiles = s.profiles ?? [];
                     root.subscription = s.subscription;
+                    root.killswitch = s.killswitch ?? false;
+                    root.blocking = s.blocking ?? false;
                 } catch (e) {
                     console.warn("[vpn] bad state:", text);
                 }
@@ -241,6 +260,9 @@ Scope {
             }
         }
     }
+
+    onBlockingChanged: if (arm.armed && root.blocking)
+        root.post("vpn:error", "accentRed", I18n.tr("VPN down · traffic blocked"))
 
     // Bar events: up / down (a real change after start-up), failures.
     readonly property bool up: root.unit === "active"

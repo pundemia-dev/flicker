@@ -45,6 +45,82 @@ Item {
     ListModel {
         id: rows
     }
+
+    // A panel row that is one big switch (autostart, kill switch).
+    component SwitchRow: Item {
+        id: sw
+        property string glyph: ""
+        property string label: ""
+        property bool checked: false
+        property bool applying: false
+        signal toggled
+        width: parent?.width ?? 0
+        height: root.rowH
+        Rectangle {
+            x: 6
+            width: parent.width - 12
+            height: parent.height
+            radius: height / 2
+            color: root.frost?.layerColor(root.theme?.qsDisc ?? "#3A3A3C") ?? (root.theme?.qsDisc ?? "#3A3A3C")
+            opacity: swMa.pressed ? 0.8 : swMa.containsMouse ? 0.45 : 0
+            Behavior on opacity { Spring { stiffness: 6; damp: 0.6; eps: 0.01 } }
+        }
+        Icon {
+            id: swGlyph
+            x: root.pad
+            width: root.pc.glyphSize ?? 20
+            height: parent.height
+            text: sw.glyph
+            font.family: root.theme?.iconFamily ?? "tabler-icons"
+            iconSize: (root.pc.glyphSize ?? 20) - 2
+            iconColor: "white"
+        }
+        Text {
+            x: swGlyph.x + swGlyph.width + 12
+            width: swSwitch.x - x - 8
+            height: parent.height
+            verticalAlignment: Text.AlignVCenter
+            text: sw.applying ? I18n.tr("Applying…") : sw.label
+            color: "white"
+            font.pixelSize: root.pc.textSize ?? 14
+            elide: Text.ElideRight
+        }
+        Rectangle {
+            id: swSwitch
+            property real p: sw.checked ? 1 : 0
+            Behavior on p { Spring { stiffness: 5; damp: 0.5; eps: 0.005 } }
+            anchors.right: parent.right
+            anchors.rightMargin: root.pad
+            anchors.verticalCenter: parent.verticalCenter
+            width: 40
+            height: 24
+            radius: height / 2
+            color: switchColor.value
+            opacity: sw.applying ? 0.6 : 1
+            SpringColor {
+                id: switchColor
+                target: sw.checked ? (root.theme?.qsBlue ?? "#017EFC")
+                    : (root.frost?.layerColor(root.theme?.qsDisc ?? "#3A3A3C") ?? (root.theme?.qsDisc ?? "#3A3A3C"))
+                stiffness: 5
+                damping: 0.6
+            }
+            Rectangle {
+                width: parent.height - 4
+                height: width
+                radius: width / 2
+                y: 2
+                x: 2 + swSwitch.p * (swSwitch.width - width - 4)
+                color: "white"
+            }
+        }
+        MouseArea {
+            id: swMa
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: sw.toggled()
+        }
+    }
     // A subscription that went through folds its form.
     onBusyChanged: if (root.busy === "" && root.subOpen && root.profiles.length > 0 && !(root.vpn?.error ?? ""))
         root.subOpen = false
@@ -85,6 +161,8 @@ Item {
                 return I18n.tr("Disconnecting…");
             case "failed":
                 return I18n.tr("Failed");
+            case "blocked":
+                return I18n.tr("Kill switch · traffic blocked");
             case "offline":
                 return v.profile ? `${I18n.tr("No connection")} · ${v.profile}` : I18n.tr("No connection");
             case "active":
@@ -245,84 +323,41 @@ Item {
                 }
             }
 
-            // Autostart at boot: the whole row is the switch (polkit asks).
-            Item {
-                id: boot
-                width: parent.width
-                height: root.rowH
-                readonly property bool checked: root.vpn?.enabled ?? false
-                Rectangle {
-                    x: 6
-                    width: parent.width - 12
-                    height: parent.height
-                    radius: height / 2
-                    color: root.frost?.layerColor(root.theme?.qsDisc ?? "#3A3A3C") ?? (root.theme?.qsDisc ?? "#3A3A3C")
-                    opacity: bootMa.pressed ? 0.8 : bootMa.containsMouse ? 0.45 : 0
-                    Behavior on opacity { Spring { stiffness: 6; damp: 0.6; eps: 0.01 } }
-                }
-                Icon {
-                    id: bootGlyph
-                    x: root.pad
-                    width: root.pc.glyphSize ?? 20
-                    height: parent.height
-                    // tabler power
-                    text: ""
-                    font.family: root.theme?.iconFamily ?? "tabler-icons"
-                    iconSize: (root.pc.glyphSize ?? 20) - 2
-                    iconColor: "white"
-                }
-                Text {
-                    x: bootGlyph.x + bootGlyph.width + 12
-                    width: bootSwitch.x - x - 8
-                    height: parent.height
-                    verticalAlignment: Text.AlignVCenter
-                    text: root.busy === "autostart" ? I18n.tr("Applying…") : I18n.tr("Start at boot")
-                    color: "white"
-                    font.pixelSize: root.pc.textSize ?? 14
-                    elide: Text.ElideRight
-                }
-                Rectangle {
-                    id: bootSwitch
-                    property real p: boot.checked ? 1 : 0
-                    Behavior on p { Spring { stiffness: 5; damp: 0.5; eps: 0.005 } }
-                    anchors.right: parent.right
-                    anchors.rightMargin: root.pad
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: 40
-                    height: 24
-                    radius: height / 2
-                    color: switchColor.value
-                    opacity: root.busy === "autostart" ? 0.6 : 1
-                    SpringColor {
-                        id: switchColor
-                        target: boot.checked ? (root.theme?.qsBlue ?? "#017EFC")
-                            : (root.frost?.layerColor(root.theme?.qsDisc ?? "#3A3A3C") ?? (root.theme?.qsDisc ?? "#3A3A3C"))
-                        stiffness: 5
-                        damping: 0.6
-                    }
-                    Rectangle {
-                        width: parent.height - 4
-                        height: width
-                        radius: width / 2
-                        y: 2
-                        x: 2 + bootSwitch.p * (bootSwitch.width - width - 4)
-                        color: "white"
-                    }
-                }
-                MouseArea {
-                    id: bootMa
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: root.vpn?.setAutostart(!boot.checked)
-                }
+            // Autostart at boot / kill switch: the whole row is the switch
+            // (polkit asks).
+            SwitchRow {
+                // tabler power
+                glyph: ""
+                label: I18n.tr("Start at boot")
+                checked: root.vpn?.enabled ?? false
+                applying: root.busy === "autostart"
+                onToggled: root.vpn?.setAutostart(!checked)
+            }
+            SwitchRow {
+                // tabler shield-x
+                glyph: ""
+                label: I18n.tr("Kill switch")
+                checked: root.vpn?.killswitch ?? false
+                applying: root.busy === "killswitch"
+                onToggled: root.vpn?.setKillswitch(!checked)
             }
 
-            // Restart (while on) and the unit's journal in a terminal.
+            // Release (kill switch blocking), restart (while on) and the
+            // unit's journal in a terminal.
             Row {
                 x: root.pad
                 spacing: 8
                 height: root.fieldH
+                PanelPill {
+                    visible: root.vpn?.blocking ?? false
+                    height: parent.height
+                    pc: root.pc
+                    theme: root.theme
+                    frost: root.frost
+                    dim: root.busy !== ""
+                    text: root.busy === "stop" ? I18n.tr("Releasing…") : I18n.tr("Release block")
+                    onClicked: root.vpn?.release()
+                }
                 PanelPill {
                     visible: root.vpn?.on ?? false
                     height: parent.height

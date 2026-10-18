@@ -4,32 +4,56 @@
 # sing-box stays the TUN / routing / DNS engine. Its gRPC transport is the
 # "lite" one unless built with_grpc (Arch's is not), which Xray servers
 # reject; XHTTP it has no transport for at all. Each such node becomes an
-# Xray outbound behind its own local SOCKS inbound (127.0.0.1:<base + i>),
-# and the sing-box outbound of the same tag a `socks` client to it — the
-# selector, the node list and switching do not change. Xray's own uplink
+# Xray outbound behind its own local shadowsocks-2022 inbound (127.0.0.1,
+# a random free port), and the sing-box outbound of the same tag a
+# `shadowsocks` client to it — the selector, the node list and switching do
+# not change. Xray's own uplink
 # connections must not enter the TUN again: its uid is excluded from the
 # TUN routes (tun.exclude_uid) and, should one still get in, routed direct
-# (route rule `user`). The local SOCKS ports take a user / password (fresh
-# random each run): other local programs cannot ride the tunnel through them.
+# (route rule `user`). The local hops are keyed (a fresh random key per node
+# each run): other local programs cannot ride the tunnel through them. Not
+# SOCKS: its password covers TCP only, UDP ASSOCIATE datagrams carry no auth;
+# shadowsocks-2022 authenticates every packet, UDP included.
 #
 # Argv: <sing-box config (rewritten in place)> <xray config out>
 #       <nodes out: "tag<TAB>type<TAB>flags" per moved node> <xray uid>
-#       [extras (sub_parser.py's Xray-only link parameters)] [base port]
+#       [extras (sub_parser.py's Xray-only link parameters)]
 # flags: "insecure" = the link asked to skip the certificate check, which
 # Xray no longer can (allowInsecure was removed in 2026-06): it verifies.
 # Exit 0 = written (no moved node → empty nodes file, no Xray config);
 # 1 = bad input.
 
+import base64
 import json
 import secrets
+import socket
 import sys
 
 XRAY_TRANSPORTS = ("grpc", "xhttp")
 XRAY_PROTOCOLS = ("vless", "vmess", "trojan")
+SS_METHOD = "2022-blake3-aes-128-gcm"  # key = 16 random bytes, base64
+PORT_RANGE = (20000, 60000)
 
 
 def warn(msg):
     sys.stderr.write("xray_split: %s\n" % msg)
+
+
+def free_port(taken):
+    """A random port in PORT_RANGE free on 127.0.0.1 for both TCP and UDP."""
+    for _ in range(200):
+        port = PORT_RANGE[0] + secrets.randbelow(PORT_RANGE[1] - PORT_RANGE[0])
+        if port in taken:
+            continue
+        try:
+            for kind in (socket.SOCK_STREAM, socket.SOCK_DGRAM):
+                with socket.socket(socket.AF_INET, kind) as s:
+                    s.bind(("127.0.0.1", port))
+        except OSError:
+            continue
+        taken.add(port)
+        return port
+    raise OSError("no free local port")
 
 
 def stream(ob, extra):
@@ -105,7 +129,6 @@ def main():
         sys.exit(1)
     sb_path, xray_path, nodes_path, uid = sys.argv[1:5]
     extras_path = sys.argv[5] if len(sys.argv) > 5 else ""
-    base = int(sys.argv[6]) if len(sys.argv) > 6 else 20801
     try:
         with open(sb_path, encoding="utf-8") as f:
             cfg = json.load(f)
@@ -119,30 +142,34 @@ def main():
         sys.exit(1)
 
     inbounds, outbounds, rules, nodes = [], [], [], []
-    user, password = "flicker", secrets.token_urlsafe(24)
+    ports = set()
     for ob in cfg.get("outbounds", []):
         tr = (ob.get("transport") or {}).get("type")
         if tr not in XRAY_TRANSPORTS or ob.get("type") not in XRAY_PROTOCOLS:
             continue
         i = len(nodes)
-        port = base + i
         try:
             outbounds.append(outbound(ob, "out-%d" % i, extras.get(ob.get("tag"), {})))
         except KeyError as e:
             warn("%s: missing %s, left to sing-box" % (ob.get("tag"), e))
             continue
+        try:
+            port = free_port(ports)
+        except OSError as e:
+            warn(str(e))
+            sys.exit(1)
+        key = base64.b64encode(secrets.token_bytes(16)).decode()
         inbounds.append({"tag": "in-%d" % i, "listen": "127.0.0.1", "port": port,
-                         "protocol": "socks",
-                         "settings": {"auth": "password", "udp": True, "ip": "127.0.0.1",
-                                      "accounts": [{"user": user, "pass": password}]}})
+                         "protocol": "shadowsocks",
+                         "settings": {"method": SS_METHOD, "password": key,
+                                      "network": "tcp,udp"}})
         rules.append({"inboundTag": ["in-%d" % i], "outboundTag": "out-%d" % i})
         insecure = bool((ob.get("tls") or {}).get("insecure"))
         nodes.append((ob["tag"], ob["type"], "insecure" if insecure else ""))
         tag = ob["tag"]
         ob.clear()
-        ob.update({"type": "socks", "tag": tag, "server": "127.0.0.1",
-                   "server_port": port, "version": "5",
-                   "username": user, "password": password})
+        ob.update({"type": "shadowsocks", "tag": tag, "server": "127.0.0.1",
+                   "server_port": port, "method": SS_METHOD, "password": key})
 
     if nodes:
         for inb in cfg.get("inbounds", []):

@@ -469,8 +469,11 @@ user's data) live outside the repo: `CLAUDE.local.md` (git-ignored) and `~/.clau
   (for REALITY the camouflage domain) and Xray servers drop the stream ("connection upload
   handshake: io: read/write on closed pipe"). So `xray_split.py` moves gRPC / XHTTP nodes
   (vless/vmess/trojan) to Xray (`xray-bin`, `xray.service` User=xray): one Xray outbound per
-  node behind its own 127.0.0.1:20801+ SOCKS inbound (user/password, fresh random per import),
-  the sing-box outbound of the same tag becomes a socks client to it (selector unchanged);
+  node behind its own 127.0.0.1 shadowsocks-2022 inbound (`2022-blake3-aes-128-gcm`, random
+  free port + fresh random key per node per import — NOT SOCKS: its password covers TCP only,
+  UDP datagrams are unauthenticated), the sing-box outbound of the same tag becomes a
+  shadowsocks client to it (selector unchanged); sing-box has NO local inbound besides TUN
+  (an open mixed / DNS port lets any local program ride the tunnel and see the exit IP);
   Xray's uid is excluded from the TUN (`tun.exclude_uid`) + routed direct (`user_id` rule) —
   no loop. Xray 26.3.27's own TUN inbound only raises the interface (routes / loop avoidance
   are the OS's job; `autoSystemRoutingTable` exists only on main), hence sing-box stays the
@@ -483,6 +486,15 @@ user's data) live outside the repo: `CLAUDE.local.md` (git-ignored) and `~/.clau
   installs a rule limited to the two units (deliberately NOT "pkexec this script without a
   password" like the original: the script lives in a user-writable dir). An update keeps the
   chosen node if the new subscription still has it.
+  Kill switch (`vpn.sh killswitch on|off`, panel switch): `flicker-vpn-killswitch.service`
+  (oneshot, loads `/etc/flicker-vpn/killswitch.nft` = table `inet flicker_killswitch`, output
+  hook: accept lo, the TUN (fixed `interface_name: flicker-tun` — the switch renames an older
+  config's TUN), sing-box / xray uids, `ct status dnat` (auto_redirect's TCP: the filter hook
+  still sees the pre-NAT oif), LAN except DNS 53/853; reject the rest). Pulled in by a
+  `sing-box.service.d/flicker-killswitch.conf` `Wants=` drop-in (presence = "on"), so every
+  start incl. boot raises it; a crash / failure leaves it up (state `blocking`, status
+  `blocked`, panel "Release block" = `vpn.sh stop`); only `vpn.sh stop` lowers it — a manual
+  `systemctl stop sing-box` does NOT. Verified in an `unshare -rn` netns with dummy links.
 - Launcher (`modules/launcher/`, Oct 2026) = pShell launcher port, only the apps + clipboard
   plugins. `LauncherModule` (host: plate-less search row, hairline divider (`launcher.dividerInset/Width`, `Theme.launcherDivider`, centred in `gap`, short of the edges) / list / plate-less side panel behind a vertical hairline (the same `panelGap` list edge → line → panel content, counted in `LauncherMetrics.islandSize`; the list narrows by `panelListShrink` (0.3) while the panel is open, rendered width on the island's own `Spring {}` so both move in step; `panelDividerInset` short of both the horizontal divider and the island bottom, fades with the panel)) + `LauncherManager`
   (pShell ModuleManager: default → `!` picker → active plugin pill; Backspace on empty steps
