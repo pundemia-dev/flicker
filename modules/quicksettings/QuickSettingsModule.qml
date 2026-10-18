@@ -161,6 +161,12 @@ Item {
 
     Component.onDestruction: root.cc.endEdit()
 
+    // Debug IPC (island quicksettingsPanel <cmd> <arg>) into the expanded
+    // panel, if it has a `debug` hook.
+    function panelDebug(cmd: string, arg: string): string {
+        return expander.panel?.debug?.(cmd, arg) ?? "{}";
+    }
+
     // Debug IPC (island quicksettingsExpand <id>); "" folds it back.
     function expandCard(id: string): void {
         if (!id) {
@@ -178,6 +184,7 @@ Item {
         id: factory
         services: root.services
         onOpenRequested: (name, payload) => root.openRequested(name, payload)
+        onCloseRequested: root.closeRequested()
     }
 
     // Empty space: tap closes (edit mode: leaves edit), vertical swipe
@@ -239,8 +246,8 @@ Item {
     // Everything but the expander. While a card is expanded it is cut out
     // under the drop / panel shape (inverted binary mask, inset so the
     // stair-stepped mask edge stays under the shape's own antialiased edge):
-    // the rest of the grid stays as it is, nothing reads through the
-    // translucent panel.
+    // the rest of the grid stays as it is; the panel draws this grid
+    // blurred under its fill instead (expander.backdrop, blur-behind).
     Item {
         id: cutout
         anchors.fill: parent
@@ -348,7 +355,7 @@ Item {
                         Behavior on width { enabled: card.animate; Spring {} }
                         Behavior on height { enabled: card.animate; Spring {} }
 
-                        scale: rect ? (follow ? 1.06 : 1) : 0.4
+                        scale: rect ? (follow ? 1.06 : card.pressedDown ? (root.cfg.pressScale ?? 1.12) : 1) : 0.4
                         opacity: rect ? 1 : 0
                         // Other tabs exist only while pages slide (the edit
                         // footer sits where the next page waits).
@@ -487,5 +494,11 @@ Item {
         theme: root.theme
         frost: root.frost
         cardFactory: factory
+        // The panel frosts the grid it covers (expand.blurBehind; the sharp
+        // grid is cut out under it, see `cutout`).
+        backdrop: (root.cfg.expand?.blurBehind ?? true) ? viewport : null
+        backdropPos: Qt.point(viewport.x, viewport.y)
+        backdropBlur: root.cfg.expand?.blurMax ?? 48
+        backdropInset: root.cfg.expand?.cutInset ?? 1.5
     }
 }

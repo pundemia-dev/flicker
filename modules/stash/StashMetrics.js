@@ -44,7 +44,7 @@ function islandSize(c, view, s) {
     const grid = pad2 + rows * c.cellSize + (rows - 1) * c.gap + c.gap + c.actionsHeight;
     return {
         width: pad2 + trayGridWidth(c),
-        // Empty: the folder icon on the island's middle (StashTray).
+        // Empty: icon + captions lifted above the island's middle (StashTray).
         height: s.files === 0 ? Math.max(grid, c.emptyHeight ?? 0) : grid
     };
 }

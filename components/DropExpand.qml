@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Effects
 import "../config"
 
 // Drop expansion (user design, first built for the QS Wi‑Fi card): a source
@@ -34,8 +35,18 @@ Item {
     property rect bounds: Qt.rect(0, 0, root.width, root.height)
     property real margin: 0
     property color panelColor: "#1C1C1E"
+    // Inner shadow along the shape's rim (components/InnerShadow); 0 = none.
+    property int shadowSize: 0
+    property real shadowStrength: 0
     property real panelRadius: 16
     property bool closeOnOutside: true
+    // Blur-behind (null = off): an item drawn behind this one, at
+    // backdropPos (own coords); the shape shows it blurred by backdropBlur px.
+    // The host hides the sharp original under the shape itself.
+    property Item backdrop: null
+    property point backdropPos: Qt.point(0, 0)
+    property int backdropBlur: 48
+    property real backdropInset: 1.5
 
     // Motion (Config.dropExpand defaults; set per instance to override).
     readonly property var cfg: Config.data.dropExpand ?? ({})
@@ -223,10 +234,62 @@ Item {
             sizeH: root.dropD
         }
 
+        // Blur-behind: the backdrop item, blurred, under the fill — the
+        // shape frosts what it covers instead of showing a hole. Masked to
+        // the shape inset by backdropInset (the mask edge is binary; the
+        // fill's antialiased rim covers the steps).
+        Item {
+            id: behind
+            anchors.fill: parent
+            visible: root.backdrop !== null
+            layer.enabled: behind.visible
+            layer.effect: MultiEffect {
+                maskEnabled: true
+                maskSource: behindMask
+                autoPaddingEnabled: false
+            }
+            MultiEffect {
+                x: root.backdropPos.x - shape.x
+                y: root.backdropPos.y - shape.y
+                width: root.backdrop?.width ?? 0
+                height: root.backdrop?.height ?? 0
+                source: behindSrc
+                blurEnabled: true
+                blur: 1
+                blurMax: root.backdropBlur
+                autoPaddingEnabled: false
+            }
+            ShaderEffectSource {
+                id: behindSrc
+                visible: false
+                sourceItem: behind.visible ? root.backdrop : null
+                live: true
+            }
+        }
+        Item {
+            id: behindMask
+            anchors.fill: parent
+            visible: false
+            layer.enabled: behind.visible
+            Rectangle {
+                anchors.fill: parent
+                anchors.margins: root.backdropInset
+                radius: Math.max(0, root.curR - root.backdropInset)
+                color: "white"
+            }
+        }
+
         Rectangle {
             anchors.fill: parent
             radius: root.curR
             color: root.fill
+        }
+        InnerShadow {
+            anchors.fill: parent
+            visible: root.shadowSize > 0 && root.shadowStrength > 0
+            radius: root.curR
+            size: root.shadowSize
+            strength: root.shadowStrength
         }
         // Presses on the panel body stay here.
         MouseArea {

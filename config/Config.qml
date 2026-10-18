@@ -204,6 +204,9 @@ Singleton {
                     bluetooth: true,
                     updates: true,
                     caffeine: true,
+                    powerSave: true,
+                    airplane: true,
+                    vpn: true,
                     shazam: true,
                     transcribe: true,
                     updatesDelayMs: 30000,
@@ -768,10 +771,22 @@ Singleton {
                     centerSpacing: 8,
                     centerStackPeek: 9,
                     centerStackDepth: 2,
+                    // Shadow around each card (px outward, alpha at the
+                    // edge): tells overlapping cards of a stack apart.
+                    centerShadowSize: 5,
+                    centerShadowStrength: 0.15,
+                    // Inner shadow along each card's rim (px inward, alpha
+                    // at the edge).
+                    centerInnerShadowSize: 14,
+                    centerInnerShadowStrength: 0.06,
                     centerSwipeDistance: 80,
                     // Empty center = mini-games (swipe left/right to switch):
                     // island height while a game is shown, game order.
                     gameHeight: 210,
+                    // Dark halo under the game scene (alpha, MultiEffect blur
+                    // 0..1): light sprites on a light frosted island.
+                    gameShadowOpacity: 0.9,
+                    gameShadowBlur: 0.3,
                     games: ["dino", "flappy"],
                     historyLimit: 50,
                     // Flow toast lifetime: alone vs. with more queued behind.
@@ -814,6 +829,18 @@ Singleton {
                     chargeLimit: 0,
                     fullRearm: 3
                 })
+            // Low Power Mode (services/PowerMode, QS card `lowPower`): the
+            // system power-saver profile + the shell's own background work
+            // shed. Thumbnail warm-up and semantic indexing never run in it
+            // (no switch); the rest: pause the slideshow / video wallpapers,
+            // hold the update check, poll system usage + sensors
+            // pollFactor times slower.
+            property var powerSave: ({
+                    pauseSlideshow: true,
+                    pauseVideo: true,
+                    deferUpdates: true,
+                    pollFactor: 3
+                })
             property var audio: ({
                     maxVolume: 1.05,
                     volumeStep: 0.05,
@@ -830,6 +857,12 @@ Singleton {
                     pollMs: 4000,
                     // Network list refresh while the Wi‑Fi panel is open.
                     scanMs: 4000,
+                    // Wi‑Fi rescan request while the panel is open (NM
+                    // itself rescans rarely once connected).
+                    rescanMs: 15000,
+                    // Opened for a captive portal sign-in (plain http, so
+                    // the portal can redirect it).
+                    portalUrl: "http://neverssl.com",
                     hotspotName: "Hotspot"
                 })
             // Screen recording (services/Recorder + scripts/capture/record.sh):
@@ -1059,6 +1092,10 @@ Singleton {
                     buttonIconSize: 40,
                     titleSize: 13,
                     subtitleSize: 11,
+                    // Pressed card: springs up to this scale and back on
+                    // release; white veil alpha over it while held.
+                    pressScale: 1.12,
+                    pressLighten: 0.12,
                     // Long press on a card enters edit mode (ms).
                     holdMs: 450,
                     // Swipe up from the bottom closeZone this far closes.
@@ -1093,6 +1130,10 @@ Singleton {
                     // darker ink and back (ms per half cycle).
                     editRimWidth: 3,
                     editRimBlinkMs: 700,
+                    // Inner shadow along each card's rim (px inward, alpha
+                    // at the edge), as in the Notification Center.
+                    innerShadowSize: 14,
+                    innerShadowStrength: 0.06,
                     // Resize arc (QsResizeArc), round caps: thickness (px);
                     // own bend radius = corner radius x curve (< 1 =
                     // tighter). Middle on the corner rounding circle, cap
@@ -1103,9 +1144,23 @@ Singleton {
                     // (cards/MediaLayout.js) — 4x2 = the player at card scale
                     // (unit 80: 4x2 card 356x172 ≈ player module 360x170).
                     playerScale: 1,
+                    // Calculator card: desktop ids / names to try in order
+                    // (e.g. ["qalculate-gtk", "org.kde.kcalc"]); empty = the
+                    // first installed app in the "Calculator" category.
+                    calculator: [],
                     // Edit-mode button, bottom-right corner of the rail column
                     // (mirrors the session button; same disc/glyph sizes).
                     editButton: true,
+                    // Airplane Mode card (services/Airplane): dnd = Do Not
+                    // Disturb on with it (and off with it, if it set DND).
+                    airplane: ({
+                        dnd: false
+                    }),
+                    // VPN card (services/Vpn, scripts/vpn/vpn.sh): state poll
+                    // period (1 s while a change settles).
+                    vpn: ({
+                        pollMs: 5000
+                    }),
                     // Expanded card (QsExpander = components/DropExpand, long
                     // press on a card with a panel; motion in `dropExpand`):
                     // panel sizes are free px (not grid cells), radius 0 =
@@ -1114,9 +1169,14 @@ Singleton {
                     expand: ({
                         panelRadius: 0,
                         cutInset: 1.5,
+                        // The panel blurs the grid behind it (blurMax px)
+                        // instead of showing a bare hole.
+                        blurBehind: true,
+                        blurMax: 48,
                         panels: ({
                             wifi: ({ width: 340, height: 300 }),
-                            bluetooth: ({ width: 340, height: 300 })
+                            bluetooth: ({ width: 340, height: 300 }),
+                            vpn: ({ width: 340, height: 420 })
                         })
                     }),
                     // List panels of expanded cards (panels/WifiPanel,

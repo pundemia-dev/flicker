@@ -22,6 +22,10 @@ Scope {
     id: root
     required property var compositor
     required property var battery
+    // services/PowerMode: Low Power Mode sheds the background work below
+    // (no warm-up / indexing, Config.powerSave for the rest).
+    property var powerMode: null
+    readonly property bool powerSave: root.powerMode?.active ?? false
     // services/Theme: wallAccent is set from the wallpaper (accentFromWallpaper).
     property var theme: null
 
@@ -102,6 +106,7 @@ Scope {
         wallpaper: root
         cfg: root.cfg
         discharging: root.discharging
+        paused: root.powerSave && (Config.data.powerSave.pauseSlideshow ?? true)
         onEdited: root.save()
     }
 
@@ -111,6 +116,7 @@ Scope {
         id: warmupItem
         cfg: root.cfg
         discharging: root.discharging
+        powerSave: root.powerSave
         onIdle: {
             dupesItem.refresh();
             semanticItem.indexAll();
@@ -127,6 +133,7 @@ Scope {
         id: semanticItem
         cfg: root.cfg
         discharging: root.discharging
+        powerSave: root.powerSave
         cacheDir: warmupItem.cacheDir
     }
 
@@ -426,5 +433,6 @@ Scope {
         cfg: root.cfg
         compositor: root.compositor
         discharging: root.discharging
+        powerSave: root.powerSave && (Config.data.powerSave.pauseVideo ?? true)
     }
 }

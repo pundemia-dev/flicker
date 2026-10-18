@@ -31,6 +31,13 @@ Item {
                 readonly property color base: ma.containsMouse ? (root.theme?.qsDisc ?? "#3A3A3C") : (root.theme?.cardBg ?? "#1C1C1E")
                 color: root.frost?.layerColor(chip.base) ?? chip.base
 
+                InnerShadow {
+                    anchors.fill: parent
+                    radius: chip.radius
+                    size: Math.round(chip.height * 0.3)
+                    strength: root.cfg.innerShadowStrength ?? 0.06
+                }
+
                 Icon {
                     anchors.centerIn: parent
                     text: QsCatalog.glyphOf(chip.modelData)

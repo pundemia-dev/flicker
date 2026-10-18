@@ -67,6 +67,9 @@ Item {
         return root.spanW > root.spanH ? "panorama" : "tall";
     }
     readonly property bool lifted: body.moving || handle.pressed
+    // Finger down on the card in normal mode (not a swipe): the module
+    // springs the card up to cfg.pressScale, the press tint lightens it.
+    readonly property bool pressedDown: body.pressed && !root.editing && !body.swiping
     // Lifted into the QsExpander: it draws the content (contentLayer as a
     // hideSource texture) and the surface itself, the card only leaves its
     // slot.
@@ -79,6 +82,13 @@ Item {
         radius: root.radius
         color: root.frost?.surface(root.theme?.qsCardBg ?? "#000000") ?? (root.theme?.qsCardBg ?? "#000000")
         opacity: loader.item?.ownSurface === true || root.expandedOut ? 0 : 1
+
+        InnerShadow {
+            anchors.fill: parent
+            radius: root.radius
+            size: root.cfg?.innerShadowSize ?? 14
+            strength: root.cfg?.innerShadowStrength ?? 0.06
+        }
     }
 
     // Tap: the content's own action (activate()), then the signal.
@@ -170,6 +180,16 @@ Item {
         opacity: root.editing ? 0.7 : 1
         Behavior on opacity { Spring { eps: 0.01 } }
         onLoaded: item.card = root
+    }
+
+    // Press tint: a white veil over surface and content.
+    Rectangle {
+        anchors.fill: parent
+        radius: root.radius
+        color: "white"
+        opacity: root.pressedDown && !root.expandedOut ? (root.cfg?.pressLighten ?? 0.12) : 0
+        visible: opacity > 0.001
+        Behavior on opacity { Spring { stiffness: 6; damp: 0.6; eps: 0.002 } }
     }
 
     // Edit decorations ------------------------------------------------------

@@ -12,16 +12,19 @@ import "../modules/launcher/plugins/wallpapers/WallEntry.js" as WallEntry
 // ~3 s per thumbnail on the user's CPU) over the carousel thumbnails:
 // `indexAll()` after the thumbnail warm-up goes idle (visible files first,
 // hidden after or skipped — semanticIndexHidden), never on battery
-// (semanticOnBattery) — a running index stops when the power goes.
+// (semanticOnBattery) and never in Low Power Mode (`powerSave`, no
+// override) — a running index stops when the power goes / the mode turns
+// on. Only the panel's forceIndex (the user's own request) runs anyway.
 // query(text, cb) / similar(key, cb) call cb({ key: score }).
 Scope {
     id: root
     property var cfg: ({})
     property bool discharging: false
+    property bool powerSave: false
     property string cacheDir: ""
 
     readonly property bool enabled: root.cfg.semanticSearch ?? true
-    readonly property bool allowed: root.enabled && (!root.discharging || (root.cfg.semanticOnBattery ?? false))
+    readonly property bool allowed: root.enabled && !root.powerSave && (!root.discharging || (root.cfg.semanticOnBattery ?? false))
     readonly property string scripts: Quickshell.shellDir + "/scripts/wallpapers/"
     readonly property string modelDir: (root.cfg.semanticModelDir ?? "~/.local/share/flicker/models/mexma-siglip2").replace(/^~/, Quickshell.env("HOME"))
 

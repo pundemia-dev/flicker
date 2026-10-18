@@ -12,7 +12,11 @@ import "../config"
 Item {
     id: root
 
-    readonly property int pollMs: Config.data.dashboard.sysPollMs ?? 2000
+    // Low Power Mode (services/PowerMode): Config.powerSave.pollFactor
+    // times slower.
+    property var powerMode: null
+    readonly property int pollMs: (Config.data.dashboard.sysPollMs ?? 2000)
+        * (root.powerMode?.active ? Math.max(1, Config.data.powerSave.pollFactor ?? 3) : 1)
     readonly property int historyLen: Config.data.dashboard.sensorHistory ?? 40
 
     // °C, NaN until the first sample / when no sensor exists.

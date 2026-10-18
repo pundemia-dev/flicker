@@ -8,6 +8,8 @@ Rectangle {
     property string label
     // Island frost state: the pill surface fades with the frosted body.
     property var frost: null
+    // Inner shadow alpha at the rim (the center's cards' value).
+    property real shadowStrength: 0.06
     readonly property color base: pillMa.containsMouse ? "#3A3A3C" : "#2C2C2E"
     signal clicked
 
@@ -16,6 +18,12 @@ Rectangle {
     radius: 13
     color: pill.frost?.layerColor(pill.base) ?? pill.base
 
+    InnerShadow {
+        anchors.fill: parent
+        radius: pill.radius
+        size: Math.round(pill.height * 0.3)
+        strength: pill.shadowStrength
+    }
     Text {
         id: pillText
         anchors.centerIn: parent

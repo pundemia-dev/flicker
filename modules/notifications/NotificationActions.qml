@@ -36,6 +36,9 @@ Item {
         return v > root.panelExtra ? root.panelExtra + (v - root.panelExtra) * 0.25 : v;
     }
 
+    // Rim shadow on the pills while they sit on the frosted body.
+    readonly property real shadowStrength: root.cfg?.centerInnerShadowStrength ?? 0.06
+
     function surface(c: color): color {
         return root.frost?.layerColor(c) ?? c;
     }
@@ -104,6 +107,14 @@ Item {
                     color: root.surface(btnMa.pressed ? (root.theme?.qsDisc ?? "#3A3A3C")
                         : btnMa.containsMouse ? (root.theme?.cardTrack ?? "#2C2C2E") : (root.theme?.cardBg ?? "#1C1C1E"))
 
+                    InnerShadow {
+                        anchors.fill: parent
+                        radius: btn.radius
+                        size: Math.round(btn.height * 0.3)
+                        strength: root.shadowStrength
+                        opacity: root.frost?.progress ?? 0
+                    }
+
                     Text {
                         id: label
                         anchors.fill: parent
@@ -135,6 +146,14 @@ Item {
             anchors.fill: parent
             radius: height / 2
             color: root.surface(root.theme?.cardBg ?? "#1C1C1E")
+
+            InnerShadow {
+                anchors.fill: parent
+                radius: parent.radius
+                size: Math.round(parent.height * 0.3)
+                strength: root.shadowStrength
+                opacity: root.frost?.progress ?? 0
+            }
 
             TextInput {
                 id: input

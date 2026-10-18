@@ -3,7 +3,7 @@ import Quickshell
 import Quickshell.Io
 
 // wallr playback per output (child of services/Wallpaper): pause while a
-// window is fullscreen there / on battery, working around wallr 0.6.4's
+// window is fullscreen there / on battery / in Low Power Mode, working around wallr 0.6.4's
 // bugs (scripts/wallpapers/wallrctl.sh): a VIDEO paused > 5 s dies on a plain
 // resume (its stall watchdog), so a long pause ends with a revive (re-set)
 // seeked back to the position frozen at the pause; seek only after resume.
@@ -18,6 +18,8 @@ Scope {
     required property var cfg
     required property var compositor
     property bool discharging: false
+    // Low Power Mode with Config.powerSave.pauseVideo (services/Wallpaper).
+    property bool powerSave: false
     readonly property string ctl: Quickshell.shellDir + "/scripts/wallpapers/wallrctl.sh"
 
     // Positions frozen by our pauses (s, per output): a revive seeks back.
@@ -45,6 +47,7 @@ Scope {
                 : /\.gif$/i.test(out.path) ? "animated" : "image"
             readonly property bool want: ((root.cfg.pauseOnFullscreen ?? true) && (root.compositor?.fullscreenOn(out.name) ?? false))
                 || ((root.cfg.pauseOnBattery ?? false) && root.discharging)
+                || root.powerSave
             // What wallr has from us ("unknown" until the start-up revive).
             // ONE process per output runs the commands strictly in order and
             // only the one needed to reach `want` — a pause racing a resume

@@ -9,13 +9,15 @@ import "../modules/launcher/plugins/wallpapers/WallEntry.js" as WallEntry
 // warmupDelaySec after start (and every warmupRescanMin) it lists the
 // folder + the cache and feeds every missing thumbnail to
 // scripts/wallpapers/thumbs.sh in batches (warmupBatch files, warmupJobs
-// ffmpeg at once, nice 10). Stops on battery unless warmupOnBattery;
+// ffmpeg at once, nice 10). Stops on battery unless warmupOnBattery, and
+// always in Low Power Mode (`powerSave`, no override);
 // a killed batch is harmless (thumbs.sh writes atomically and the
 // carousel's own runs skip files that exist).
 Scope {
     id: root
     property var cfg: ({})
     property bool discharging: false
+    property bool powerSave: false
 
     readonly property string scripts: Quickshell.shellDir + "/scripts/wallpapers/"
     // Same default as the carousel's WallpaperService.cacheDir.
@@ -27,7 +29,7 @@ Scope {
         return ((x && x.length) ? x : Quickshell.env("HOME") + "/.cache") + "/flicker/wallpapers";
     }
 
-    readonly property bool allowed: (root.cfg.warmup ?? true) && (!root.discharging || (root.cfg.warmupOnBattery ?? false))
+    readonly property bool allowed: (root.cfg.warmup ?? true) && !root.powerSave && (!root.discharging || (root.cfg.warmupOnBattery ?? false))
     // Every thumbnail exists (after a scan / the last batch): the duplicate
     // finder can run over a complete set.
     signal idle

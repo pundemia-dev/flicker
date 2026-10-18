@@ -33,12 +33,12 @@ user's data) live outside the repo: `CLAUDE.local.md` (git-ignored) and `~/.clau
 - IPC: `quickshell -p $PWD ipc call <target> <fn>` (with a live instance running,
   address yours via `quickshell ipc --id <by-id dir> call ...`). `island` is ONE handler
   (`core/IslandIpc.qml`) routed via `core/IslandRegistry.qml` to the island on
-  `compositor.focusedOutput` — never put an IpcHandler in per-screen Island. Targets: `island` (launcher (toggle), launcherPlugin <id> (apps|clipboard|wallpapers, toggle), quicksettings, quicksettingsEdit/Page/Resize/Expand, stashMenu <i>,
+  `compositor.focusedOutput` — never put an IpcHandler in per-screen Island. Targets: `island` (launcher (toggle), launcherPlugin <id> (apps|clipboard|wallpapers, toggle), quicksettings, quicksettingsEdit/Page/Resize/Expand, quicksettingsPanel <cmd> <arg>, stashMenu <i>,
   notifications, stash (tray toggle), capture (again while open = next mode), captureMode(shot|record|color|
   window|ai|scan), captureScreen (= Enter in the active tool), captureCancel, session (session menu toggle), screenshot
   (instant, no overlay), record (toggle), recordPause, recordControls, dashboard, player, lock, close, minimal, island, osd, debugState,
   volumeUp/Down/Mute, micMute, brightnessUp/Down, playPause, nextTrack, prevTrack, playerSeek <s>),
-  `lock` (activate/isLocked — deliberately NO unlock/toggle over IPC; unlocking needs PAM),
+  `island powerSave` (Low Power Mode toggle), `island airplane` (Airplane Mode toggle), `island vpn` (VPN = sing-box unit toggle; panel + backend `scripts/vpn/vpn.sh`), `lock` (activate/isLocked — deliberately NO unlock/toggle over IPC; unlocking needs PAM),
   keyboardDemo layout|caps, shazam (listen / cancel), timer (module toggle), timerStart <min>, timerPause (toggle), timerCancel, stashTranscript <path>, stashPreview <path>,
   statusDemo <name> <percent> (<0 = spinning) / statusDemoEnd <name> / statusNext (= swipe on the drop),
   `dictation` (start/stop/toggle/cancel/status),
@@ -374,10 +374,36 @@ user's data) live outside the repo: `CLAUDE.local.md` (git-ignored) and `~/.clau
   out under the shape with the same inverted mask (`frostClearMask`); card holes stay as they
   are (dropping / cutting the holes of partly covered cards recoloured them — the "artifacts"). Fast springs (user): drop 14, fly / grow / fades 12, handoff 0.5. Tap outside = the
   same phases backwards (card content returns while the drop flies home). Wi‑Fi panel
-  (`panels/WifiPanel` + `WifiRow`): header disc toggles Wi‑Fi, list from `Network.networks`
-  (`setScanning` while the panel exists, `scanMs`; ListModel synced in place, order current →
-  saved → signal bars → name), tap joins saved/open, a new secured one opens a password field
-  in its row (`wantsKeyboard` → Island Exclusive for quicksettings). Bluetooth panel
+  (`panels/WifiPanel` + `WifiRow` + `WifiField`/`PanelPill`/`PanelButton`; multi-step nmcli in
+  `scripts/network/wifi.sh`): header disc toggles Wi‑Fi, rescan button (`PanelHeader.trailing`);
+  list from `Network.networks` (`setScanning` while the panel exists: list every `scanMs`,
+  `nmcli device wifi rescan` every `rescanMs` — NM rescans rarely once connected), sections
+  "Known" / "Other" (ListView section), order current → saved → signal bars → name. `known` =
+  a saved profile whose `802-11-wireless.ssid` matches (`Network.saved`, ssid → uuids/keyMgmt;
+  NOT the profile name). Tap: current → details; saved/open → join (`connection up uuid`); new
+  secured → password field (+ user name for 802.1X: PEAP/MSCHAPv2 profile). Right click / long
+  press / "…" → chips Details · Share (QR via qrencode + the saved psk) · Disconnect · Forget
+  (asks once more). A failed join keeps nmcli's "Error:" line (NOT the last one — that is a
+  "Hint: journalctl…") → `failReason`; "password" reopens the row's field even for a saved
+  network, and a password given for a saved one is stored into it (`wifi.sh psk`). Hidden
+  network ("Other network…"): NM with the **iwd** backend refuses `device wifi
+  connect … hidden yes` ("'ssid' scan option not supported") → `wifi.sh hidden` = a
+  `wifi.hidden yes` profile + up, deleted again if that fails (same for a new 802.1X one).
+  Captive portal: `nmcli networking connectivity` == portal → status + a sign-in row
+  (`network.portalUrl`). "Network settings…" = `launcher.apps.terminal` + nmtui. Keyboard:
+  the panel ALWAYS wants it (Island Exclusive while it is open): ↑/↓, Enter = tap, → actions,
+  ← fold, Esc fold / close. Motion (all springs): ListView add (cascade) / remove / move /
+  displaced transitions; `Network.savedReady` holds the list until the saved profiles are in
+  (else every row re-sorted across the sections right after opening); row tail (lock, check)
+  pressed right, hover / selection / open row slides it left and "…" grows in; check pops,
+  state line unfolds, chips cascade (`PanelPill` width + SpringColor fill), sections rise in
+  (`Appear` via a Translate — the Column owns y), the row clips while its height springs
+  (the unfolded part is laid out full size), a failed-password reopen shakes the field,
+  header status blur-fades (`PanelHeader`), the refresh glyph springs on to a full turn. Debug IPC `quicksettingsPanel <cmd> <arg>` (WifiPanel.debug: state
+  JSON, tap/menu/action/fill/other/forget/rescan/portal/settings); live test
+  `temp/wifi-panel-test.sh [out]` (git-ignored; DROPS the connection several times, restores
+  the psk and reconnects on exit) — passed Oct 2026 incl. wrong password → re-enter. NOT
+  tested: a real hidden / 802.1X / captive-portal network (portal look only via the fake). Bluetooth panel
   (`panels/BluetoothPanel` + `BluetoothRow`; shared `PanelHeader` + `PanelSync.js` (ListModel
   in-place sync) with Wi‑Fi, sizes `quicksettings.listPanel`): adapter discovery while the panel
   exists, paired (connected first) + NAMED nearby devices, rows look the device up by address
@@ -386,7 +412,7 @@ user's data) live outside the repo: `CLAUDE.local.md` (git-ignored) and `~/.clau
   forever, toggle dead — fixed. Panels get services through the factory's Component bindings.
   Debug IPC `quicksettingsExpand <id>` ("" folds back). Verified via that IPC + grim frames
   (both ways, both panels; BT discovery found nearby devices). NOT tested: the real long press,
-  password join, BT connect / pair taps.
+  BT connect / pair taps.
   Slider cards (`cards/SliderCard.qml`, volume/brightness) = the OSD look: the card IS the
   capsule (`ownSurface` → QsCard drops its bg so the gap shows the island), fill | gap |
   track with `Config.osd.gap/innerRadius/fill*` springs, glyph + title drawn twice (light
@@ -829,6 +855,25 @@ user's data) live outside the repo: `CLAUDE.local.md` (git-ignored) and `~/.clau
   wide cup (handle LEFT, `handleSide`) (walls rise from the bottom curve) + handle arc sweep, coffee inside behind a gap with a
   small travelling sine surface, poured in on an under-damped spring (slosh) / drained on off.
   Tunables `Config.glyphs.coffee`, `Theme.coffee`. Verified frame by frame (on + off).
+  LOW POWER MODE (Oct 2026): `services/PowerMode.qml` (QS card `lowPower`, IPC `island powerSave`
+  toggle, debugState `powerSave {available, active}`) = Quickshell `PowerProfiles` over the
+  standard `org.freedesktop.UPower.PowerProfiles` D-Bus API (power-profiles-daemon / tlp-pd /
+  tuned-ppd — never write sysfs/TLP directly: hardware-agnostic, no root). `active` = the LIVE
+  profile is power-saver (TLP resets it on a power-source change); off restores the profile from
+  before. No daemon (dbus-send ListNames/ListActivatableNames probe) → card "Unavailable". While
+  active (user rule: no background heavy work, only what the user starts): thumbnail warm-up and
+  semantic indexing are blocked outright (`powerSave` in their `allowed`, no override; the panel's
+  forceIndex still runs), slideshow steps `paused` (separate from the carousel's `hold` Binding),
+  video wallpapers paused (WallrClock), update check held, SystemUsage / Sensors poll `pollFactor`×
+  slower — `Config.powerSave`. Verified live: tlp-pd → TLP SAV (max_perf_pct 60 → 40 → 60).
+  AIRPLANE MODE (Oct 2026): `services/Airplane.qml` (QS card `airplane`, IPC `island airplane`,
+  debugState `airplane {available, active}`) = rfkill (/dev/rfkill has a user ACL, no root).
+  State from a long-running `stdbuf -oL rfkill event` (lists devices, then changes; no polling);
+  `active` = every device soft/hard-blocked, so external blocks show. On: snapshot the unblocked
+  type names + BT adapter power → statePath("airplane.json"), `rfkill block all`. Off: unblock
+  only those types (no snapshot → all), then put the BT adapter back to its saved power (BlueZ
+  powers it on after an unblock). `Config.quicksettings.airplane.dnd` (default false): DND on with
+  it, off with it only if the mode set it. QML JS here has no object spread — use Object.assign.
   CHARGER BOLT `indicators/BoltGlyph.qml` (user pick: "the bolt breaks"). Appearance (user, after
   several rounds — strike line / swell / bloom all read abrupt): the bolt is PAINTED by a fill
   front (critically damped `reveal`; polygon clipped by the front's half-plane) DOWN from the top
@@ -1213,6 +1258,13 @@ user's data) live outside the repo: `CLAUDE.local.md` (git-ignored) and `~/.clau
 
 - One file = one responsibility; ~200 lines is the split signal.
 - No hardcoded sizes/thresholds — Config/Theme only.
+- Every surface that sits on the translucent (frost) backdrop gets `components/InnerShadow`
+  along its rim (user rule, Oct 2026): QS cards, slider capsules, the expanded-card panel,
+  rail/session/edit discs, edit chips; Notification Center tiles, plates, pills, ✕ and the
+  action pills / reply field (faded in with `frost.progress`, the flow card stays plain).
+  Big surfaces: `innerShadowSize` / `centerInnerShadowSize`; discs and pills:
+  `size = round(height × 0.3)`; strength from `innerShadowStrength` /
+  `centerInnerShadowStrength`. New surfaces of this kind get one too.
 - Indicators and modules never create windows; they live inside / extend the island.
 - External tools: nmcli (wifi/hotspot), brightnessctl, grim (+magick crops, wl-copy,
   tesseract OCR, curl+jq Lens upload) for capture, wf-recorder + parecord + ffmpeg

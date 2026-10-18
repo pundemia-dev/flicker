@@ -40,6 +40,13 @@ Item {
         radius: width / 2
         color: root.frost?.layerColor(root.theme?.qsDisc ?? "#3A3A3C") ?? (root.theme?.qsDisc ?? "#3A3A3C")
         visible: root.glyphs.length > 0
+
+        InnerShadow {
+            anchors.fill: parent
+            radius: parent.radius
+            size: Math.round(parent.height * 0.3)
+            strength: root.cfg.innerShadowStrength ?? 0.06
+        }
     }
 
     Repeater {
@@ -59,8 +66,10 @@ Item {
                 text: slot.plus ? "" : root.glyphs[slot.index]
                 font.family: root.theme?.iconFamily ?? "tabler-icons"
                 iconSize: Math.round(root.icon * 0.55)
-                // Current page white, others dim; blends while swiping.
-                iconColor: Qt.rgba(1, 1, 1, slot.plus ? 0.7 : 0.45 + 0.55 * slot.near)
+                // Current page white, others grey; blends while swiping.
+                readonly property color idle: root.theme?.qsRailIdle ?? "#8E8E93"
+                iconColor: slot.plus ? Qt.rgba(1, 1, 1, 0.7)
+                    : Qt.rgba(idle.r + (1 - idle.r) * slot.near, idle.g + (1 - idle.g) * slot.near, idle.b + (1 - idle.b) * slot.near, 1)
             }
             MouseArea {
                 anchors.fill: parent

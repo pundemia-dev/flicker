@@ -1,7 +1,9 @@
 import QtQuick
+import Quickshell
 import "./cards"
 import "./panels"
 import "../../config"
+import "../../services"
 import "QsCatalog.js" as QsCatalog
 
 // Card id → content Component, bound to the services. Ids/footprints live
@@ -26,8 +28,13 @@ Item {
             record: recordComp, screenshot: screenshotComp, scanCode: scanCodeComp,
             localsend: localsendComp,
             slideshow: slideshowComp,
+            lowPower: lowPowerComp,
+            airplane: airplaneComp,
+            vpn: vpnComp,
             shazam: shazamComp,
-            timer: timerComp
+            timer: timerComp,
+            calculator: calculatorComp,
+            focus: focusComp
         })[id] ?? (root.stubs[id] ? stubComp : null);
     }
 
@@ -35,13 +42,25 @@ Item {
     function panelFor(id: string): Component {
         return ({
             wifi: wifiPanelComp,
-            bluetooth: btPanelComp
+            bluetooth: btPanelComp,
+            vpn: vpnPanelComp
         })[id] ?? null;
     }
     Component {
         id: wifiPanelComp
         WifiPanel {
             services: root.services
+            onCloseRequested: root.closeRequested()
+            cfg: root.services.config.quicksettings
+            theme: root.theme
+            frost: root.services.frost ?? null
+        }
+    }
+    Component {
+        id: vpnPanelComp
+        VpnPanel {
+            services: root.services
+            onCloseRequested: root.closeRequested()
             cfg: root.services.config.quicksettings
             theme: root.theme
             frost: root.services.frost ?? null
@@ -65,14 +84,10 @@ Item {
         voiceMemos: { toggle: false, accent: "accentRed" },
         notes: { toggle: false },
         translate: { toggle: false, status: "English → Russian" },
-        lowPower: { toggle: true, accent: "qsYellow" },
-        airplane: { toggle: true, accent: "qsOrange" },
         cellular: { toggle: true, accent: "qsGreen" },
         dictation: { toggle: true, accent: "qsBlue" },
         stopwatch: { toggle: false },
-        calculator: { toggle: false },
-        mirroring: { toggle: false },
-        focus: { toggle: true, accent: "qsIndigo" }
+        mirroring: { toggle: false }
     })
 
     Component {
@@ -105,6 +120,22 @@ Item {
             on: root.network?.hotspotEnabled ?? false
             status: on ? (root.network?.hotspotName ?? "") : I18n.tr("Off")
             activate: () => root.network?.setHotspotEnabled(!on)
+        }
+    }
+    // Focus: the island stays Minimal everywhere, as under a fullscreen
+    // window (ControlCenter.focusMode → Island.fsActive).
+    Component {
+        id: focusComp
+        ButtonCard {
+            readonly property var cc: root.services.controlCenter
+            glyph: QsCatalog.glyphOf("focus")
+            title: I18n.tr("Focus")
+            accent: root.theme?.qsIndigo ?? "#5E5CE6"
+            on: cc?.focusMode ?? false
+            activate: () => {
+                if (cc)
+                    cc.focusMode = !cc.focusMode;
+            }
         }
     }
     Component {
@@ -158,6 +189,62 @@ Item {
             on: show?.active ?? false
             status: on ? I18n.tr("Every %1").arg(I18n.tr("%1 min").arg(Math.max(1, Math.round((root.services.wallpaper?.cfg.slideshowIntervalSec ?? 900) / 60)))) : I18n.tr("Off")
             activate: () => show?.toggle(null)
+        }
+    }
+    // Low Power Mode (services/PowerMode): the system power-saver profile;
+    // no power-profiles daemon → "Unavailable", the tap only re-probes.
+    Component {
+        id: lowPowerComp
+        ButtonCard {
+            readonly property var mode: root.services.powerMode ?? null
+            glyph: QsCatalog.glyphOf("lowPower")
+            title: I18n.tr(QsCatalog.titleOf("lowPower"))
+            accent: root.theme?.qsYellow ?? "#FFCC00"
+            on: mode?.active ?? false
+            status: !(mode?.available ?? false) ? I18n.tr("Unavailable") : on ? I18n.tr("On") : I18n.tr("Off")
+            activate: () => mode?.toggle()
+        }
+    }
+    // Airplane Mode (services/Airplane): every radio rfkill-blocked; off
+    // restores what was on before. No rfkill devices → "Unavailable".
+    Component {
+        id: airplaneComp
+        ButtonCard {
+            readonly property var mode: root.services.airplane ?? null
+            glyph: QsCatalog.glyphOf("airplane")
+            title: I18n.tr(QsCatalog.titleOf("airplane"))
+            accent: root.theme?.qsOrange ?? "#FF9F0A"
+            on: mode?.active ?? false
+            status: !(mode?.available ?? false) ? I18n.tr("Unavailable") : on ? I18n.tr("On") : I18n.tr("Off")
+            activate: () => mode?.toggle()
+        }
+    }
+    // VPN (services/Vpn): sing-box on / off; status = the node, or the
+    // transition. Long press = the panel (nodes, ping, subscription).
+    Component {
+        id: vpnComp
+        ButtonCard {
+            readonly property var vpn: root.services.vpn ?? null
+            readonly property string st: vpn?.status ?? "inactive"
+            glyph: on ? "\ued58" : "\ueb24"
+            title: "VPN"
+            on: vpn?.on ?? false
+            status: {
+                switch (st) {
+                case "unavailable":
+                    return I18n.tr("Not installed");
+                case "connecting":
+                    return I18n.tr("Connecting…");
+                case "disconnecting":
+                    return I18n.tr("Disconnecting…");
+                case "failed":
+                    return I18n.tr("Failed");
+                case "active":
+                    return vpn.profile || I18n.tr("Connected");
+                }
+                return I18n.tr("Off");
+            }
+            activate: () => vpn?.toggle()
         }
     }
     // Music recognition (services/Shazam): lit while listening, tap =
@@ -224,6 +311,39 @@ Item {
             title: I18n.tr(QsCatalog.titleOf("localsend"))
             toggle: false
             activate: () => root.services.openStash?.("")
+        }
+    }
+    // Calculator: whatever the user has — cfg.calculator (desktop ids /
+    // names, first installed wins), else the first .desktop entry in the
+    // freedesktop "Calculator" category. Tap = focus its window or start it.
+    AppActivator {
+        id: activator
+        launchPrefix: Config.data.launcher?.apps?.launchPrefix ?? []
+    }
+    Component {
+        id: calculatorComp
+        ButtonCard {
+            readonly property var app: {
+                const apps = DesktopEntries.applications?.values ?? [];
+                for (const name of root.services.config.quicksettings.calculator ?? []) {
+                    const hit = activator.desktopEntryFor(activator.expand([name]));
+                    if (hit)
+                        return hit;
+                }
+                return apps.find(a => (a.categories ?? []).includes("Calculator")) ?? null;
+            }
+            glyph: QsCatalog.glyphOf("calculator")
+            title: I18n.tr(QsCatalog.titleOf("calculator"))
+            toggle: false
+            statusShown: !app
+            status: I18n.tr("Not installed")
+            activate: () => {
+                if (!app)
+                    return;
+                if (!activator.activate([app.id]))
+                    activator.launch([app.id]);
+                root.closeRequested();
+            }
         }
     }
     Component {

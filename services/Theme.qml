@@ -62,6 +62,8 @@ QtObject {
     readonly property color qsOrange: "#FF9F0A"
     readonly property color qsYellow: "#FFCC00"
     readonly property color qsDisc: "#3A3A3C"
+    // Tab rail: icons of the pages not shown (the current one is white).
+    readonly property color qsRailIdle: "#8E8E93"
     // Session menu selection plate (darker than qsDisc, user).
     readonly property color sessionPlate: "#242426"
     // QS card surface (card bg + slider track): black, user (Oct 2026).

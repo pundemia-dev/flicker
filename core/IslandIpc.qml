@@ -20,6 +20,9 @@ Scope {
     required property var events
     required property var battery
     required property var caffeine
+    required property var powerMode
+    required property var airplane
+    required property var vpn
     required property var charging
     required property var countdown
     required property var keyboard
@@ -94,6 +97,9 @@ Scope {
         // Debug: tile menu of stash file <i> (-1 folds it back).
         function stashMenu(i: int): void { root.island?.moduleItem?.debugMenu?.(i); }
         function quicksettingsExpand(id: string): void { root.island?.moduleItem?.expandCard?.(id); }
+        // Expanded panel debug hook (WifiPanel.debug: state / tap / menu /
+        // action / mode / other / join / key...): returns the panel's state JSON.
+        function quicksettingsPanel(cmd: string, arg: string): string { return root.island?.moduleItem?.panelDebug?.(cmd, arg) ?? "{}"; }
         function notifications(): void { root.island?.openNotificationCenter(); }
         function capture(): void { root.island?.openCapture(""); }
         // shot | record | color | window | ai | scan (while open: switch to it).
@@ -187,6 +193,12 @@ Scope {
         function timerCancel(): void { root.countdown.cancel(); }
         // Caffeine mode (idle inhibit) on/off.
         function caffeine(): void { root.caffeine.toggle(); }
+        // Low Power Mode (power-saver profile + background work shed) on/off.
+        function powerSave(): void { root.powerMode.toggle(); }
+        // Airplane Mode (all radios rfkill-blocked, previous state restored) on/off.
+        function airplane(): void { root.airplane.toggle(); }
+        // VPN (sing-box unit) on/off.
+        function vpn(): void { root.vpn.toggle(); }
         // Music recognition: start listening / cancel a running one.
         function shazam(): void { root.shazam.toggle(); }
         // Keyboard pill preview: "layout" = flash the current layout,

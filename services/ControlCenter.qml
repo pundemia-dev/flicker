@@ -28,6 +28,9 @@ Scope {
     property bool editing: false
     // Current tab (session only).
     property int page: 0
+    // Focus card (session only): every island behaves as if a window were
+    // fullscreen on its output — kept Minimal (Island.fsActive).
+    property bool focusMode: false
 
     readonly property var shown: root.preview ?? root.pages
     readonly property int rows: root.shown.reduce((m, p) => Math.max(m, QsGrid.rowsOf(p)), 0)

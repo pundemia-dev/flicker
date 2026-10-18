@@ -140,6 +140,7 @@ Item {
             }
             Pill {
                 frost: root.frost
+                shadowStrength: root.cfg?.centerInnerShadowStrength ?? 0.06
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
                 label: I18n.tr("Clear All")

@@ -92,11 +92,13 @@ Item {
 
             Pill {
                 frost: root.frost
+                shadowStrength: root.cfg?.centerInnerShadowStrength ?? 0.06
                 label: I18n.tr("Show Less")
                 onClicked: root.expandRequested(false)
             }
             Pill {
                 frost: root.frost
+                shadowStrength: root.cfg?.centerInnerShadowStrength ?? 0.06
                 label: "✕"
                 onClicked: root.dismissGroup()
             }

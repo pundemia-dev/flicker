@@ -24,6 +24,13 @@ Item {
         radius: width / 2
         readonly property color base: ma.containsMouse ? Qt.lighter(root.theme?.qsDisc ?? "#3A3A3C", 1.25) : (root.theme?.qsDisc ?? "#3A3A3C")
         color: root.frost?.layerColor(base) ?? base
+
+        InnerShadow {
+            anchors.fill: parent
+            radius: parent.radius
+            size: Math.round(parent.height * 0.3)
+            strength: root.cfg.innerShadowStrength ?? 0.06
+        }
     }
 
     Repeater {

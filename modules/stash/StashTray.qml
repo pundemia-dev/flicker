@@ -181,19 +181,19 @@ Item {
             border.color: Qt.alpha(root.theme.cardBlue, 0.8)
         }
 
-        // Empty state: the icon's centre on the island's vertical middle
-        // (root sits inside symmetric padding; StashMetrics emptyHeight
-        // leaves room for the captions + action row below it).
+        // Empty state: icon + captions as one block, lifted above the island's
+        // vertical middle (root sits inside symmetric padding; StashMetrics
+        // emptyHeight leaves room for the action row below it).
         Column {
             anchors.horizontalCenter: parent.horizontalCenter
-            y: root.height / 2 - emptyIcon.height / 2
-            spacing: 4
+            y: root.height / 2 - height / 2 - 20
+            spacing: 6
             visible: root.stash.count === 0
 
             IconImage {
                 id: emptyIcon
                 anchors.horizontalCenter: parent.horizontalCenter
-                implicitSize: 36
+                implicitSize: 56
                 source: Quickshell.iconPath("folder-open", "folder")
                 asynchronous: true
             }
@@ -201,13 +201,13 @@ Item {
                 anchors.horizontalCenter: parent.horizontalCenter
                 text: I18n.tr("Tray is empty")
                 color: root.theme.islandFg
-                font.pixelSize: root.theme.fontSizeClock
+                font.pixelSize: root.theme.fontSizeClock + 4
             }
             Text {
                 anchors.horizontalCenter: parent.horizontalCenter
                 text: I18n.tr("Drop a file onto the island")
                 color: root.theme.subtleFg
-                font.pixelSize: root.theme.fontSizeBody
+                font.pixelSize: root.theme.fontSizeBody + 2
             }
         }
     }

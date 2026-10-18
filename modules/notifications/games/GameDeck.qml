@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Effects
 import "../../../components"
 import "../../../config"
 
@@ -81,11 +82,23 @@ Item {
             Spring { stiffness: 4.5; damp: 0.45 }
         }
 
+        // Dark halo around the whole scene (sprites, ground, text are light):
+        // keeps the game readable on the frosted island over a light
+        // wallpaper; on the dark body it is invisible.
         Loader {
             id: loader
             anchors.fill: parent
             focus: true
             sourceComponent: root.registry[root.current] ?? null
+            layer.enabled: (root.cfg?.gameShadowOpacity ?? 0.9) > 0
+            layer.effect: MultiEffect {
+                shadowEnabled: true
+                shadowColor: Qt.rgba(0, 0, 0, root.cfg?.gameShadowOpacity ?? 0.9)
+                shadowBlur: root.cfg?.gameShadowBlur ?? 0.3
+                blurMax: 8
+                shadowHorizontalOffset: 0
+                shadowVerticalOffset: 1
+            }
         }
     }
 

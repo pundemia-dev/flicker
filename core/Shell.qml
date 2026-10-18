@@ -24,8 +24,14 @@ Scope {
     Events { id: eventsService }
     EventCharging { id: eventChargingService; events: eventsService; battery: batteryService }
     EventBluetooth { events: eventsService; bluetooth: bluetoothService }
-    EventUpdates { events: eventsService }
+    EventUpdates { events: eventsService; powerMode: powerModeService }
     Caffeine { id: caffeineService; events: eventsService }
+    // Low Power Mode: system power-saver profile + background work shed.
+    PowerMode { id: powerModeService; events: eventsService }
+    // Airplane Mode: every radio rfkill-blocked, the previous state restored.
+    Airplane { id: airplaneService; events: eventsService; bluetooth: bluetoothService; notifications: notificationsService }
+    // VPN: sing-box unit + its subscription nodes (scripts/vpn/vpn.sh).
+    Vpn { id: vpnService; events: eventsService }
     EventNetwork { id: eventNetworkService; events: eventsService; network: networkService }
     EventAudioOutput { id: eventAudioOutputService; events: eventsService; audio: audioService }
     EventBattery { id: eventBatteryService; events: eventsService; battery: batteryService; charging: eventChargingService }
@@ -56,8 +62,8 @@ Scope {
         dictation: dictationService
         onShowRequested: islandRegistry.forOutput(compositorService.focusedOutput ?? "")?.openPrompter()
     }
-    SystemUsage { id: systemUsageService }
-    Sensors { id: sensorsService }
+    SystemUsage { id: systemUsageService; powerMode: powerModeService }
+    Sensors { id: sensorsService; powerMode: powerModeService }
     Weather { id: weatherService }
     Haptics { id: hapticsService }
     Stash { id: stashService; cfg: Config.data.stash; events: eventsService }
@@ -124,6 +130,7 @@ Scope {
         compositor: compositorService
         battery: batteryService
         theme: themeService
+        powerMode: powerModeService
     }
 
     IslandIpc {
@@ -139,6 +146,9 @@ Scope {
         events: eventsService
         battery: batteryService
         caffeine: caffeineService
+        powerMode: powerModeService
+        airplane: airplaneService
+        vpn: vpnService
         charging: eventChargingService
         countdown: countdownService
         keyboard: keyboardIndicatorService
@@ -177,6 +187,9 @@ Scope {
                 privacy: privacyService
                 events: eventsService
                 caffeine: caffeineService
+                powerMode: powerModeService
+                airplane: airplaneService
+                vpn: vpnService
                 clipboardWatch: clipboardWatchService
                 players: playersService
                 network: networkService

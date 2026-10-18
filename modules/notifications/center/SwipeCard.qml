@@ -24,13 +24,13 @@ Item {
     property var frost: null
     // Local px from the top hidden behind the card above (stack plates).
     property real coverTop: 0
-    // Frost knockout (card coords): the visible surface; null while the
-    // tile is mostly faded (thrown out / hidden plate).
+    // Frost knockout (card coords): the visible surface (the full rounded
+    // tile with coverTop cut off, see Knockout.hole); null while the tile
+    // is mostly faded (thrown out / hidden plate).
     readonly property var knockout: {
         if (root.opacity * tile.opacity < 0.5 || root.height - root.coverTop < 0.5)
             return null;
-        const r = 20, top = Math.max(0, r - root.coverTop);
-        return { x: root.dragX, y: root.coverTop, w: root.width, h: root.height - root.coverTop, r: [top, top, r, r] };
+        return { x: root.dragX, y: 0, w: root.width, h: root.height, r: [20, 20, 20, 20], cut: root.coverTop };
     }
     // false = blank plate (lower layers of a collapsed stack).
     property bool showContent: true
@@ -104,6 +104,34 @@ Item {
                 height: tile.height
                 radius: 20
                 color: root.frost?.surface(base) ?? base
+            }
+
+            InnerShadow {
+                y: -root.coverTop
+                width: tile.width
+                height: tile.height
+                radius: 20
+                size: root.cfg?.centerInnerShadowSize ?? 14
+                strength: root.cfg?.centerInnerShadowStrength ?? 0.06
+            }
+
+            // Shadow of the card above, only on this plate (never on the
+            // island backdrop): fades out below its edge, the rounded
+            // rect keeps it inside the plate's own corners.
+            Rectangle {
+                id: shadow
+                readonly property real size: root.cfg?.centerShadowSize ?? 5
+                readonly property real strength: root.cfg?.centerShadowStrength ?? 0.15
+                visible: root.coverTop > 0
+                y: -root.coverTop
+                width: tile.width
+                height: tile.height
+                radius: 20
+                gradient: Gradient {
+                    GradientStop { position: root.coverTop / tile.height; color: Qt.rgba(0, 0, 0, shadow.strength) }
+                    GradientStop { position: (root.coverTop + shadow.size / 2) / tile.height; color: Qt.rgba(0, 0, 0, shadow.strength * 0.3) }
+                    GradientStop { position: (root.coverTop + shadow.size) / tile.height; color: "transparent" }
+                }
             }
         }
 
@@ -226,6 +254,12 @@ Item {
         color: root.frost?.layerColor(base) ?? base
         border.width: 1
         border.color: root.frost?.layerColor("#3A3A3C") ?? "#3A3A3C"
+        InnerShadow {
+            anchors.fill: parent
+            radius: parent.radius
+            size: Math.round(parent.height * 0.3)
+            strength: root.cfg?.centerInnerShadowStrength ?? 0.06
+        }
         opacity: root.interactive && root.showContent && (ma.containsMouse || closeMa.containsMouse) && !ma.pressed ? 1 : 0
         visible: opacity > 0.01
         Behavior on opacity { Spring { stiffness: 6; damp: 0.6; eps: 0.01 } }

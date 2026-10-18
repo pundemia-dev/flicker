@@ -24,6 +24,8 @@ DropExpand {
 
     bounds: Qt.rect(0, 0, root.boundsW, root.boundsH)
     margin: root.cfg.margins
+    shadowSize: root.cfg.innerShadowSize ?? 14
+    shadowStrength: root.cfg.innerShadowStrength ?? 0.06
     panelRadius: (root.e.panelRadius ?? 0) > 0 ? root.e.panelRadius : root.cfg.unit / 2
     panelColor: root.mix(root.theme?.qsCardBg ?? "#000000", root.theme?.qsPanelBg ?? "#8C141416", root.frost?.progress ?? 0)
 

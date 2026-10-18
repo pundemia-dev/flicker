@@ -9,7 +9,11 @@ import "../config"
 Item {
     id: root
 
-    readonly property int pollMs: Config.data.dashboard.sysPollMs ?? 2000
+    // Low Power Mode (services/PowerMode) polls Config.powerSave.pollFactor
+    // times slower.
+    property var powerMode: null
+    readonly property int pollMs: (Config.data.dashboard.sysPollMs ?? 2000)
+        * (root.powerMode?.active ? Math.max(1, Config.data.powerSave.pollFactor ?? 3) : 1)
 
     property real cpuPerc: 0
     property real memPerc: 0

@@ -25,6 +25,9 @@ PanelWindow {
     required property var privacy
     required property var events
     required property var caffeine
+    required property var powerMode
+    required property var airplane
+    required property var vpn
     required property var clipboardWatch
     required property var players
     required property var network
@@ -258,9 +261,10 @@ PanelWindow {
     // Bare strip (no hold reveal / ticker): the minimal active zone is live.
     readonly property bool minimalZoneActive: minimal && !temporaryRevealFromMinimal && !tickerVisible && !indicatorPeek.active
     readonly property bool moduleOpen: state.currentState === state.module
-    // Per-screen compositor state (global value as fallback).
+    // Per-screen compositor state (global value as fallback). Focus mode
+    // (QS card) counts as fullscreen everywhere.
     readonly property var screenInfo: (compositor?.perScreen ?? {})[screen.name] ?? null
-    readonly property bool fsActive: screenInfo ? (screenInfo.fullscreen ?? false) : (compositor?.fullscreen ?? false)
+    readonly property bool fsActive: (controlCenter?.focusMode ?? false) || (screenInfo ? (screenInfo.fullscreen ?? false) : (compositor?.fullscreen ?? false))
     // Identifies the current island content; changing it replays the
     // ContentSwap blur->fade transition (openCount makes re-opens of the
     // same module - e.g. queued notifications - replay the swap too).
@@ -534,7 +538,7 @@ PanelWindow {
         const src = root.knockoutsLive ? root.liveKnockouts : root.heldKnockouts;
         const out = [];
         for (const k of src) {
-            const c = Knockout.insideOutline(dx === 0 ? k : Knockout.hole(k.x + dx, k.y, k.w, k.h, k.r), w, h, R);
+            const c = Knockout.insideOutline(dx === 0 ? k : Knockout.hole(k.x + dx, k.y, k.w, k.h, k.r, k.cut), w, h, R);
             if (c)
                 out.push(c);
         }
@@ -1752,6 +1756,9 @@ PanelWindow {
                         weather: root.weather,
                         clock: root.clock,
                         battery: root.battery,
+                        powerMode: root.powerMode,
+                        airplane: root.airplane,
+                        vpn: root.vpn,
                         compositor: root.compositor,
                         config: root.config,
                         theme: root.theme,
@@ -1944,6 +1951,9 @@ PanelWindow {
                     cameraProcs: root.privacy.cameraProcs
                 },
                 caffeine: root.caffeine.active,
+                powerSave: { available: root.powerMode.available, active: root.powerMode.active },
+                airplane: { available: root.airplane.available, active: root.airplane.active },
+                vpn: { status: root.vpn.status, unit: root.vpn.unit, online: root.vpn.online, profile: root.vpn.profile, profiles: root.vpn.profiles.length, busy: root.vpn.busy, error: root.vpn.error },
                 keyboard: {
                     what: root.keyboard.what,
                     label: root.keyboard.label,

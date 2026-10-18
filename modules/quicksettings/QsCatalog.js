@@ -16,6 +16,7 @@ const CARDS = {
     wifi: { glyph: "\ueb52", title: "Wi‑Fi", sizes: BUTTON_WIDE },
     bluetooth: { glyph: "\uea37", title: "Bluetooth", sizes: BUTTON_WIDE },
     hotspot: { glyph: "\ued1b", title: "Hotspot", sizes: BUTTON_SMALL },
+    vpn: { glyph: "\ued58", title: "VPN", sizes: BUTTON_WIDE },
     dnd: { glyph: "\uf684", title: "Do Not Disturb", sizes: BUTTON_SMALL },
     mic: { glyph: "\ueaf0", title: "Microphone", sizes: BUTTON_SMALL },
     volume: { glyph: "\ueb51", title: "Volume", sizes: [[1, 2], [1, 1], [2, 1], [4, 1], [1, 3], [2, 2]] },
@@ -50,7 +51,7 @@ const IDS = Object.keys(CARDS);
 // W W M M   W = wifi 2x1, B = bluetooth 2x1, M = media 2x2
 // B B M M   D = dnd, m = mic, H = hotspot, R = record (1x1)
 // D m V L   V = volume 1x2, L = brightness 1x2
-// H R V L   screenshot, slideshow, shazam and the stubs start hidden (edit footer → add)
+// H R V L   screenshot, slideshow, shazam, vpn and the stubs start hidden (edit footer → add)
 const DEFAULT_LAYOUT = [
     { id: "wifi", x: 0, y: 0, w: 2, h: 1 },
     { id: "bluetooth", x: 0, y: 1, w: 2, h: 1 },

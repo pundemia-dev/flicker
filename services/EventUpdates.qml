@@ -13,9 +13,12 @@ import "../config"
 // Nothing pending -> no event.
 // Only after a boot, not a shell restart: the system uptime at shell start
 // must be <= updatesMaxUptimeSec (0 = check on every start).
+// Low Power Mode (services/PowerMode, Config.powerSave.deferUpdates) holds
+// the check until the mode is off.
 Scope {
     id: root
     required property var events
+    property var powerMode: null
     // Read once at start: a restart later in the session never qualifies.
     property bool freshBoot: false
 
@@ -32,13 +35,16 @@ Scope {
     }
 
     Timer {
-        running: root.freshBoot && (Config.data.events.updates ?? true)
+        running: root.freshBoot && !check.done && (Config.data.events.updates ?? true)
+            && !((root.powerMode?.active ?? false) && (Config.data.powerSave.deferUpdates ?? true))
         interval: Config.data.events.updatesDelayMs
         onTriggered: check.running = true
     }
 
     Process {
         id: check
+        property bool done: false
+        onStarted: check.done = true
         command: ["sh", "-c", "checkupdates 2>/dev/null | wc -l; { yay -Qua 2>/dev/null || paru -Qua 2>/dev/null; } | wc -l"]
         stdout: StdioCollector {
             onStreamFinished: {

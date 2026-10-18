@@ -12,7 +12,8 @@ import "../modules/launcher/plugins/wallpapers/WallFilter.js" as WallFilter
 // Order (slideshowOrder): random (never one of the last few shown) or
 // sequential (the view's order, after the current one). On battery only
 // still images (slideshowStillOnBattery). `hold` (the carousel is open)
-// skips steps so it never fights the live preview.
+// skips steps so it never fights the live preview; `paused` (Low Power
+// Mode, services/PowerMode) skips them too. next() still steps on request.
 Scope {
     id: root
     required property var wallpaper
@@ -22,6 +23,7 @@ Scope {
     property bool active: false
     property var spec: ({ filter: "", query: "", visibility: "normal" })
     property bool hold: false
+    property bool paused: false
 
     readonly property string scripts: Quickshell.shellDir + "/scripts/wallpapers/"
 
@@ -51,7 +53,7 @@ Scope {
         interval: Math.max(5, root.cfg.slideshowIntervalSec ?? 900) * 1000
         repeat: true
         running: root.active
-        onTriggered: if (!root.hold)
+        onTriggered: if (!root.hold && !root.paused)
             root.next()
     }
 

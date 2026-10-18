@@ -181,6 +181,12 @@ Item {
                 inkColor: root.darkInk
             }
         }
+        InnerShadow {
+            anchors.fill: parent
+            radius: bar.radius
+            size: root.cfg?.innerShadowSize ?? 14
+            strength: root.cfg?.innerShadowStrength ?? 0.06
+        }
     }
 
     // Glyph slot: centre (small), bottom (tall), left (wide), top-left (large).
