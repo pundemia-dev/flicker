@@ -482,8 +482,7 @@ user's data) live outside the repo: `CLAUDE.local.md` (git-ignored) and `~/.clau
   pkexec (the shell's polkit agent asks); start/stop via systemctl + polkit, `vpn.sh setup`
   installs a rule limited to the two units (deliberately NOT "pkexec this script without a
   password" like the original: the script lives in a user-writable dir). An update keeps the
-  chosen node if the new subscription still has it. "😪 Auto Selector"-style entries are
-  real server-side auto-select profiles (user) — keep them.
+  chosen node if the new subscription still has it.
 - Launcher (`modules/launcher/`, Oct 2026) = pShell launcher port, only the apps + clipboard
   plugins. `LauncherModule` (host: plate-less search row, hairline divider (`launcher.dividerInset/Width`, `Theme.launcherDivider`, centred in `gap`, short of the edges) / list / plate-less side panel behind a vertical hairline (the same `panelGap` list edge → line → panel content, counted in `LauncherMetrics.islandSize`; the list narrows by `panelListShrink` (0.3) while the panel is open, rendered width on the island's own `Spring {}` so both move in step; `panelDividerInset` short of both the horizontal divider and the island bottom, fades with the panel)) + `LauncherManager`
   (pShell ModuleManager: default → `!` picker → active plugin pill; Backspace on empty steps
