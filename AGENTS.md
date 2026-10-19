@@ -494,10 +494,16 @@ user's data) live outside the repo: `CLAUDE.local.md` (git-ignored) and `~/.clau
   files. Xray removed `allowInsecure` (2026-06): such nodes verify (view type "⚠ cert
   checked"). Secrets: both configs root:<unit user> 0640, `.bak` 0600; the panel reads
   `/etc/flicker-vpn/view.json` (0644, written by the root halves: profile, profiles
-  [{tag, type, base, xray, insecure}], xray). Privileges: root halves (`_select`, `_apply`) via
-  pkexec (the shell's polkit agent asks); start/stop via systemctl + polkit, `vpn.sh setup`
-  installs a rule limited to the two units (deliberately NOT "pkexec this script without a
-  password" like the original: the script lives in a user-writable dir). An update keeps the
+  [{tag, type, base, xray, insecure}], xray). Privileges: root halves (`_select`, `_apply`,
+  `_routing`, `_reroute`, `_killswitch`) via pkexec (the shell's polkit agent asks); start/stop
+  via systemctl + polkit. `vpn.sh setup` copies the scripts to root-owned
+  `/usr/local/lib/flicker-vpn` and installs a rule: the units, plus pkexec of THAT copy for
+  `_select` and `_reroute` (routing-only apply, overlay = root's applied copy) without a
+  password. Never the user-writable script, never overlay changes / subscriptions (sing-box
+  has CAP_DAC_READ_SEARCH: an overlay could serve any file). Root halves run from the copy
+  while it matches the scripts (else from the repo, always asking: re-run `setup` after
+  editing them); password-free input is untrusted — routing as a JSON string, rule-sets via
+  `routing.py install-rules` (O_NOFOLLOW, owned by PKEXEC_UID). An update keeps the
   chosen node if the new subscription still has it.
   Kill switch (`vpn.sh killswitch on|off`, panel switch): `flicker-vpn-killswitch.service`
   (oneshot, loads `/etc/flicker-vpn/killswitch.nft` = table `inet flicker_killswitch`, output

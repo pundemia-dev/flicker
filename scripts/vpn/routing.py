@@ -33,12 +33,16 @@
 #   routing.py check <routing.json> [overlay.json]       exit 1 + message
 #   routing.py rulesets <routing.json>                   "file<TAB>url..." lines
 #   routing.py compose <base.json> <routing.json> <overlay.json> <rules dir> <out>
+#   routing.py install-rules <routing.json> <user dir> <rules dir> <uid>
+#                                (root) the rule-sets the routing needs from
+#                                the user's downloads, others removed
 # Missing routing / overlay files = none (everything through the proxy).
 
 import ipaddress
 import json
 import os
 import re
+import stat
 import sys
 
 SOURCES = {
@@ -224,6 +228,50 @@ def compose_routing(cfg, routing, rules_dir):
         route.pop("rule_set")
 
 
+def install_rules(routing, src, dst, uid):
+    """Root: copy the .srs files `routing` needs from user `uid`'s download
+    dir `src` to `dst`, drop the ones it no longer needs. `src` and its files
+    are opened without following a final symlink and must be owned by `uid`
+    (a password-free caller picks `src`: no root-only file may come out of
+    it). A file that fails the checks is skipped: an older copy in `dst`
+    stays, compose reports a missing one."""
+    need = [f for f, _ in rulesets(routing)]
+    os.makedirs(dst, mode=0o755, exist_ok=True)
+    dfd = None
+    if src and uid >= 0:
+        try:
+            dfd = os.open(src, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+            if os.fstat(dfd).st_uid != uid:
+                os.close(dfd)
+                dfd = None
+        except OSError:
+            dfd = None
+    for f in need:
+        if dfd is None:
+            break
+        try:
+            fd = os.open(f, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=dfd)
+        except OSError:
+            continue
+        with os.fdopen(fd, "rb") as src_f:
+            st = os.fstat(src_f.fileno())
+            if not (stat.S_ISREG(st.st_mode) and st.st_uid == uid and st.st_size < 64 << 20):
+                continue
+            data = src_f.read()
+        if not data.startswith(b"SRS"):
+            continue
+        tmp = os.path.join(dst, "." + f + ".tmp")
+        with open(tmp, "wb") as out:
+            out.write(data)
+        os.chmod(tmp, 0o644)
+        os.replace(tmp, os.path.join(dst, f))
+    if dfd is not None:
+        os.close(dfd)
+    for f in os.listdir(dst):
+        if f.endswith(".srs") and f not in need:
+            os.remove(os.path.join(dst, f))
+
+
 TAGGED = {("outbounds",), ("endpoints",), ("inbounds",), ("dns", "servers"), ("route", "rule_set")}
 PREPEND = {("route", "rules"), ("dns", "rules")}
 
@@ -321,6 +369,8 @@ def main():
         elif a[:1] == ["rulesets"] and len(a) == 2:
             for f, urls in rulesets(load(a[1], {})):
                 print("\t".join([f] + urls))
+        elif a[:1] == ["install-rules"] and len(a) == 5:
+            install_rules(load(a[1], {}), a[2], a[3], int(a[4]) if a[4].lstrip("-").isdigit() else -1)
         elif a[:1] == ["compose"] and len(a) == 6:
             cfg = load(a[1], None)
             if not isinstance(cfg, dict):

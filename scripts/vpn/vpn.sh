@@ -57,12 +57,22 @@
 #                      `apply` puts it in force
 #   ping              latency of an HTTP probe: "OK:<ms>" / "ERR:"
 #   speedtest          speedtest-cli --simple (ERR_MISSING without it)
-#   setup              (root, once) polkit rule: the active local session of
-#                      the calling user may start / stop / restart
-#                      sing-box.service, xray.service and the kill switch
-#                      unit without a password. Deliberately NOT
-#                      "pkexec this script without a password": the script
-#                      lives in a user-writable directory.
+#   setup              (root, once; again after editing these scripts) a
+#                      root-owned copy of them in /usr/local/lib/flicker-vpn
+#                      and a polkit rule: the active local session of the
+#                      calling user may, without a password, start / stop /
+#                      restart sing-box.service, xray.service and the kill
+#                      switch unit, and pkexec THE COPY for a node switch
+#                      (_select) and a routing-only apply (_reroute) — never
+#                      this user-writable script, never an overlay change
+#                      or a subscription (those can make sing-box, which
+#                      may read any file, serve or route anything).
+#
+# Root halves run from the copy while it matches these files (else from
+# here, which polkit always asks for). What a password-free caller passes
+# them is untrusted: routing as a JSON string (a path could name a
+# root-only file), rule-set files read without following symlinks and only
+# if the caller (PKEXEC_UID) owns them (routing.py install-rules).
 set -u
 
 config=/etc/sing-box/config.json
@@ -81,6 +91,8 @@ routing_etc=/etc/flicker-vpn/routing.json
 custom_etc=/etc/flicker-vpn/custom.json
 rules_etc=/etc/flicker-vpn/rules
 rule=/etc/polkit-1/rules.d/50-flicker-vpn.rules
+sys_dir=/usr/local/lib/flicker-vpn
+sys_files=(vpn.sh routing.py sub_parser.py xray_split.py)
 ks_unit=flicker-vpn-killswitch
 ks_unit_file=/etc/systemd/system/$ks_unit.service
 ks_dropin=/etc/systemd/system/$unit.service.d/flicker-killswitch.conf
@@ -92,6 +104,16 @@ self=$(realpath "$0")
 here=$(dirname "$self")
 
 err() { echo "ERR:$*"; exit 1; }
+
+# The script pkexec runs: the root-owned copy while it is this one's (the
+# password-free rule covers only it), else this one (polkit asks).
+root_self() {
+    local f
+    for f in "${sys_files[@]}"; do
+        cmp -s "$here/$f" "$sys_dir/$f" || { echo "$self"; return; }
+    done
+    echo "$sys_dir/vpn.sh"
+}
 
 # Xray carries some nodes (and is installed): it runs alongside sing-box.
 uses_xray() {
@@ -140,20 +162,11 @@ compose() {
         { echo "ERR:sing-box: $(printf '%s' "$out" | sed 's/\x1b\[[0-9;]*m//g' | tail -n 1)"; return 1; }
 }
 
-# Root: the rule-sets routing $1 needs, from the user's download dir $2
-# (regular .srs files only) to $rules_etc; ones no longer needed go.
+# Root: the rule-sets routing $1 needs, from the calling user's download
+# dir $2 (owned by them, no symlinks: routing.py install-rules) to
+# $rules_etc; ones no longer needed go.
 install_rules() {
-    local f rest keep=" "
-    mkdir -p "$rules_etc"
-    while IFS=$'\t' read -r f rest; do
-        keep="$keep$f "
-        [ -n "${2:-}" ] && [ -f "$2/$f" ] && [ ! -L "$2/$f" ] && [ "$(head -c3 "$2/$f")" = SRS ] &&
-            install -m 644 "$2/$f" "$rules_etc/$f"
-    done < <(python3 -I "$here/routing.py" rulesets "$1")
-    for f in "$rules_etc"/*.srs; do
-        [ -e "$f" ] && [ "${keep#* "${f##*/}" }" = "$keep" ] && rm -f "$f"
-    done
-    return 0
+    python3 -I "$here/routing.py" install-rules "$1" "${2:-}" "$rules_etc" "${PKEXEC_UID:--1}"
 }
 
 # User: download the rule-sets routing $1 needs to $rules_cache (each from
@@ -204,15 +217,23 @@ write_view() {
 write_rule() {
     mkdir -p "$(dirname "$rule")"
     cat >"$rule" <<EOF
-// Flicker VPN card (scripts/vpn/vpn.sh setup): ${1} may start / stop
-// ${unit}.service, xray.service and ${ks_unit}.service from the active local
-// session without a password.
+// Flicker VPN card (scripts/vpn/vpn.sh setup): ${1} may, from the active
+// local session and without a password, start / stop ${unit}.service,
+// xray.service and ${ks_unit}.service, and run the root-owned
+// ${sys_dir}/vpn.sh for a node switch (_select) or a routing-only apply
+// (_reroute; the overlay stays root's applied copy).
 polkit.addRule(function (action, subject) {
+    if (subject.user != "${1}" || !subject.local || !subject.active)
+        return polkit.Result.NOT_HANDLED;
     if (action.id == "org.freedesktop.systemd1.manage-units" &&
         ["${unit}.service", "xray.service", "${ks_unit}.service"].indexOf(action.lookup("unit")) >= 0 &&
-        ["start", "stop", "restart", "try-restart"].indexOf(action.lookup("verb")) >= 0 &&
-        subject.user == "${1}" && subject.local && subject.active)
+        ["start", "stop", "restart", "try-restart"].indexOf(action.lookup("verb")) >= 0)
         return polkit.Result.YES;
+    if (action.id == "org.freedesktop.policykit.exec" &&
+        action.lookup("program") == "${sys_dir}/vpn.sh" &&
+        /^\S+ (_select|_reroute) /.test(action.lookup("command_line") || ""))
+        return polkit.Result.YES;
+    return polkit.Result.NOT_HANDLED;
 });
 EOF
     chmod 644 "$rule"
@@ -319,11 +340,11 @@ killswitch)
     on | off) ;;
     *) err "usage: killswitch on|off" ;;
     esac
-    exec pkexec "$self" _killswitch "$2" "$(id -un)"
+    exec pkexec "$(root_self)" _killswitch "$2" "$(id -un)"
     ;;
 select)
     [ -n "${2:-}" ] || err "usage: select <tag>"
-    exec pkexec "$self" _select "$2"
+    exec pkexec "$(root_self)" _select "$2"
     ;;
 subscribe)
     url=${2:-}
@@ -339,7 +360,7 @@ subscribe)
     [ -s "$raw" ] || err "empty subscription"
     # The applied routing's rule-sets, refreshed along with the nodes.
     [ -s "$routing_etc" ] && fetch_rules "$routing_etc"
-    pkexec "$self" _apply "$raw" "$rules_cache"
+    pkexec "$(root_self)" _apply "$raw" "$rules_cache"
     ;;
 apply)
     mkdir -p "$state_dir"
@@ -347,7 +368,12 @@ apply)
     [ -s "$routing_file" ] || echo '{}' >"$routing_file"
     out=$(python3 -I "$here/routing.py" check "$routing_file" "$custom_file") || err "${out#ERR:}"
     fetch_rules "$routing_file" "${3:-}"
-    exec pkexec "$self" _routing "$routing_file" "$custom_file" "$rules_cache"
+    # The overlay as applied (the view's hash of root's copy): routing only,
+    # password-free with `setup` done; a changed overlay always asks.
+    if [ "$(hash_of "$custom_file")" = "$(jq -r '.customHash // ""' "$view" 2>/dev/null)" ]; then
+        exec pkexec "$(root_self)" _reroute "$(cat "$routing_file")" "$rules_cache"
+    fi
+    exec pkexec "$(root_self)" _routing "$(cat "$routing_file")" "$custom_file" "$rules_cache"
     ;;
 edit)
     if [ ! -e "$custom_file" ]; then
@@ -378,6 +404,10 @@ speedtest)
     ;;
 setup)
     [ "$(id -u)" -eq 0 ] || exec pkexec "$self" setup "$(id -un)"
+    install -d -m 755 "$sys_dir"
+    [ "$here" != "$sys_dir" ] && for f in "${sys_files[@]}"; do
+        install -m 755 -o root -g root "$here/$f" "$sys_dir/$f" || err "cannot install $f"
+    done
     write_rule "${2:?user}"
     echo "OK:$rule"
     ;;
@@ -503,22 +533,33 @@ _apply)
     systemctl try-restart "$unit" || err "restart failed"
     echo "OK:applied"
     ;;
-_routing)
+_routing | _reroute)
     [ "$(id -u)" -eq 0 ] || err "root only"
-    # $2 routing, $3 overlay (may be missing), $4 rule-set downloads — the
-    # user's files: regular files only.
-    for f in "$2" "$3"; do
-        [ ! -L "$f" ] || err "$f is a symlink"
-    done
-    out=$(python3 -I "$here/routing.py" check "$2" "$3") || err "${out#ERR:}"
+    # $2 the routing (JSON text, not a path: a password-free caller could
+    # name a root-only file, which would end up 0644 in $routing_etc).
+    # _routing (polkit asks): $3 the user's overlay (may be missing), $4 the
+    # rule-set downloads. _reroute (password-free): $3 the downloads; the
+    # overlay is the applied one, untouched.
+    tmps=()
+    trap 'rm -f "${tmps[@]}"' EXIT
+    rtmp=$(mktemp) && otmp=$(mktemp) && ctmp=$(mktemp) || err "mktemp"
+    tmps=("$rtmp" "$otmp" "$ctmp")
+    printf '%s\n' "${2:-}" >"$rtmp"
+    if [ "$1" = _routing ]; then
+        dl=${4:-}
+        [ ! -L "${3:-}" ] || err "$3 is a symlink"
+        if [ -f "${3:-}" ]; then cat -- "$3" >"$otmp" || err "cannot read $3"; else otmp=""; fi
+    else
+        dl=${3:-}
+        if [ -f "$custom_etc" ]; then cat "$custom_etc" >"$otmp"; else otmp=""; fi
+    fi
+    out=$(python3 -I "$here/routing.py" check "$rtmp" "$otmp") || err "${out#ERR:}"
     # Before the base existed the config was one (nothing composed in yet).
     b=$base
     [ -f "$b" ] || b=$config
     [ -f "$b" ] || err "no config yet: import a subscription first"
-    install_rules "$2" "$4"
-    ctmp=$(mktemp) || err "mktemp"
-    trap 'rm -f "$ctmp"' EXIT
-    out=$(compose "$b" "$2" "$3" "$ctmp") || err "${out#ERR:}"
+    install_rules "$rtmp" "$dl" || err "rule-set install failed"
+    out=$(compose "$b" "$rtmp" "$otmp" "$ctmp") || err "${out#ERR:}"
     mkdir -p "$(dirname "$base")"
     [ -f "$base" ] || install -m 600 "$config" "$base"
     [ -f "$config" ] && install -m 600 "$config" "$config.bak"
@@ -537,9 +578,11 @@ _routing)
             err "sing-box did not start with it, previous config restored${why:+: $why}"
         fi
     fi
-    install -m 644 "$2" "$routing_etc"
+    install -m 644 "$rtmp" "$routing_etc"
     # The overlay may name its own servers / keys: root only.
-    if [ -f "$3" ]; then install -m 600 "$3" "$custom_etc"; else rm -f "$custom_etc"; fi
+    if [ "$1" = _routing ]; then
+        if [ -n "$otmp" ]; then install -m 600 "$otmp" "$custom_etc"; else rm -f "$custom_etc"; fi
+    fi
     write_view || err "view update failed"
     echo "OK:routing applied"
     ;;
