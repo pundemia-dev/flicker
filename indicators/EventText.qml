@@ -1,5 +1,6 @@
 import QtQuick
 import "../components"
+import "../components/Graphemes.js" as Graphemes
 
 // Event indicator, RIGHT half: the text of the visible event at the far
 // right of the bar row (EventIcon = left half). Texts may be functions:
@@ -62,7 +63,7 @@ Item {
 
     function widthOf(str: string): real {
         let w = 0;
-        for (const ch of str)
+        for (const ch of Graphemes.split(str))
             w += fm.advanceWidth(ch);
         return Math.ceil(Math.min(cfg?.eventTextMaxWidth ?? 120, w));
     }

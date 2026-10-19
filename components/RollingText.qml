@@ -1,4 +1,5 @@
 import QtQuick
+import "Graphemes.js" as Graphemes
 
 // Drum-roll text (Apple numericText-style): on a text change only the
 // characters that differ roll — the old glyph slides out and fades, the new
@@ -11,7 +12,8 @@ import QtQuick
 // DOWN (user-confirmed mapping; the first guess was inverted). Motion is a Spring per slot
 // (movement = springs, spec); slot width springs with it, so the total
 // width morphs instead of jumping. Slots never shrink in count: a vanished
-// leading char rolls out to an empty, zero-width slot.
+// leading char rolls out to an empty, zero-width slot. A slot holds one
+// grapheme (Graphemes.js), not a UTF-16 unit: emoji and flags stay whole.
 Item {
     id: root
 
@@ -34,6 +36,7 @@ Item {
     property real damp: 0.5
 
     property string _shown: ""
+    readonly property var _chars: Graphemes.split(root._shown)
     property int _dir: 1
     property int _count: 0
 
@@ -52,7 +55,7 @@ Item {
         root._dir = root.direction !== 0 ? root.direction : (isFinite(a) && isFinite(b) && b < a ? 1 : -1);
         if (initial)
             root._shown = root.text;
-        root._count = Math.max(root._count, root.text.length);
+        root._count = Math.max(root._count, Graphemes.split(root.text).length);
         root._shown = root.text;
     }
     onTextChanged: root._apply(false)
@@ -77,8 +80,8 @@ Item {
                 id: slot
                 required property int index
                 readonly property string ch: {
-                    const i = root._shown.length - 1 - slot.index;
-                    return i >= 0 ? root._shown.charAt(i) : "";
+                    const i = root._chars.length - 1 - slot.index;
+                    return i >= 0 ? root._chars[i] : "";
                 }
                 property string cur: ""
                 property string prev: ""
