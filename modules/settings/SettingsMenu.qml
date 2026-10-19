@@ -18,7 +18,7 @@ Item {
     property real anchorBottom: 0
 
     readonly property real itemHeight: 40
-    readonly property var options: root.row?.options ?? []
+    readonly property var options: root.row ? root.host.optionsOf(root.row) : []
     readonly property var value: root.row ? root.host.valueOf(root.row) : undefined
 
     function open(row: var, anchor: Item): void {
@@ -44,6 +44,8 @@ Item {
         anchors.fill: parent
         enabled: root.shown
         onPressed: root.shown = false
+        // Scrolling the page would leave the menu behind its row.
+        onWheel: root.shown = false
     }
 
     FadeBlur {

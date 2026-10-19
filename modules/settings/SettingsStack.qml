@@ -15,6 +15,9 @@ FadeBlur {
 
     property var pages: []
     property var shownRoot: null
+    // Page pushed while the stack swaps sections (a drill-down from the
+    // search results): pushed onto the new section once it is in.
+    property var queued: null
     readonly property bool swapping: root.rootPage !== root.shownRoot
     property bool visibleWanted: true
 
@@ -38,9 +41,18 @@ FadeBlur {
             p.destroy();
         root.pages = root.rootPage ? [root.make(root.rootPage, 0, 0)] : [];
         root.shownRoot = root.rootPage;
+        if (root.queued) {
+            const page = root.queued;
+            root.queued = null;
+            root.push(page);
+        }
     }
 
     function push(page: var): void {
+        if (root.swapping) {
+            root.queued = page;
+            return;
+        }
         const item = root.make(page, root.pages.length, 1);
         root.pages[root.pages.length - 1].slot = -1;
         root.pages = root.pages.concat([item]);

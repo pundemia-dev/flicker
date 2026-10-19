@@ -164,7 +164,7 @@ Scope {
     }
 
     // Settings window (an ordinary app window; IPC `settings`).
-    SettingsScope { theme: themeService; wallpaper: wallpaperService }
+    SettingsScope { theme: themeService; wallpaper: wallpaperService; vpn: vpnService }
 
     OsdWatcher {
         registry: islandRegistry

@@ -87,13 +87,17 @@ Column {
         }
     }
 
+    // Live footer (`footerFrom`): an error replaces it, in red.
+    readonly property var footer: root.group.footerFrom ? root.host.footerOf(root.group)
+        : ({ text: I18n.tr(root.group.footer ?? ""), alert: false })
+
     Text {
-        visible: !!root.group.footer
+        visible: root.footer.text !== ""
         x: 16
         width: parent.width - 32
-        text: I18n.tr(root.group.footer ?? "")
+        text: root.footer.text
         wrapMode: Text.Wrap
-        color: root.theme.settingsSecondary
+        color: root.footer.alert ? root.theme.accentRed : root.theme.settingsSecondary
         font.family: root.theme.fontFamily
         font.pixelSize: 12
         lineHeight: 1.15

@@ -9,9 +9,9 @@ import "../config"
 // quicksettings.vpn.pollMs, faster while a change settles): unit state, an
 // HTTP probe through it, the nodes of the config's selector and the active
 // one. One operation at a time (`busy`); start / stop go through systemd's
-// polkit check (no prompt once `vpn.sh setup` installed the rule), node
-// switch and subscription install through pkexec (the shell's polkit agent
-// asks). Ping / speed test are separate and may run alongside.
+// polkit check, node switch / routing / subscription through pkexec (the
+// shell's polkit agent asks; once `vpn.sh setup` ran, start / stop, node
+// switch and a routing-only apply go without a password). Ping / speed test are separate and may run alongside.
 // Kill switch (`vpn.sh killswitch`): an nftables block raised with sing-box
 // that outlives a crash; only a stop (setActive(false) / release()) lowers it.
 // Split routing (Config `vpn.routing`, the settings window) and the user's own
@@ -33,6 +33,8 @@ Scope {
     property bool online: false
     property string profile: ""
     property var profiles: []
+    // A config to switch nodes in / compose routing into (the selector's nodes).
+    readonly property bool hasProfiles: root.profiles.length > 0
     property bool subscription: false
     // Kill switch on; blocking = its table is up while sing-box is not
     // (crashed / failed): no traffic until the VPN is back or released.
@@ -52,6 +54,8 @@ Scope {
     property string busy: ""
     property string selecting: ""
     property string error: ""
+    // The operation `error` came from (a `busy` value).
+    property string errorOp: ""
     // Up but the probe through it has failed for quicksettings.vpn.stallMs:
     // the node is dead (status "offline" instead of an endless "connecting").
     property bool stalled: false
@@ -186,6 +190,7 @@ Scope {
             if (code !== 0) {
                 // 126/127 = pkexec: the prompt was dismissed / not authorized.
                 root.error = err ? err.substring(4) : code === 126 || code === 127 ? "cancelled" : `exit ${code}`;
+                root.errorOp = op.kind;
                 console.info("[vpn]", op.kind, "failed:", root.error);
                 if (code !== 126 && code !== 127)
                     root.post("vpn:error", "accentRed", op.kind === "subscribe" || op.kind === "update"

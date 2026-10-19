@@ -10,15 +10,15 @@ Scope {
     id: root
     required property var theme
     required property var wallpaper
+    required property var vpn
 
     property bool shown: false
-    // Section to show when the window (re)opens; "" = keep the last one.
-    property string requested: ""
+    // Section the window (re)opens on: the last one shown or requested.
     property string lastSection: "general"
 
     function open(section: string): void {
         if (section !== "")
-            root.requested = section;
+            root.lastSection = section;
         root.shown = true;
         if (section !== "" && loader.item)
             loader.item.showSection(section);
@@ -31,7 +31,8 @@ Scope {
         SettingsWindow {
             theme: root.theme
             wallpaper: root.wallpaper
-            initialSection: root.requested !== "" ? root.requested : root.lastSection
+            vpn: root.vpn
+            initialSection: root.lastSection
             onSectionChanged: root.lastSection = section
             onClosed: root.shown = false
         }

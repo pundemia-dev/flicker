@@ -7,7 +7,8 @@
 //
 // SIDEBAR = clusters of sections (gaps between clusters, iOS style).
 // Section { id, title, glyph (tabler), tint (Theme colour name), groups }.
-// Group { title?, footer?, rows }.
+// Group { title?, footer?, rows }; `footerFrom` = a live footer
+// (SettingsWindow.footerOf: an error in red instead of the footer).
 // Row { key (dotted config path), label, kind, ... }:
 //   bool                  switch
 //   choice  options       [{ value, label }]; `segments` = inline segmented
@@ -19,10 +20,30 @@
 //                         spaces (argv / paths)
 //   set     options       multi-select drill-down; the config holds the
 //                         checked values (`invert`: the unchecked ones)
-//   page    page          drill-down to { title, groups }
+//   page    page          drill-down to { title, groups }; `detail` =
+//                         grey text before the chevron, `muted` = grey label
+//   action  action        tappable blue text (SettingsWindow.act());
+//                         `destructive` = red, `confirm` = label of a
+//                         second tap that has to follow (3 s), `detail`
+//                         = grey text at the right (SettingsWindow.detailOf)
+//   info    options       read-only value (label of the current value)
+// text rows: `wide` = the field on its own line under the label,
+// `placeholder` = shown while empty, `allowEmpty` = emptying it stores ""
+// (else the stored value comes back).
+// Group `generate` = rows built from live data (SettingsWindow.groupsOf);
+// its static `rows` stay empty (search skips it).
+// options / store: `optionsFrom` = live options (SettingsWindow.optionsOf).
 // Any row may carry `footer`-free `keywords` (search) and `glyph` + `tint`
 // (icon tile). store "wallpaper" = launcher.wallpapers via the wallpaper
-// service (the carousel's overrides, so both panels show the same values).
+// service (the carousel's overrides, so both panels show the same values);
+// store "vpn" = the VPN service's live state (its setters act on change),
+// "vpnRule" = a field of one routing rule (SettingsVpn.js).
+// dependsOn (row or group): the row dims and takes no input unless the
+// condition holds (iOS: rows under an off master switch). "key" = truthy,
+// "!key" = falsy, "key=value" = equal as text; an array = all of them;
+// "vpn:key" reads the VPN service instead of the config. On a group it
+// covers every row but the master itself (the row with that key) and the
+// rows of its drill-down pages.
 
 const S = 1000; // ms → s
 
@@ -52,7 +73,7 @@ const SIDEBAR = [
                 { title: "Effects", footer: "Turns off every compositor blur behind the island and its modules.", rows: [
                     { key: "effects.disableBlur", label: "Disable blur", kind: "bool" },
                     { key: "effects.frost", label: "Frosted modules", kind: "bool", keywords: "glass blur" },
-                    { key: "effects.frostModules", label: "Frosted", kind: "set", options: [
+                    { key: "effects.frostModules", label: "Frosted", kind: "set", dependsOn: "effects.frost", options: [
                         { value: "quicksettings", label: "Quick Settings" },
                         { value: "notifications:center", label: "Notification Center" },
                         { value: "prompter", label: "Teleprompter" }
@@ -71,8 +92,8 @@ const SIDEBAR = [
                 ] },
                 { title: "Indicators", footer: "A new indicator briefly unfolds the bar while the island is minimal.", rows: [
                     { key: "indicators.peekEnabled", label: "Peek on new indicator", kind: "bool" },
-                    { key: "indicators.peekShowMs", label: "Peek for", kind: "number", min: 1000, max: 10000, step: 500, scale: S, decimals: 1, suffix: " s" },
-                    { key: "indicators.peekIgnore", label: "Peeking indicators", kind: "set", invert: true, options: [
+                    { key: "indicators.peekShowMs", dependsOn: "indicators.peekEnabled", label: "Peek for", kind: "number", min: 1000, max: 10000, step: 500, scale: S, decimals: 1, suffix: " s" },
+                    { key: "indicators.peekIgnore", label: "Peeking indicators", kind: "set", dependsOn: "indicators.peekEnabled", invert: true, options: [
                         { value: "music", label: "Music" }, { value: "timer", label: "Timer" },
                         { value: "privacy", label: "Microphone / camera" }, { value: "dictation", label: "Dictation" },
                         { value: "event", label: "Events" }
@@ -88,12 +109,12 @@ const SIDEBAR = [
         {
             id: "events", title: "Events", glyph: "", tint: "qsOrange",
             groups: [
-                { footer: "Short messages in the bar: one at a time, queued ones show for a shorter time.", rows: [
+                { footer: "Short messages in the bar: one at a time, queued ones show for a shorter time.", dependsOn: "events.enabled", rows: [
                     { key: "events.enabled", label: "Events", kind: "bool" },
                     { key: "events.showMs", label: "Show for", kind: "number", min: 1000, max: 15000, step: 500, scale: S, decimals: 1, suffix: " s" },
                     { key: "events.showQueuedMs", label: "Show queued for", kind: "number", min: 1000, max: 15000, step: 500, scale: S, decimals: 1, suffix: " s" }
                 ] },
-                { title: "Sources", rows: [
+                { title: "Sources", dependsOn: "events.enabled", rows: [
                     { key: "events.charging", label: "Charger", kind: "bool" },
                     { key: "events.batteryFull", label: "Battery full", kind: "bool" },
                     { key: "events.batteryCritical", label: "Battery critical", kind: "bool" },
@@ -109,7 +130,7 @@ const SIDEBAR = [
                     { key: "events.download", label: "Downloads", kind: "bool" },
                     { key: "events.updates", label: "Updates", kind: "bool" }
                 ] },
-                { footer: "Updates are announced only right after boot, not on a shell restart. 0 = always.", rows: [
+                { footer: "Updates are announced only right after boot, not on a shell restart. 0 = always.", dependsOn: ["events.enabled", "events.updates"], rows: [
                     { key: "events.updatesMaxUptimeSec", label: "Updates: boot window", kind: "number", min: 0, max: 900, step: 30, suffix: " s" }
                 ] }
             ]
@@ -120,7 +141,7 @@ const SIDEBAR = [
                 { footer: "Progress rings in the drop right of the island.", rows: [
                     { key: "status.enabled", label: "Status drop", kind: "bool" }
                 ] },
-                { title: "Show progress of", rows: [
+                { title: "Show progress of", dependsOn: "status.enabled", rows: [
                     { key: "status.timer", label: "Timer", kind: "bool" },
                     { key: "status.recordSaving", label: "Saving a recording", kind: "bool" },
                     { key: "status.transcribe", label: "Transcription", kind: "bool" },
@@ -175,7 +196,7 @@ const SIDEBAR = [
             groups: [
                 { title: "On-screen display", footer: "Shown on any change, from keys or other apps. Quick Settings sliders stay quiet.", rows: [
                     { key: "osd.watch", label: "Show on change", kind: "bool" },
-                    { key: "osd.watchMicVolume", label: "Microphone volume too", kind: "bool" },
+                    { key: "osd.watchMicVolume", dependsOn: "osd.watch", label: "Microphone volume too", kind: "bool" },
                     { key: "timings.osdAutoCloseMs", label: "Hide after", kind: "number", min: 500, max: 5000, step: 100, scale: S, decimals: 1, suffix: " s" }
                 ] },
                 { title: "Steps", rows: [
@@ -188,7 +209,7 @@ const SIDEBAR = [
         {
             id: "keyboard", title: "Keyboard", glyph: "", tint: "settingsGrey",
             groups: [
-                { footer: "A pill under the text cursor when the layout or Caps Lock changes.", rows: [
+                { footer: "A pill under the text cursor when the layout or Caps Lock changes.", dependsOn: "keyboard.enabled", rows: [
                     { key: "keyboard.enabled", label: "Keyboard pill", kind: "bool" },
                     { key: "keyboard.layout", label: "On layout switch", kind: "bool" },
                     { key: "keyboard.caps", label: "On Caps Lock", kind: "bool" },
@@ -200,19 +221,19 @@ const SIDEBAR = [
         {
             id: "haptics", title: "Haptics", glyph: "", tint: "settingsPurple",
             groups: [
-                { footer: "Trackpad feedback. auto = the first backend that works on this machine.", rows: [
+                { footer: "Trackpad feedback. auto = the first backend that works on this machine.", dependsOn: "haptics.enabled", rows: [
                     { key: "haptics.enabled", label: "Haptics", kind: "bool" },
                     { key: "haptics.backend", label: "Backend", kind: "choice", options: [
                         { value: "auto", label: "Automatic" }, { value: "evdev-haptic", label: "evdev-haptic" }, { value: "apple-t2", label: "apple-t2" }
                     ] }
                 ] },
-                { title: "Strength", rows: [
+                { title: "Strength", dependsOn: "haptics.enabled", rows: [
                     { key: "haptics.intensity.click", label: "Click", kind: "number", slider: true, min: 0, max: 1, step: 0.05, scale: 0.01, suffix: " %" },
                     { key: "haptics.intensity.deep", label: "Deep press", kind: "number", slider: true, min: 0, max: 1, step: 0.05, scale: 0.01, suffix: " %" },
                     { key: "haptics.intensity.release", label: "Release", kind: "number", slider: true, min: 0, max: 1, step: 0.05, scale: 0.01, suffix: " %" },
                     { key: "haptics.intensity.tick", label: "Tick", kind: "number", slider: true, min: 0, max: 1, step: 0.05, scale: 0.01, suffix: " %" }
                 ] },
-                { title: "Where", rows: [
+                { title: "Where", dependsOn: "haptics.enabled", rows: [
                     { key: "haptics.quickSettings", label: "Quick Settings", kind: "bool" },
                     { key: "haptics.limits", label: "Volume / brightness limits", kind: "bool" },
                     { key: "haptics.polkit", label: "Authentication", kind: "bool" },
@@ -239,7 +260,7 @@ const SIDEBAR = [
                 { title: "Clipboard", footer: "auto = own wl-paste watchers unless the compositor runs one.", rows: [
                     { key: "launcher.clipboard.historyLimit", label: "Keep", kind: "number", min: 10, max: 1000, step: 10, suffix: " items" },
                     { key: "launcher.clipboard.autoPaste", label: "Paste after picking", kind: "bool" },
-                    { key: "launcher.clipboard.pasteCommand", label: "Paste command", kind: "text" },
+                    { key: "launcher.clipboard.pasteCommand", dependsOn: "launcher.clipboard.autoPaste", label: "Paste command", kind: "text" },
                     { key: "launcher.clipboard.watch", label: "Watch clipboard", kind: "choice", segments: true, options: [
                         { value: "auto", label: "Auto" }, { value: true, label: "On" }, { value: false, label: "Off" }
                     ] }
@@ -305,11 +326,11 @@ const SIDEBAR = [
             groups: [
                 { footer: "Following the layout pins the language to it: faster and more accurate, but speak the layout's language.", rows: [
                     { key: "dictation.followLayout", label: "Language from layout", kind: "bool" },
-                    { key: "dictation.language", label: "Language", kind: "choice", options: LANGS },
+                    { key: "dictation.language", dependsOn: "!dictation.followLayout", label: "Language", kind: "choice", options: LANGS },
                     { key: "dictation.typeEnabled", label: "Type the text", kind: "bool" },
-                    { key: "dictation.typeDelayMs", label: "Typing delay", kind: "number", min: 0, max: 50, step: 1, suffix: " ms" }
+                    { key: "dictation.typeDelayMs", dependsOn: "dictation.typeEnabled", label: "Typing delay", kind: "number", min: 0, max: 50, step: 1, suffix: " ms" }
                 ] },
-                { title: "Refine", footer: "A local LLM cleans up punctuation and slips. Keep it loaded to skip the ~20 s cold start.", rows: [
+                { title: "Refine", footer: "A local LLM cleans up punctuation and slips. Keep it loaded to skip the ~20 s cold start.", dependsOn: "dictation.refineEnabled", rows: [
                     { key: "dictation.refineEnabled", label: "Refine with LLM", kind: "bool" },
                     { key: "dictation.refineModel", label: "Model", kind: "text" },
                     { key: "dictation.refineIdleTtlS", label: "Keep loaded", kind: "number", min: 0, max: 3600, step: 60, scale: 60, suffix: " min" }
@@ -325,7 +346,7 @@ const SIDEBAR = [
                                 { key: "transcribe.vad", label: "Voice detection", kind: "choice", segments: true, options: opts(["pyannote", "silero"]) },
                                 { key: "transcribe.align", label: "Word timings", kind: "bool" }
                             ] },
-                            { title: "Speakers", footer: "Needs a Hugging Face token and the accepted pyannote terms.", rows: [
+                            { title: "Speakers", footer: "Needs a Hugging Face token and the accepted pyannote terms.", dependsOn: "transcribe.diarize", rows: [
                                 { key: "transcribe.diarize", label: "Tell speakers apart", kind: "bool" },
                                 { key: "transcribe.minSpeakers", label: "At least", kind: "number", min: 0, max: 10, step: 1 },
                                 { key: "transcribe.maxSpeakers", label: "At most", kind: "number", min: 0, max: 10, step: 1 }
@@ -343,7 +364,7 @@ const SIDEBAR = [
                         { value: "copy", label: "Copy" }, { value: "symlink", label: "Link" }
                     ] }
                 ] },
-                { title: "LocalSend", footer: "Incoming transfers ask for confirmation in the island.", rows: [
+                { title: "LocalSend", footer: "Incoming transfers ask for confirmation in the island.", dependsOn: "stash.localsend", rows: [
                     { key: "stash.localsend", label: "LocalSend", kind: "bool" },
                     { key: "stash.receive", label: "Receive files", kind: "bool" },
                     { key: "stash.alias", label: "Device name", kind: "text" },
@@ -384,8 +405,8 @@ const SIDEBAR = [
                     { key: "prompter.mode", label: "Scrolling", kind: "choice", segments: true, options: [
                         { value: "voice", label: "Voice" }, { value: "auto", label: "Auto" }, { value: "manual", label: "Manual" }
                     ] },
-                    { key: "prompter.wpm", label: "Auto pace", kind: "number", min: 60, max: 260, step: 10, suffix: " wpm" },
-                    { key: "prompter.language", label: "Voice language", kind: "choice", options: LANGS },
+                    { key: "prompter.wpm", dependsOn: "prompter.mode=auto", label: "Auto pace", kind: "number", min: 60, max: 260, step: 10, suffix: " wpm" },
+                    { key: "prompter.language", dependsOn: "prompter.mode=voice", label: "Voice language", kind: "choice", options: LANGS },
                     { key: "prompter.dir", label: "Scripts folder", kind: "text" }
                 ] }
             ]
@@ -426,7 +447,7 @@ const SIDEBAR = [
                 ] },
                 { title: "Authentication", rows: [
                     { key: "polkit.enabled", label: "Polkit agent", kind: "bool" },
-                    { key: "polkit.preferCurrentUser", label: "Ask for my password first", kind: "bool" }
+                    { key: "polkit.preferCurrentUser", dependsOn: "polkit.enabled", label: "Ask for my password first", kind: "bool" }
                 ] }
             ]
         },
@@ -438,11 +459,64 @@ const SIDEBAR = [
                     { key: "network.portalUrl", label: "Captive portal page", kind: "text" }
                 ] }
             ]
+        },
+        {
+            id: "vpn", title: "VPN", glyph: "\ued58", tint: "qsBlue",
+            groups: [
+                { footerFrom: "vpnStatus", footer: "Servers and the subscription are in the VPN panel of Quick Settings. The kill switch keeps traffic blocked if sing-box dies, until the VPN is back or switched off.", rows: [
+                    { store: "vpn", key: "status", label: "Status", kind: "info", options: [
+                        { value: "inactive", label: "Off" }, { value: "connecting", label: "Connecting…" },
+                        { value: "active", label: "Connected" }, { value: "offline", label: "No connection" },
+                        { value: "disconnecting", label: "Disconnecting…" }, { value: "failed", label: "Failed" },
+                        { value: "blocked", label: "Kill switch · traffic blocked" }, { value: "unavailable", label: "sing-box is not installed" }
+                    ] },
+                    { store: "vpn", key: "on", label: "VPN", kind: "bool", dependsOn: ["vpn:installed", "!vpn:busy"] },
+                    { store: "vpn", key: "profile", label: "Server", kind: "choice", optionsFrom: "vpnProfiles", dependsOn: ["vpn:hasProfiles", "!vpn:busy"], keywords: "node" },
+                    { kind: "action", label: "Update subscription", action: "vpnUpdate", keywords: "servers nodes" },
+                    { store: "vpn", key: "enabled", label: "Start at boot", kind: "bool", dependsOn: ["vpn:installed", "!vpn:busy"], keywords: "autostart" },
+                    { store: "vpn", key: "killswitch", label: "Kill switch", kind: "bool", dependsOn: ["vpn:installed", "!vpn:busy"] }
+                ] },
+                { title: "Routing", footer: "Where traffic that no rule matches goes. The local network always goes direct.", rows: [
+                    { key: "vpn.routing.final", label: "Everything else", kind: "choice", segments: true, keywords: "split final", options: [
+                        { value: "proxy", label: "Proxy" }, { value: "direct", label: "Direct" }
+                    ] }
+                ] },
+                { title: "Rules", generate: "vpnRules", rows: [] },
+                { footerFrom: "vpnApply", footer: "Routing and the sing-box overlay take effect on Apply: sing-box restarts, a config it cannot start with is rolled back.", rows: [
+                    { kind: "action", label: "Apply changes", action: "vpnApply", keywords: "routing" },
+                    { kind: "action", label: "Discard routing changes", action: "vpnDiscard", keywords: "revert undo" },
+                    { kind: "action", label: "Re-download rule lists", action: "vpnRefresh", keywords: "geosite geoip" },
+                    { kind: "action", label: "Edit sing-box overlay", action: "vpnEdit", keywords: "config json custom" },
+                    { kind: "action", label: "Logs", action: "vpnLogs", keywords: "journal" }
+                ] },
+                { title: "Connection check", footer: "Ping and the speed test go through whatever route is up: the VPN's when it is on.", rows: [
+                    { kind: "action", label: "Ping", action: "vpnPing", keywords: "latency" },
+                    { kind: "action", label: "Speed test", action: "vpnSpeed", keywords: "speedtest bandwidth" },
+                    { key: "quicksettings.vpn.stallMs", label: "No connection after", kind: "number", min: 3000, max: 60000, step: 1000, scale: S, suffix: " s" }
+                ] }
+            ]
         }
     ]
 ];
 
 const SECTIONS = [].concat(...SIDEBAR);
+
+// Group dependsOn → its rows (once, at load: search results copy rows).
+function spreadDeps(groups) {
+    for (const g of groups) {
+        for (const row of g.rows) {
+            if (row.kind === "page") {
+                for (const pg of row.page.groups)
+                    pg.dependsOn = pg.dependsOn ?? g.dependsOn;
+                spreadDeps(row.page.groups);
+            }
+            if (g.dependsOn && !row.dependsOn && ![].concat(g.dependsOn).includes(row.key))
+                row.dependsOn = g.dependsOn;
+        }
+    }
+}
+for (const s of SECTIONS)
+    spreadDeps(s.groups);
 
 function section(id) {
     return SECTIONS.find(s => s.id === id) ?? SECTIONS[0];

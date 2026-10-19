@@ -2,7 +2,8 @@ import QtQuick
 import "../../components"
 
 // iOS slider: thin track, accent fill, round white knob. Press anywhere
-// on it or drag; `moved` reports the raw value snapped to `step`.
+// on it or drag; `moved` reports the raw value snapped to `step`. The knob
+// springs to a pressed spot or an outside change, follows a drag directly.
 Item {
     id: root
     required property var theme
@@ -14,6 +15,12 @@ Item {
 
     readonly property real knob: 26
     readonly property real frac: Math.max(0, Math.min(1, (root.value - root.min) / Math.max(1e-9, root.max - root.min)))
+    property bool dragging: false
+    property real shownFrac: root.frac
+    Behavior on shownFrac {
+        enabled: !root.dragging
+        Spring { stiffness: 7; damp: 0.6; eps: 0.001 }
+    }
     implicitHeight: root.knob + 4
 
     Rectangle {
@@ -26,7 +33,7 @@ Item {
         color: root.theme.settingsPressed
 
         Rectangle {
-            width: track.width * root.frac
+            width: track.width * root.shownFrac
             height: parent.height
             radius: parent.radius
             color: root.theme.qsBlue
@@ -34,7 +41,7 @@ Item {
     }
 
     Rectangle {
-        x: track.width * root.frac
+        x: track.width * root.shownFrac
         anchors.verticalCenter: parent.verticalCenter
         width: root.knob
         height: root.knob
@@ -50,7 +57,12 @@ Item {
         cursorShape: Qt.PointingHandCursor
         preventStealing: true
         onPressed: mouse => update(mouse.x)
-        onPositionChanged: mouse => update(mouse.x)
+        onPositionChanged: mouse => {
+            root.dragging = true;
+            update(mouse.x);
+        }
+        onReleased: root.dragging = false
+        onCanceled: root.dragging = false
 
         function update(px: real): void {
             const f = Math.max(0, Math.min(1, (px - track.x) / track.width));

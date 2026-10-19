@@ -18,12 +18,28 @@ Rectangle {
     readonly property real fullWidth: 272
     readonly property real railWidth: 72
     readonly property real pad: 12
+    readonly property real rowHeight: 44
+    readonly property real rowGap: 2
+    readonly property real clusterGap: 21
     readonly property string configPath: `${Quickshell.shellDir}/config/config.json`
 
     width: root.rail ? root.railWidth : root.fullWidth
     Behavior on width { Spring { stiffness: 6; damp: 0.65 } }
     color: root.theme.settingsBg
     clip: true
+
+    // Top of a section's row in the list (fixed row heights, so no layout
+    // pass is needed); -1 = not in the sidebar.
+    function rowY(id: string): real {
+        let y = 0;
+        for (const cluster of Schema.SIDEBAR) {
+            const i = cluster.findIndex(s => s.id === id);
+            if (i >= 0)
+                return y + i * (root.rowHeight + root.rowGap);
+            y += cluster.length * (root.rowHeight + root.rowGap) - root.rowGap + root.clusterGap;
+        }
+        return -1;
+    }
 
     function focusSearch(): void {
         if (root.host.compact)
@@ -136,25 +152,96 @@ Rectangle {
         clip: true
         boundsBehavior: Flickable.StopAtBounds
 
+        // The current section's row scrolls into view (a section opened by
+        // IPC / Ctrl+PgDn below the fold), springing, with a row of margin.
+        readonly property real currentY: root.rowY(root.host.section)
+        function reveal(): void {
+            if (list.currentY < 0)
+                return;
+            const margin = root.rowHeight / 2;
+            const max = Math.max(0, list.contentHeight - list.height);
+            const to = Math.max(0, Math.min(max, Math.min(list.currentY - margin,
+                Math.max(list.contentY, list.currentY + root.rowHeight + margin - list.height))));
+            if (Math.abs(to - list.contentY) > 0.5) {
+                scroll.to = to;
+                scroll.restart();
+            }
+        }
+        onCurrentYChanged: list.reveal()
+        onHeightChanged: list.reveal()
+        Component.onCompleted: Qt.callLater(list.reveal)
+
+        Spring {
+            id: scroll
+            target: list
+            property: "contentY"
+            stiffness: 5
+            damp: 0.7
+            eps: 0.5
+        }
+
+        // The current section's accent plate: one plate that springs from
+        // row to row (fades while searching); a square around the tile in
+        // the rail.
+        Rectangle {
+            readonly property real tileWidth: 30 + 14
+            readonly property real targetY: root.rowY(root.host.section)
+            x: root.rail ? (list.width - width) / 2 : 0
+            y: Math.max(0, targetY)
+            width: root.rail ? tileWidth : list.width
+            height: root.rowHeight
+            radius: 11
+            color: root.theme.qsBlue
+            opacity: !root.host.searching && targetY >= 0 ? 1 : 0
+            Behavior on y { Spring { stiffness: 6; damp: 0.6; eps: 0.25 } }
+            Behavior on width { Spring { stiffness: 6; damp: 0.6 } }
+            Behavior on opacity { Spring { stiffness: 6; damp: 0.6; eps: 0.01 } }
+        }
+
+        // Cluster divider: a full-width rule in the gap (the rows' hairlines
+        // are inset past the tiles, this one spans the tiles too); in the
+        // rail a short rule under the tiles.
+        Repeater {
+            model: Schema.SIDEBAR.length - 1
+
+            Rectangle {
+                required property int index
+                readonly property var next: Schema.SIDEBAR[index + 1][0]
+                x: (list.width - width) / 2
+                y: Math.round(root.rowY(next.id) - root.clusterGap / 2)
+                width: root.rail ? 30 : list.width - 14
+                height: 1
+                color: root.theme.settingsSeparator
+                Behavior on width { Spring { stiffness: 6; damp: 0.6 } }
+            }
+        }
+
         Column {
             id: clusters
             width: list.width
-            spacing: 16
+            spacing: root.clusterGap
 
             Repeater {
                 model: Schema.SIDEBAR
 
                 Column {
+                    id: cluster
                     required property var modelData
                     width: clusters.width
-                    spacing: 2
+                    spacing: root.rowGap
 
                     Repeater {
-                        model: modelData
+                        model: cluster.modelData
 
                         SettingsNavRow {
                             required property var modelData
+                            required property int index
                             width: clusters.width
+                            // Hairline under every row of the cluster but the
+                            // last; not next to the accent plate.
+                            separator: index < cluster.modelData.length - 1 && !current
+                                && !(!root.host.searching && cluster.modelData[index + 1].id === root.host.section)
+                            height: root.rowHeight
                             theme: root.theme
                             section: modelData
                             rail: root.rail

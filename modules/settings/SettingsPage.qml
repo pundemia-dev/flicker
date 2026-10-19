@@ -28,6 +28,7 @@ Item {
     Behavior on x { Spring { stiffness: 5; damp: 0.55; eps: 0.5 } }
     onXChanged: if (root.dying && root.x > root.width * 0.98) root.destroy()
     enabled: root.slot === 0 && !root.dying
+    Component.onDestruction: if (root.host.pageClosed) root.host.pageClosed(root.page)
 
     Rectangle {
         anchors.fill: parent
@@ -59,7 +60,7 @@ Item {
             }
 
             Repeater {
-                model: root.page.groups
+                model: root.host.groupsOf(root.page)
 
                 SettingsGroup {
                     required property var modelData

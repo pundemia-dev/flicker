@@ -40,6 +40,7 @@ Rectangle {
                 radius: root.radius - 2
                 color: root.theme.settingsGroup
                 opacity: area.pressed && half.can ? 1 : 0
+                Behavior on opacity { Spring { stiffness: 8; damp: 0.7; eps: 0.01 } }
             }
 
             Text {
