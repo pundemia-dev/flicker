@@ -20,8 +20,9 @@ import "../../../config"
 // layout lacks leave/arrive through FadeBlur. Targets come from the TARGET
 // footprint (not the animated card size), so they share the card's spring.
 // Buttons are the player's own (TransportBtn / SkipBtn). The output button
-// (where the lyrics button sits in the player) is a placeholder: audio
-// output picker, no action yet. 4x4 / 4x6: output joins the transport row
+// (where the lyrics button sits in the player) opens the audio panel
+// (panels/AudioPanel: outputs, inputs, mixer) out of itself through the
+// QS expander (`openOutput(button)`). 4x4 / 4x6: output joins the transport row
 // (right of next) as a bare grey glyph, a like button (placeholder, MPRIS
 // has no rating API) appears left of prev, and a 6-bar audio visualizer
 // (AudioBars, cava) takes the output button's old spot.
@@ -34,6 +35,20 @@ Item {
     property var audio: null
     property var haptics: null
     property var activate: null
+    // (source item) → opens the audio panel from it (QsCardFactory).
+    property var openOutput: null
+    readonly property Item outputButton: outBtn
+    // Output button glyph: headphones / display when the sound goes there,
+    // else the cast glyph.
+    readonly property string outputGlyph: {
+        const sink = root.audio?.sink ?? null;
+        const n = `${sink?.name ?? ""} ${sink?.description ?? ""}`;
+        if (/bluez|head(phone|set)/i.test(n))
+            return "\ueabd";
+        if (/hdmi|displayport/i.test(n))
+            return "\uea89";
+        return "\uea56";
+    }
 
     readonly property var theme: root.card?.theme ?? null
     readonly property var cfg: root.card?.cfg ?? null
@@ -164,7 +179,7 @@ Item {
             a.b + (b.b - a.b) * t, a.a + (b.a - a.a) * t);
     }
 
-    // Audio output picker (placeholder, no action yet).
+    // Audio output button → the audio panel. Glyph = the current output.
     FadeBlur {
         id: outBtn
         shown: root.lay.out.show
@@ -188,7 +203,7 @@ Item {
         }
         Text {
             anchors.centerIn: parent
-            text: ""
+            text: root.outputGlyph
             color: root.mix(root.inkLight, outMa.containsMouse ? root.inkHover : root.inkGrey, outBtn.bare)
             font.family: root.iconFamily
             font.pixelSize: Math.round(parent.width * 0.48)
@@ -199,6 +214,9 @@ Item {
             id: outMa
             anchors.fill: parent
             hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            enabled: !(root.card?.editing ?? false)
+            onClicked: root.openOutput?.(outBtn)
         }
     }
 

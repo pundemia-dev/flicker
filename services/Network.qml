@@ -46,6 +46,20 @@ QtObject {
     property var details: null
     // `loadShare(ssid)`: {ssid, password, qr (data URL)}; null until loaded.
     property var share: null
+    // Ping / speed test of the current link (Details; same as the VPN
+    // panel's, through whatever route is up). pingMs: -1 none, -2 timeout;
+    // speed: { down, up } Mbit/s or null; speedError: "" | missing | failed.
+    property bool pinging: false
+    property int pingMs: -1
+    property bool speedtesting: false
+    property var speed: null
+    property string speedError: ""
+    // Results belong to the link they were measured on.
+    onWifiSsidChanged: {
+        root.pingMs = -1;
+        root.speed = null;
+        root.speedError = "";
+    }
 
     readonly property string script: Quickshell.shellDir + "/scripts/network/wifi.sh"
 
@@ -110,6 +124,21 @@ QtObject {
 
     function loadDetails(): void {
         detailsProc.running = true;
+    }
+
+    function testPing(): void {
+        if (root.pinging)
+            return;
+        root.pinging = true;
+        pingProc.running = true;
+    }
+
+    function testSpeed(): void {
+        if (root.speedtesting)
+            return;
+        root.speedtesting = true;
+        root.speedError = "";
+        speedProc.running = true;
     }
 
     function loadShare(ssid: string): void {
@@ -316,6 +345,35 @@ QtObject {
                 d.bssid = f[5] ?? "";
                 d.dns = d.dns.join(", ");
                 root.details = d;
+            }
+        }
+    }
+
+    property Process pingProc: Process {
+        command: [root.script, "ping"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const m = text.match(/OK:(\d+)/);
+                root.pingMs = m ? +m[1] : -2;
+                root.pinging = false;
+            }
+        }
+    }
+
+    property Process speedProc: Process {
+        command: [root.script, "speedtest"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const num = re => (text.match(re) ?? [])[1] ?? "";
+                const down = num(/Download:\s*([\d.]+)/);
+                const up = num(/Upload:\s*([\d.]+)/);
+                if (text.includes("ERR_MISSING"))
+                    root.speedError = "missing";
+                else if (!down && !up)
+                    root.speedError = "failed";
+                else
+                    root.speed = { down: Math.round(+down), up: Math.round(+up) };
+                root.speedtesting = false;
             }
         }
     }

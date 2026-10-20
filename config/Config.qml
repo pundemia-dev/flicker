@@ -849,6 +849,13 @@ Singleton {
                     gameShadowBlur: 0.3,
                     games: ["dino", "flappy"],
                     historyLimit: 50,
+                    // Sound on a new notification (pw-play soundFile): never
+                    // under Do Not Disturb or with the "suppress-sound" hint;
+                    // low urgency only with soundLowUrgency. A "sound-file"
+                    // hint plays instead of soundFile.
+                    sound: true,
+                    soundLowUrgency: false,
+                    soundFile: "/usr/share/sounds/freedesktop/stereo/message-new-instant.oga",
                     // Flow toast lifetime: alone vs. with more queued behind.
                     flowShowMs: 5000,
                     flowShowQueuedMs: 3000,
@@ -908,7 +915,32 @@ Singleton {
                     // case-insensitive substrings matched against
                     // application.name, process binary, description and node
                     // name (e.g. DSP infrastructure nodes). Empty = show all.
-                    micExclude: []
+                    micExclude: [],
+                    // Volume (0..1) of the shell's own sounds (pw-play:
+                    // notifications, timer); the QS audio panel's "System
+                    // sounds" slider.
+                    eventVolume: 1,
+                    // QS audio panel (panels/AudioGraph.js): devices whose
+                    // node name / description contains a pattern are hidden;
+                    // deviceNames = { "pattern": "Shown name" }.
+                    hideDevices: [],
+                    deviceNames: ({}),
+                    // services/AudioPolicy (settings → Sound). New device:
+                    // always | ask | never; followPriority = the known-device
+                    // order picks the next device when the one in use goes.
+                    autoSwitch: "always",
+                    followPriority: true,
+                    // Bluetooth headset back to its music profile once the
+                    // app recording from it stopped this long ago.
+                    btReturnToMusic: true,
+                    btReturnDelayMs: 5000,
+                    // Volume cap while a headphone-like output is in use
+                    // (0 = maxVolume).
+                    maxVolumeHeadphones: 0,
+                    // { deviceKey: -1..1 } left / right balance.
+                    balance: ({}),
+                    // WebRTC noise / echo suppression on the mic in use.
+                    voice: ({ enabled: false, gainControl: false })
                 })
             property var brightness: ({
                     step: 0.1
@@ -1211,6 +1243,13 @@ Singleton {
                     // Edit-mode button, bottom-right corner of the rail column
                     // (mirrors the session button; same disc/glyph sizes).
                     editButton: true,
+                    // System tray (StatusNotifierItem) under the tab icons
+                    // in the rail column (QsTray): icon slot (px, hover disc),
+                    // icon size, gap between the tabs and the tray.
+                    tray: true,
+                    trayIcon: 26,
+                    trayIconSize: 18,
+                    trayGap: 12,
                     // Airplane Mode card (services/Airplane): dnd = Do Not
                     // Disturb on with it (and off with it, if it set DND).
                     airplane: ({
@@ -1238,7 +1277,8 @@ Singleton {
                         panels: ({
                             wifi: ({ width: 340, height: 300 }),
                             bluetooth: ({ width: 340, height: 300 }),
-                            vpn: ({ width: 340, height: 420 })
+                            vpn: ({ width: 340, height: 420 }),
+                            audio: ({ width: 340, height: 460 })
                         })
                     }),
                     // List panels of expanded cards (panels/WifiPanel,

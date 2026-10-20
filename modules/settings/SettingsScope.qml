@@ -11,6 +11,9 @@ Scope {
     required property var theme
     required property var wallpaper
     required property var vpn
+    required property var audio
+    required property var audioDevices
+    required property var audioPolicy
 
     property bool shown: false
     // Section the window (re)opens on: the last one shown or requested.
@@ -32,6 +35,9 @@ Scope {
             theme: root.theme
             wallpaper: root.wallpaper
             vpn: root.vpn
+            audio: root.audio
+            audioDevices: root.audioDevices
+            audioPolicy: root.audioPolicy
             initialSection: root.lastSection
             onSectionChanged: root.lastSection = section
             onClosed: root.shown = false

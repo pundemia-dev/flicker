@@ -21,6 +21,9 @@
 #                              supported"), then up; deleted again if that fails
 #   down                       deactivate the active Wi‑Fi profile
 #   forget <uuid>...           delete saved profiles
+#   ping                       latency of an HTTP probe (whatever route is
+#                              up): "OK:<ms>" / "ERR:timeout"
+#   speedtest                  speedtest-cli --simple, or ERR_MISSING
 set -u
 wait=40
 
@@ -84,8 +87,17 @@ forget)
     shift
     for u in "$@"; do nmcli connection delete uuid "$u"; done
     ;;
+ping)
+    t=$(curl -4 -s -o /dev/null -w '%{time_total}' --connect-timeout 5 -m 6 \
+        http://cp.cloudflare.com/generate_204) || { echo "ERR:timeout"; exit 1; }
+    echo "OK:$(awk -v t="$t" 'BEGIN { printf "%d", t * 1000 }')"
+    ;;
+speedtest)
+    command -v speedtest-cli >/dev/null || { echo ERR_MISSING; exit 1; }
+    speedtest-cli --simple 2>/dev/null || { echo ERR_FAILED; exit 1; }
+    ;;
 *)
-    echo "usage: wifi.sh saved|details|share|psk|eap|down|forget" >&2
+    echo "usage: wifi.sh saved|details|share|psk|eap|down|forget|ping|speedtest" >&2
     exit 2
     ;;
 esac

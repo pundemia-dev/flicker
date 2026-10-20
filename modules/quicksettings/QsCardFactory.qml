@@ -13,6 +13,8 @@ Item {
     required property var services
     signal closeRequested
     signal openRequested(string name, var payload)
+    // A button inside a card opens a panel from itself (QsExpander.openPanel).
+    signal expandRequested(Item source, string panel)
 
     readonly property var theme: root.services.theme
     readonly property var audio: root.services.audio
@@ -34,6 +36,7 @@ Item {
             shazam: shazamComp,
             timer: timerComp,
             calculator: calculatorComp,
+            dictation: dictationComp,
             focus: focusComp
         })[id] ?? (root.stubs[id] ? stubComp : null);
     }
@@ -43,7 +46,8 @@ Item {
         return ({
             wifi: wifiPanelComp,
             bluetooth: btPanelComp,
-            vpn: vpnPanelComp
+            vpn: vpnPanelComp,
+            audio: audioPanelComp
         })[id] ?? null;
     }
     Component {
@@ -59,6 +63,18 @@ Item {
     Component {
         id: vpnPanelComp
         VpnPanel {
+            services: root.services
+            onCloseRequested: root.closeRequested()
+            cfg: root.services.config.quicksettings
+            theme: root.theme
+            frost: root.services.frost ?? null
+        }
+    }
+    // Opened by the media card's output button, not a long press (no
+    // "audio" card).
+    Component {
+        id: audioPanelComp
+        AudioPanel {
             services: root.services
             onCloseRequested: root.closeRequested()
             cfg: root.services.config.quicksettings
@@ -85,7 +101,6 @@ Item {
         notes: { toggle: false },
         translate: { toggle: false, status: "English → Russian" },
         cellular: { toggle: true, accent: "qsGreen" },
-        dictation: { toggle: true, accent: "qsBlue" },
         stopwatch: { toggle: false },
         mirroring: { toggle: false }
     })
@@ -290,6 +305,43 @@ Item {
             activate: () => root.openRequested("timer", {})
         }
     }
+    // Dictation (services/Dictation): lit while a typing session runs; a
+    // tap starts one and closes Quick Settings (the text goes to the focused
+    // window), a tap while it runs stops it. A prompter session owns the
+    // backend: the card shows it and ignores taps (Dictation.toggle()).
+    Component {
+        id: dictationComp
+        ButtonCard {
+            readonly property var dictation: root.services.dictation ?? null
+            readonly property bool mine: (dictation?.sink ?? "type") === "type"
+            glyph: QsCatalog.glyphOf("dictation")
+            title: I18n.tr(QsCatalog.titleOf("dictation"))
+            accent: root.theme?.qsBlue ?? "#0A84FF"
+            on: dictation?.active ?? false
+            status: {
+                if (!on)
+                    return I18n.tr("Off");
+                if (!mine)
+                    return I18n.tr("Prompter");
+                switch (dictation.phase) {
+                case "switching":
+                    return I18n.tr("Starting…");
+                case "finalizing":
+                case "refining":
+                    return I18n.tr("Finishing…");
+                }
+                return I18n.tr("Listening…");
+            }
+            activate: () => {
+                if (!dictation || (dictation.active && !mine))
+                    return;
+                const starting = !dictation.active;
+                dictation.toggle();
+                if (starting)
+                    root.closeRequested();
+            }
+        }
+    }
     Component {
         id: screenshotComp
         ButtonCard {
@@ -401,6 +453,7 @@ Item {
             players: root.services.players
             audio: root.audio
             haptics: root.services.haptics
+            openOutput: src => root.expandRequested(src, "audio")
             activate: () => {
                 if (hasPlayer && !hasProgress)
                     root.openRequested("player", {});

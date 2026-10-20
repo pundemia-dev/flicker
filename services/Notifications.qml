@@ -1,5 +1,6 @@
 import QtQuick
 import Quickshell
+import Quickshell.Io
 import Quickshell.Services.Notifications
 import "../config"
 
@@ -180,8 +181,34 @@ Item {
                 root.notificationClosed(old);
                 old.destroy(root.destroyDelay);
             }
-            if (!root.doNotDisturb)
+            if (!root.doNotDisturb) {
+                root.playSound(notif);
                 root.notificationReceived(entry);
+            }
         }
+    }
+
+    // New-notification sound (notifications.sound*); the caller already
+    // skips Do Not Disturb. A burst plays once: a sound still playing
+    // swallows the next.
+    function playSound(notif: var): void {
+        const cfg = Config.data.notifications;
+        const hints = notif.hints ?? {};
+        if (!cfg.sound || hints["suppress-sound"] || soundProc.running)
+            return;
+        if (notif.urgency === NotificationUrgency.Low && !cfg.soundLowUrgency)
+            return;
+        const file = `${hints["sound-file"] || cfg.soundFile || ""}`.replace(/^file:\/\//, "");
+        if (!file)
+            return;
+        // audio.eventVolume: the QS audio panel's "System sounds" slider.
+        const volume = Config.data.audio.eventVolume ?? 1;
+        if (volume <= 0)
+            return;
+        soundProc.command = ["pw-play", `--volume=${volume}`, file];
+        soundProc.running = true;
+    }
+    Process {
+        id: soundProc
     }
 }

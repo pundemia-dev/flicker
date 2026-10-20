@@ -6,7 +6,8 @@ import "../../components"
 // (`glyphs`). A light disc marks the current page and follows the LIVE
 // page position (mid-swipe it sits between icons). Edit mode adds a "+"
 // (new tab) at the end; dragging a card over an icon flips to that page
-// (indexAt()).
+// (indexAt()). A block `below` (the system tray, QsTray) is centred
+// together with the tabs; `belowTop` = where it goes.
 Item {
     id: root
     required property var cfg
@@ -15,6 +16,9 @@ Item {
     required property var glyphs
     required property real pagePos
     property bool editing: false
+    // Tabs hidden (one page): they take no room, the block below centres alone.
+    property bool tabsShown: true
+    property real below: 0
     signal pageRequested(int index)
     signal addRequested
 
@@ -22,7 +26,10 @@ Item {
     readonly property real pitch: root.cfg.railIcon + root.cfg.railSpacing
     readonly property int count: root.glyphs.length + (root.editing ? 1 : 0)
     readonly property real columnH: root.count * root.icon + Math.max(0, root.count - 1) * root.cfg.railSpacing
-    readonly property real colTop: (root.height - root.columnH) / 2
+    readonly property real tabsH: root.tabsShown ? root.columnH : 0
+    readonly property real blockGap: root.tabsH > 0 && root.below > 0 ? root.cfg.trayGap : 0
+    readonly property real colTop: (root.height - root.tabsH - root.blockGap - root.below) / 2
+    readonly property real belowTop: root.colTop + root.tabsH + root.blockGap
 
     // Page index under rail-local y; -2 = the "+", -1 = none.
     function indexAt(y: real): int {

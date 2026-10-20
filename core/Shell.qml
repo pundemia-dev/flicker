@@ -35,6 +35,10 @@ Scope {
     Vpn { id: vpnService; events: eventsService }
     EventNetwork { id: eventNetworkService; events: eventsService; network: networkService }
     EventAudioOutput { id: eventAudioOutputService; events: eventsService; audio: audioService }
+    // Devices as the user sees them (QS audio panel, settings → Sound) and
+    // the behaviour set in settings (auto-switch, priority, voice…).
+    AudioDevices { id: audioDevicesService }
+    AudioPolicy { id: audioPolicyService; devices: audioDevicesService; audio: audioService; events: eventsService }
     EventBattery { id: eventBatteryService; events: eventsService; battery: batteryService; charging: eventChargingService }
     EventDisplays { id: eventDisplaysService; events: eventsService }
     EventDrives { id: eventDrivesService; events: eventsService }
@@ -164,7 +168,7 @@ Scope {
     }
 
     // Settings window (an ordinary app window; IPC `settings`).
-    SettingsScope { theme: themeService; wallpaper: wallpaperService; vpn: vpnService }
+    SettingsScope { id: settingsScope; theme: themeService; wallpaper: wallpaperService; vpn: vpnService; audio: audioService; audioDevices: audioDevicesService; audioPolicy: audioPolicyService }
 
     OsdWatcher {
         registry: islandRegistry
@@ -194,6 +198,8 @@ Scope {
                 powerMode: powerModeService
                 airplane: airplaneService
                 vpn: vpnService
+                settings: settingsScope
+                audioDevices: audioDevicesService
                 clipboardWatch: clipboardWatchService
                 players: playersService
                 network: networkService

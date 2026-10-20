@@ -5,6 +5,7 @@ import "../../config"
 import "SettingsSchema.js" as Schema
 import "SettingsSearch.js" as Search
 import "SettingsVpn.js" as Vpn
+import "SettingsAudio.js" as AudioSettings
 
 // Settings window: sidebar of sections (iOS tiles; an end-4 style icon rail
 // when the window is narrow) + the page in a rounded content card
@@ -17,6 +18,9 @@ FloatingWindow {
     required property var theme
     required property var wallpaper
     required property var vpn
+    required property var audio
+    required property var audioDevices
+    required property var audioPolicy
     property string initialSection: "general"
 
     property string section: Schema.section(root.initialSection).id
@@ -32,6 +36,8 @@ FloatingWindow {
     onCompactChanged: root.railExpanded = false
 
     title: I18n.tr("Flicker Settings")
+    // WirePlumber's settings are read once per window (Sound section).
+    Component.onCompleted: root.audioPolicy?.refreshWp()
     implicitWidth: 980
     implicitHeight: 680
     minimumSize: Qt.size(440, 380)
@@ -54,9 +60,85 @@ FloatingWindow {
     // ---- values: the config (or the wallpaper service's overrides, the
     // VPN service's live state, a routing rule's field) ----
 
+    // Sound section: the live entry of a device row (AudioSettings.entries).
+    function devEntry(ref: var): var {
+        return AudioSettings.entries(root.audioDevices, ref.sink).find(e => e.key === ref.key) ?? null;
+    }
+    function audioValue(row: var): var {
+        const e = root.devEntry(row.ref);
+        const r = e?.row ?? null;
+        const cfg = Config.data.audio ?? {};
+        switch (row.key) {
+        case "status":
+            return AudioSettings.status(e);
+        case "name":
+            return (cfg.deviceNames ?? {})[row.ref.key] ?? "";
+        case "hidden":
+            return (cfg.hideDevices ?? []).includes(row.ref.key);
+        case "profile":
+            return r?.card ? root.audioDevices.profiles(r.card).active : "";
+        case "latency":
+            return r?.card && r?.port ? root.audioDevices.latencyMs(r.card, r.port) : 0;
+        case "balance":
+            return (cfg.balance ?? {})[row.ref.key] ?? 0;
+        case "variant": {
+            const def = row.ref.sink ? root.audioDevices.defaultSink : root.audioDevices.defaultSource;
+            const m = (r?.members ?? []).find(x => x.id === def) ?? (r?.members ?? []).find(x => x.id === r.nodeId);
+            return m?.name ?? "";
+        }
+        }
+        return undefined;
+    }
+    function setAudioValue(row: var, value: var): void {
+        const r = root.devEntry(row.ref)?.row ?? null;
+        const cfg = Config.data.audio ?? {};
+        const key = row.ref.key;
+        switch (row.key) {
+        case "name": {
+            const names = Object.assign({}, cfg.deviceNames ?? {});
+            if (`${value}`.trim() === "")
+                delete names[key];
+            else
+                names[key] = `${value}`.trim();
+            Config.set("audio.deviceNames", names);
+            break;
+        }
+        case "hidden": {
+            const list = (cfg.hideDevices ?? []).filter(k => k !== key);
+            if (value)
+                list.push(key);
+            Config.set("audio.hideDevices", list);
+            break;
+        }
+        case "profile":
+            if (r?.card)
+                root.audioDevices.setProfile(r.card, value);
+            break;
+        case "latency":
+            if (r?.card && r?.port)
+                root.audioDevices.setLatency(r.card, r.port, value);
+            break;
+        case "balance":
+            root.audioPolicy.setBalance(key, value);
+            break;
+        case "variant": {
+            const m = (r?.members ?? []).find(x => x.name === value);
+            if (m)
+                root.audioDevices.makeDefault(m.id, row.ref.sink);
+            break;
+        }
+        }
+    }
+
     function valueOf(row: var): var {
         if (!row.key)
             return undefined;
+        if (row.store === "audioDev")
+            return root.audioValue(row);
+        if (row.store === "wp")
+            return root.audioPolicy?.wp?.[row.key];
+        if (row.store === "audioPolicy")
+            return root.audioPolicy?.[row.key];
         if (row.store === "wallpaper")
             return root.wallpaper?.cfg[row.key];
         if (row.store === "vpn")
@@ -71,7 +153,13 @@ FloatingWindow {
     }
 
     function setValue(row: var, value: var): void {
-        if (row.store === "wallpaper") {
+        if (row.store === "audioDev") {
+            root.setAudioValue(row, value);
+        } else if (row.store === "wp") {
+            root.audioPolicy?.setWp(row.key, value);
+        } else if (row.store === "audioPolicy") {
+            root.audioPolicy[row.key] = value;
+        } else if (row.store === "wallpaper") {
             root.wallpaper?.setSetting(row.key, value);
         } else if (row.store === "vpn") {
             if (row.key === "on")
@@ -100,12 +188,47 @@ FloatingWindow {
     function optionsOf(row: var): var {
         if (row.optionsFrom === "vpnProfiles")
             return (root.vpn?.profiles ?? []).map(p => ({ value: p.tag, label: p.tag }));
+        if (row.optionsFrom === "audioProfiles") {
+            const r = root.devEntry(row.ref)?.row;
+            return r?.card ? root.audioDevices.profiles(r.card).options : [];
+        }
+        if (row.optionsFrom === "audioVariants")
+            return (root.devEntry(row.ref)?.row?.members ?? []).map(m => ({ value: m.name, label: m.desc || m.name }));
         return row.options ?? [];
     }
 
-    // A page's groups with the generated ones built (the routing rules).
+    // A page's groups with the generated ones built (the routing rules,
+    // the Sound section's devices / app outputs; "audioDevice" expands to
+    // several groups). An unchanged result returns the previous array, so
+    // the page keeps its rows (a config write — a balance drag — rebuilt
+    // every row under the pointer).
+    property var groupsCache: ({})
     function groupsOf(page: var): var {
-        return page.groups.map(g => g.generate === "vpnRules" ? Vpn.rulesGroup(g, root.rules(), s => I18n.tr(s)) : g);
+        const tr = s => I18n.tr(s);
+        const hidden = Config.data.audio?.hideDevices ?? [];
+        const built = [].concat(...page.groups.map(g => {
+            switch (g.generate) {
+            case "vpnRules":
+                return [Vpn.rulesGroup(g, root.rules(), tr)];
+            case "audioOutputs":
+            case "audioInputs":
+                return [AudioSettings.listGroup(g, root.audioDevices, g.generate === "audioOutputs", hidden, tr)];
+            case "audioRoutes":
+                return [AudioSettings.routesGroup(g, root.audioPolicy, root.audioDevices, tr)];
+            case "audioDevice":
+                return AudioSettings.deviceGroups(g.ref, root.audioDevices, root.audioPolicy, tr);
+            }
+            return [g];
+        }));
+        if (!page.groups.some(g => g.generate))
+            return built;
+        const id = `${page.title}|${JSON.stringify(page.groups.map(g => g.ref ?? g.generate ?? ""))}`;
+        const sig = JSON.stringify(built);
+        const hit = root.groupsCache[id];
+        if (hit && hit.sig === sig)
+            return hit.groups;
+        root.groupsCache[id] = { sig: sig, groups: built };
+        return built;
     }
 
     // ---- live text: labels, details, footers ----
@@ -216,6 +339,25 @@ FloatingWindow {
             return idle && !!root.vpn?.subscription;
         case "vpnPing":
             return !root.vpn?.pinging;
+        case "audioNone":
+            return false;
+        case "audioUse": {
+            const r = root.devEntry(row.ref)?.row;
+            return !!r && r.available && !r.isDefault;
+        }
+        case "audioTestLeft":
+        case "audioTestRight":
+            return (root.devEntry(row.ref)?.row?.nodeId ?? -1) >= 0;
+        case "audioCenter":
+            return ((Config.data.audio?.balance ?? {})[row.ref.key] ?? 0) !== 0;
+        case "audioUp":
+        case "audioDown": {
+            const known = row.ref.sink ? root.audioDevices.known.outputs : root.audioDevices.known.inputs;
+            const i = known.findIndex(k => k.key === row.ref.key);
+            return i >= 0 && (row.action === "audioUp" ? i > 0 : i < known.length - 1);
+        }
+        case "audioForget":
+            return !root.devEntry(row.ref)?.row;
         case "vpnSpeed":
             return !root.vpn?.speedtesting;
         // rules() also makes the binding re-read after a move: the ref's
@@ -264,6 +406,42 @@ FloatingWindow {
             break;
         case "vpnEdit":
             root.vpn?.editConfig();
+            break;
+        case "audioUse": {
+            const r = root.devEntry(row.ref)?.row;
+            if (r)
+                root.audioDevices.choose(r, row.ref.sink);
+            break;
+        }
+        case "audioTestLeft":
+        case "audioTestRight":
+            root.audioPolicy.testChannel(root.devEntry(row.ref)?.row?.nodeId ?? -1, row.action === "audioTestLeft" ? "left" : "right");
+            break;
+        case "audioCenter":
+            root.audioPolicy.setBalance(row.ref.key, 0);
+            break;
+        case "audioUp":
+        case "audioDown":
+            root.audioDevices.moveKnown(row.ref.sink, row.ref.key, row.action === "audioUp" ? -1 : 1);
+            break;
+        case "audioForget": {
+            root.audioDevices.forgetKnown(row.ref.sink, row.ref.key);
+            const cfg = Config.data.audio ?? {};
+            const names = Object.assign({}, cfg.deviceNames ?? {});
+            if (names[row.ref.key] !== undefined) {
+                delete names[row.ref.key];
+                Config.set("audio.deviceNames", names);
+            }
+            if ((cfg.hideDevices ?? []).includes(row.ref.key))
+                Config.set("audio.hideDevices", cfg.hideDevices.filter(k => k !== row.ref.key));
+            stack.pop();
+            break;
+        }
+        case "audioForgetRoute":
+            root.audioPolicy.forgetRoutes([row.route]);
+            break;
+        case "audioForgetRoutes":
+            root.audioPolicy.forgetRoutes(["--all"]);
             break;
         case "vpnLogs":
             root.vpn?.openLogs();
@@ -319,7 +497,9 @@ FloatingWindow {
         return [].concat(dep).every(d => {
             const neg = d.startsWith("!");
             const [key, want] = d.slice(neg ? 1 : 0).split("=");
-            const v = key.startsWith("vpn:") ? root.vpn?.[key.slice(4)] : Config.get(key);
+            const v = key.startsWith("vpn:") ? root.vpn?.[key.slice(4)]
+                : key.startsWith("audioPolicy:") ? root.audioPolicy?.[key.slice(12)]
+                : key.startsWith("wp:") ? root.audioPolicy?.wp?.[key.slice(3)] : Config.get(key);
             return (want === undefined ? !!v : String(v) === want) !== neg;
         });
     }

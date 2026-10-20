@@ -168,6 +168,11 @@ const SIDEBAR = [
                     { key: "notifications.flowShowQueuedMs", label: "Show queued toast for", kind: "number", min: 1000, max: 20000, step: 500, scale: S, decimals: 1, suffix: " s" },
                     { key: "notifications.flowMaxActions", label: "Action buttons", kind: "number", min: 0, max: 6, step: 1 }
                 ] },
+                { title: "Sound", footer: "Silent while Do Not Disturb is on, and when the app asks for no sound.", rows: [
+                    { key: "notifications.sound", label: "Play a sound", kind: "bool" },
+                    { key: "notifications.soundLowUrgency", dependsOn: "notifications.sound", label: "For low-urgency too", kind: "bool" },
+                    { key: "notifications.soundFile", dependsOn: "notifications.sound", label: "Sound file", kind: "text", wide: true, placeholder: "/usr/share/sounds/…" }
+                ] },
                 { title: "Fullscreen ticker", footer: "Notifications while a window is fullscreen scroll by in the strip.", rows: [
                     { key: "notifications.tickerSpeed", label: "Scroll speed", kind: "number", min: 20, max: 200, step: 10, suffix: " px/s" },
                     { key: "notifications.tickerHoldMs", label: "Hold before scrolling", kind: "number", min: 0, max: 5000, step: 100, scale: S, decimals: 1, suffix: " s" }
@@ -186,6 +191,7 @@ const SIDEBAR = [
                 { rows: [
                     { key: "quicksettings.sessionButton", label: "Session button", kind: "bool" },
                     { key: "quicksettings.editButton", label: "Edit button", kind: "bool" },
+                    { key: "quicksettings.tray", label: "System tray", kind: "bool", keywords: "tray StatusNotifier" },
                     { key: "quicksettings.holdMs", label: "Hold to edit", kind: "number", min: 200, max: 1500, step: 50, scale: S, decimals: 2, suffix: " s" },
                     { key: "quicksettings.wheelStep", label: "Slider wheel step", kind: "number", min: 0.01, max: 0.2, step: 0.01, scale: 0.01, suffix: " %" }
                 ] }
@@ -199,11 +205,51 @@ const SIDEBAR = [
                     { key: "osd.watchMicVolume", dependsOn: "osd.watch", label: "Microphone volume too", kind: "bool" },
                     { key: "timings.osdAutoCloseMs", label: "Hide after", kind: "number", min: 500, max: 5000, step: 100, scale: S, decimals: 1, suffix: " s" }
                 ] },
-                { title: "Steps", rows: [
-                    { key: "audio.volumeStep", label: "Volume step", kind: "number", min: 0.01, max: 0.2, step: 0.01, scale: 0.01, suffix: " %" },
-                    { key: "audio.maxVolume", label: "Maximum volume", kind: "number", min: 1, max: 1.5, step: 0.05, scale: 0.01, suffix: " %" },
+                { title: "Steps", footer: "Volume step and limits are in Sound.", rows: [
                     { key: "brightness.step", label: "Brightness step", kind: "number", min: 0.01, max: 0.25, step: 0.01, scale: 0.01, suffix: " %" }
                 ] }
+            ]
+        },
+        {
+            // Devices / app outputs are generated (SettingsAudio.js);
+            // store "wp" = WirePlumber settings (wpctl settings --save),
+            // "audioPolicy" = services/AudioPolicy session state.
+            id: "sound", title: "Sound", glyph: "\ueb51", tint: "accentRed",
+            groups: [
+                { title: "Output", generate: "audioOutputs", footer: "In priority order: when the device in use goes away, the first available one takes over. Tap a device for its name, profile, balance and test.", rows: [] },
+                { title: "Input", generate: "audioInputs", rows: [] },
+                { title: "Switching", rows: [
+                    { key: "audio.autoSwitch", label: "New device", kind: "choice", segments: true, keywords: "auto switch headphones plug connect", options: [
+                        { value: "always", label: "Switch" }, { value: "ask", label: "Ask" }, { value: "never", label: "Stay" }
+                    ] },
+                    { key: "audio.followPriority", label: "Fall back in the list order", kind: "bool", keywords: "priority" },
+                    { store: "wp", key: "linking.pause-playback", label: "Pause when the output goes away", kind: "bool", keywords: "unplug headphones" },
+                    { store: "wp", key: "device.routes.mute-on-alsa-playback-removed", label: "Mute after unplugging headphones", kind: "bool" },
+                    { store: "wp", key: "device.routes.mute-on-bluetooth-playback-removed", label: "Mute after Bluetooth disconnects", kind: "bool" },
+                    { store: "wp", key: "node.stream.restore-target", label: "Remember each app's output", kind: "bool", keywords: "route stream" }
+                ] },
+                { title: "Bluetooth", rows: [
+                    { store: "wp", key: "bluetooth.autoswitch-to-headset-profile", label: "Call mode when an app records", kind: "bool", keywords: "headset hfp profile microphone" },
+                    { key: "audio.btReturnToMusic", label: "Back to music after a call", kind: "bool", keywords: "a2dp profile" },
+                    { key: "audio.btReturnDelayMs", dependsOn: "audio.btReturnToMusic", label: "After", kind: "number", min: 1000, max: 60000, step: 1000, scale: S, suffix: " s" },
+                    { store: "wp", key: "bluetooth.profile-preference", label: "Prefer", kind: "choice", segments: true, keywords: "codec quality latency", options: [
+                        { value: "quality", label: "Quality" }, { value: "latency", label: "Latency" }
+                    ] }
+                ] },
+                { title: "Volume", footer: "Headphone limit 0 = the same as the maximum. The on-screen display is in Volume & Brightness.", rows: [
+                    { key: "audio.volumeStep", label: "Volume step", kind: "number", min: 0.01, max: 0.2, step: 0.01, scale: 0.01, suffix: " %" },
+                    { key: "audio.maxVolume", label: "Maximum volume", kind: "number", min: 1, max: 1.5, step: 0.05, scale: 0.01, suffix: " %", keywords: "limit boost" },
+                    { key: "audio.maxVolumeHeadphones", label: "Headphone limit", kind: "number", min: 0, max: 1.5, step: 0.05, scale: 0.01, suffix: " %", keywords: "hearing cap" },
+                    { key: "audio.eventVolume", label: "System sounds", kind: "number", slider: true, min: 0, max: 1, step: 0.05, scale: 0.01, suffix: " %", keywords: "notification" },
+                    { store: "wp", key: "node.features.audio.mono", label: "Mono audio", kind: "bool", keywords: "accessibility one ear" }
+                ] },
+                { title: "Microphone", footer: "Voice processing = WebRTC noise and echo suppression on the microphone in use. Listen to yourself works on headphones only (speakers would howl).", rows: [
+                    { key: "audio.voice.enabled", label: "Voice processing", kind: "bool", keywords: "noise suppression echo cancellation rnnoise" },
+                    { key: "audio.voice.gainControl", dependsOn: "audio.voice.enabled", label: "Automatic gain", kind: "bool", keywords: "agc" },
+                    { store: "audioPolicy", key: "listening", dependsOn: "audioPolicy:canListen", label: "Listen to yourself", kind: "bool", keywords: "monitor loopback test" },
+                    { key: "audio.micExclude", label: "Not a mic in use", kind: "text", array: true, wide: true, allowEmpty: true, placeholder: "dsp", keywords: "indicator privacy exclude" }
+                ] },
+                { title: "App outputs", generate: "audioRoutes", footer: "Outputs WirePlumber remembers per app. Forgetting one restarts WirePlumber: sound pauses for a second.", rows: [] }
             ]
         },
         {
@@ -233,9 +279,11 @@ const SIDEBAR = [
                     { key: "haptics.intensity.release", label: "Release", kind: "number", slider: true, min: 0, max: 1, step: 0.05, scale: 0.01, suffix: " %" },
                     { key: "haptics.intensity.tick", label: "Tick", kind: "number", slider: true, min: 0, max: 1, step: 0.05, scale: 0.01, suffix: " %" }
                 ] },
-                { title: "Where", dependsOn: "haptics.enabled", rows: [
+                { title: "Where", dependsOn: "haptics.enabled", footer: "Steps: a tick each time volume / brightness reaches a multiple of \"Tick every\" (equal to the volume step = every press).", rows: [
                     { key: "haptics.quickSettings", label: "Quick Settings", kind: "bool" },
                     { key: "haptics.limits", label: "Volume / brightness limits", kind: "bool" },
+                    { key: "haptics.osdSteps", label: "Volume / brightness steps", kind: "bool" },
+                    { key: "haptics.osdStepEvery", dependsOn: "haptics.osdSteps", label: "Tick every", kind: "number", min: 1, max: 50, step: 1, suffix: " %" },
                     { key: "haptics.polkit", label: "Authentication", kind: "bool" },
                     { key: "haptics.wallpapers", label: "Wallpaper carousel", kind: "bool" },
                     { key: "haptics.timer", label: "Timer ruler", kind: "bool" },

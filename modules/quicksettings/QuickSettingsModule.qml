@@ -57,7 +57,7 @@ Item {
     } : null
 
     readonly property real viewportH: QsMetrics.viewportHeight(root.cfg, root.cc.rows, root.editing)
-    readonly property real bodyH: Math.max(root.viewportH, QsMetrics.railHeight(root.cfg, root.cc.railIcons))
+    readonly property real bodyH: Math.max(root.viewportH, QsMetrics.railHeight(root.cfg, root.cc.railIcons, root.cc.trayIcons))
     // Page stride in the strip: the next page starts a margin below the
     // viewport (outside it; the viewport clips while pages move).
     readonly property real stride: root.viewportH + root.cfg.margins
@@ -177,6 +177,9 @@ Item {
             const c = cardRepeater.itemAt(i);
             if (c?.cardId === id && c.visible)
                 expander.openCard(c);
+            // "audio": from the media card's output button.
+            else if (id === "audio" && c?.cardId === "media" && c.visible && c.contentLayer?.item?.outputButton)
+                expander.openPanel(c.contentLayer.item.outputButton, "audio");
         }
     }
 
@@ -185,6 +188,10 @@ Item {
         services: root.services
         onOpenRequested: (name, payload) => root.openRequested(name, payload)
         onCloseRequested: root.closeRequested()
+        onExpandRequested: (src, panel) => {
+            if (!root.editing)
+                expander.openPanel(src, panel);
+        }
     }
 
     // Empty space: tap closes (edit mode: leaves edit), vertical swipe
@@ -435,11 +442,24 @@ Item {
             glyphs: root.cc.shown.map(p => root.pageGlyph(p))
             pagePos: root.pagePos
             editing: root.editing
+            tabsShown: root.cc.railShown
+            below: QsMetrics.trayHeight(root.cfg, root.cc.trayIcons)
             opacity: root.cc.railShown ? 1 : 0
             visible: opacity > 0.01
             Behavior on opacity { Spring { eps: 0.01 } }
             onPageRequested: i => root.cc.setPage(i)
             onAddRequested: root.cc.addPage()
+        }
+
+        // System tray under the tab icons (shown with one page too).
+        QsTray {
+            x: rail.x + (rail.width - width) / 2
+            y: rail.y + rail.belowTop
+            cfg: root.cfg
+            theme: root.theme
+            frost: root.frost
+            visible: root.cc.trayIcons > 0
+            onActivated: root.closeRequested()
         }
 
         // Session menu: top-right corner, in the rail column (not a card).

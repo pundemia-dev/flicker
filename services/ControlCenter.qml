@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import Quickshell.Services.SystemTray
 import "../modules/quicksettings/QsGrid.js" as QsGrid
 import "../modules/quicksettings/QsCatalog.js" as QsCatalog
 import "../config"
@@ -9,7 +10,7 @@ import "../config"
 // module's right rail), each a grid layout of cards; a card lives on at
 // most one page. Shared by every island (one layout); the island reads
 // `rows` (tallest page — pages slide inside one viewport, no resize per
-// swipe), `editing`, `hiddenIds` and `railIcons` to size itself before the
+// swipe), `editing`, `hiddenIds`, `railIcons` and `trayIcons` to size itself before the
 // module renders (QsMetrics). Persisted as state, not config:
 // Quickshell.statePath("quicksettings.json") ({ version: 2, pages }), written
 // on edit end; a version-1 file ({ items }) loads as one page.
@@ -38,6 +39,8 @@ Scope {
     readonly property bool railShown: root.pages.length > 1 || root.editing
     // Rail icons: one per page + "+" (new tab) in edit mode.
     readonly property int railIcons: root.railShown ? root.pages.length + (root.editing ? 1 : 0) : 0
+    // System tray items under the tabs (QsTray, cfg.tray).
+    readonly property int trayIcons: (root.cfg?.tray ?? true) ? SystemTray.items.values.length : 0
     readonly property int cols: root.cfg?.cols ?? 4
 
     function pageOf(id: string, set: var): int {

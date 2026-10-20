@@ -12,7 +12,8 @@ import "../../../config"
 //             Enter joins, Esc folds
 //   actions   chips: Details / Share / Disconnect / Forget (Forget asks
 //   details   once more); details = the current link (IP, router, DNS,
-//   share     band, speed...), share = QR code + the saved password
+//   share     band, speed...) + ping / speed test pills, share = QR code +
+//             the saved password
 Item {
     id: root
     required property Item panel
@@ -449,6 +450,51 @@ Item {
                         font.pixelSize: (root.pc.textSize ?? 14) - 2
                         elide: Text.ElideRight
                     }
+                }
+            }
+
+            // Ping / speed test of the current link (as in the VPN panel).
+            Row {
+                id: probeRow
+                visible: root.shownMode === "details"
+                onVisibleChanged: if (visible) probeIn.restart()
+                Appear { id: probeIn; target: probeRow; shift: probeShift }
+                transform: Translate { id: probeShift }
+                spacing: 8
+                height: Math.round(root.fieldH * 0.85)
+                PanelPill {
+                    height: parent.height
+                    pc: root.pc
+                    theme: root.theme
+                    frost: root.frost
+                    dim: root.net?.pinging ?? false
+                    text: {
+                        const n = root.net;
+                        if (n?.pinging)
+                            return I18n.tr("Pinging…");
+                        if ((n?.pingMs ?? -1) === -2)
+                            return I18n.tr("Ping · timeout");
+                        return (n?.pingMs ?? -1) >= 0 ? I18n.tr("Ping · %1 ms").arg(n.pingMs) : I18n.tr("Ping");
+                    }
+                    onClicked: root.net?.testPing()
+                }
+                PanelPill {
+                    height: parent.height
+                    pc: root.pc
+                    theme: root.theme
+                    frost: root.frost
+                    dim: root.net?.speedtesting ?? false
+                    text: {
+                        const n = root.net;
+                        if (n?.speedtesting)
+                            return I18n.tr("Testing…");
+                        if (n?.speedError === "missing")
+                            return I18n.tr("No speedtest-cli");
+                        if (n?.speedError === "failed")
+                            return I18n.tr("Speed test failed");
+                        return n?.speed ? `↓${n.speed.down} ↑${n.speed.up} ${I18n.tr("Mbit/s")}` : I18n.tr("Speed test");
+                    }
+                    onClicked: root.net?.testSpeed()
                 }
             }
 

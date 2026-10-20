@@ -28,6 +28,9 @@ PanelWindow {
     required property var powerMode
     required property var airplane
     required property var vpn
+    // Settings window (SettingsScope): open(section id).
+    property var settings: null
+    property var audioDevices: null
     required property var clipboardWatch
     required property var players
     required property var network
@@ -330,7 +333,8 @@ PanelWindow {
         // a drop row + the footer, several tabs add the rail.
         if (root.moduleKey === "quicksettings")
             return QsMetrics.islandSize(root.config.quicksettings, root.controlCenter.rows,
-                root.controlCenter.editing, root.controlCenter.hiddenIds.length, root.controlCenter.railIcons);
+                root.controlCenter.editing, root.controlCenter.hiddenIds.length, root.controlCenter.railIcons,
+                root.controlCenter.trayIcons);
         // Launcher fits its list (+ side panel); until it is rendered
         // (ContentSwap handover) assume a full list.
         if (root.moduleKey === "launcher") {
@@ -1759,6 +1763,8 @@ PanelWindow {
                         powerMode: root.powerMode,
                         airplane: root.airplane,
                         vpn: root.vpn,
+                        openSettings: section => root.settings?.open(section),
+                        audioDevices: root.audioDevices,
                         compositor: root.compositor,
                         config: root.config,
                         theme: root.theme,

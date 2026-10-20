@@ -132,7 +132,8 @@ user's data) live outside the repo: `CLAUDE.local.md` (git-ignored) and `~/.clau
   `authorized` 0/1 was tried: keyboard+trackpad never came back, Oct 2026); plain write() of the exact packet
   length = EP0 SET_REPORT (no OUT endpoint). Test packets against a plain file
   (`--options '{"device":"/tmp/f"}'`, xxd). Places (user decision, `Config.haptics`
-  toggles): BOUND volume/brightness reaching/passing a multiple of `osdStepEvery` % (10) = tick (OsdWatcher; QS sliders are quiet →
+  toggles): BOUND volume/brightness reaching/passing a multiple of `osdStepEvery` % (10; settings
+  window Haptics → Where) = tick (OsdWatcher; QS sliders are quiet →
   silent); QS edit entry = deep, layout snap during drag-move =
   click, tab switch / resize snap = release (ControlCenter.setPage/beginEdit/setPreview); QS slider reaching 0/100 and SeekBar
   crossing an end = release; wallpaper carousel = click per card passing the centre
@@ -351,7 +352,10 @@ user's data) live outside the repo: `CLAUDE.local.md` (git-ignored) and `~/.clau
   stable Repeater over `QsCatalog.IDS` (y = page*stride + cell; other pages visible only
   while sliding — the edit footer sits where the next page waits; viewport clips only
   while moving). Tab rail (`QsTabRail`, right, vertically centred): icon = glyph of the
-  page's biggest card, disc follows `pagePos`; switch by vertical swipe/drag (cards forward
+  page's biggest card, disc follows `pagePos`; system tray (`QsTray`, SNI, `quicksettings.tray`) =
+  a block under the tab icons centred together with them (`QsTabRail.below/belowTop`, also with one
+  page; sized via `ControlCenter.trayIcons` → `QsMetrics.railHeight`): left = activate + close QS,
+  right = QsMenuAnchor (platform popup; NOT live-tested by hand), middle = secondaryActivate; switch by vertical swipe/drag (cards forward
   theirs as swipe* in the static module's coords — the strip moves under the pointer), the
   wheel, a rail tap. CLOSE (user): tap on empty space, or swipe up STARTING in the bottom
   `closeZone`. The module owns ALL its presses (background MouseArea below the cards) —
@@ -430,6 +434,56 @@ user's data) live outside the repo: `CLAUDE.local.md` (git-ignored) and `~/.clau
   Debug IPC `quicksettingsExpand <id>` ("" folds back). Verified via that IPC + grim frames
   (both ways, both panels; BT discovery found nearby devices). NOT tested: the real long press,
   BT connect / pair taps.
+  Audio panel (Oct 2026, user: everyday controls here, the full set in settings → Sound)
+  = `panels/AudioPanel` + `AudioDeviceRow` / `AudioStreamRow` / `PanelSlider` over the SHARED
+  `services/AudioDevices` (+ pure `services/AudioGraph.js`; one instance in Shell, injected as
+  `services.audioDevices` and into SettingsScope). Opened by the MEDIA CARD's output button (no
+  "audio" card): `QsCardFactory.expandRequested(source, id)` → `QsExpander.openPanel` (the
+  button is the drop's source; `expandedOut` only on cards). Debug: `quicksettingsExpand audio`,
+  `quicksettingsPanel scroll <px>` / any other cmd = rows JSON (two args always). ONE row per
+  physical device: endpoint = follow `filter-chain-*` / `echo-cancel-*` link groups
+  (PwLinkGroup; the echo canceller's `stream.monitor` reference stream is skipped) to the first
+  non-filter node; key = STABLE endpoint identity (`api.alsa.card.name/alsa.name`, `bt/<ADDR>`,
+  else node.name — device.id changes per PipeWire start) — the T2 DSP filter-chain sink ends in
+  the Internal `hw_Audio_0` and the raw HiFi Speaker sink (UCM split loopback) is pcm Speaker of
+  the same card → one "Built-in Speakers"; DSP mics + raw mic + voice processing → one row.
+  `resolved: false` = endpoint not found yet (links not read at start-up): never learned. Row
+  node = default if in the group, else the shallowest filter. Card ports no node covers (pactl
+  JSON, ALSA only): plugged → switch port / profile, unplugged Headphones / Headset → dimmed. A
+  profile switch makes the new node default when it appears (`pending`, 5 s). BT: Music / Calls
+  pills; a headset in A2DP shows as an input row that switches to calls (`sub: "callMode"`).
+  Mixer: `Stream/Output/Audio` without a link group, `pactl move-sink-input <object.serial>`
+  (pipewire-pulse indexes sink inputs by SERIAL). Mic level = `PwNodePeakMonitor` (node
+  "quickshell"). `Audio.isShellCapture` drops "quickshell" and every `flicker_*` node.
+  pactl lists are re-read on card events / sink-source add-remove / server (NOT every volume
+  change). Known devices = `Quickshell.statePath("audio-devices.json")` {outputs, inputs} in the
+  user's PRIORITY order (rows sort by it; settings list + fallback). `learn()` is deferred
+  (`known` feeds the rows' order — binding loop).
+  `services/AudioPolicy` (Config.audio): autoSwitch always / ask (event, tap = switch) / never
+  (undo WirePlumber's switch to the newcomer), followPriority (current device gone → first in
+  the known order), btReturnToMusic (a call profile goes back to A2DP once the app that recorded
+  from the BT mic stopped `btReturnDelayMs` ago — a manual "Calls" without recording stays),
+  balance {key: -1..1} re-applied on `volumesChanged` (Quickshell's `volume` setter and wpctl set
+  every channel alike; volumes are cubic: -0.3 → right ×0.343 linear), headphone cap
+  (`Audio.personalOutput` → `maxVolumeHeadphones`), voice processing (`scripts/audio/audio.sh
+  voice` = a standalone `pipewire -c` client with module-echo-cancel + aec/libspa-aec-webrtc,
+  `monitor.mode` reference, passive streams; its source `flicker_voice` is made default, choosing
+  another mic re-targets it, off → back to the real mic first; 5 quick exits = give up), listen
+  to yourself (pw-loopback, only on headphone-like outputs), channel test (`audio.sh test`: the
+  mono freedesktop voice panned to one side, cached in $XDG_RUNTIME_DIR/flicker), WirePlumber
+  settings (`wpctl settings [--save]`: mono = `node.features.audio.mono`, live; BT autoswitch,
+  profile preference, pause / mute on removal, restore-target), remembered app outputs
+  (WirePlumber's stream-properties "target"; `scripts/audio/forget-routes.py` STOPS wireplumber,
+  edits, starts it — it keeps the file in memory). Settings → Sound = `SettingsSchema` section
+  "sound" + `SettingsAudio.js` (generated device lists / device page / app outputs; stores
+  `audioDev`, `wp`, `audioPolicy`; dependsOn `audioPolicy:` / `wp:`). `SettingsWindow.groupsOf`
+  returns the PREVIOUS array when the generated result is unchanged (a config write rebuilt every
+  row — a balance drag lost its slider). "System sounds" = `audio.eventVolume` (Notifications'
+  pw-play `--volume`; the timer alarm is NOT scaled). Verified: IPC + grim (fake pw-play / pw-cat
+  streams), device page via vmouse, balance on the DSP sink's channelVolumes, voice processing
+  on → default `flicker_voice` fed by the DSP mic → off restores. NOT tested: headphones / BT /
+  USB / HDMI live, auto-switch / ask / priority fallback, the channel test sound, listen to
+  yourself, forget-routes, the real button click, routing with 2+ outputs.
   Slider cards (`cards/SliderCard.qml`, volume/brightness) = the OSD look: the card IS the
   capsule (`ownSurface` → QsCard drops its bg so the gap shows the island), fill | gap |
   track with `Config.osd.gap/innerRadius/fill*` springs, glyph + title drawn twice (light

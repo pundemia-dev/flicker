@@ -195,6 +195,14 @@ Item {
         }
     }
 
+    // Rounded screen corners over everything (the desktop Corners layer sits
+    // under the session lock): black, like the bezel.
+    ScreenCorners {
+        anchors.fill: parent
+        color: "black"
+        radius: Config.data.corners.enabled ? Config.data.corners.rounding : 0
+    }
+
     Connections {
         target: root.pam
         function onFlashMsg(): void {

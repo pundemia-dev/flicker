@@ -6,7 +6,11 @@ import "../config"
 Scope {
     id: root
 
-    readonly property real maxVolume: Config.data.audio.maxVolume
+    // Headphone-like current output (AudioPolicy binds it): its own cap,
+    // audio.maxVolumeHeadphones (0 = the same as maxVolume).
+    property bool personalOutput: false
+    readonly property real maxVolume: root.personalOutput && (Config.data.audio.maxVolumeHeadphones ?? 0) > 0
+        ? Config.data.audio.maxVolumeHeadphones : Config.data.audio.maxVolume
     readonly property real volumeStep: Config.data.audio.volumeStep
 
     readonly property PwNode sink: Pipewire.defaultAudioSink
@@ -102,7 +106,12 @@ Scope {
             // and the "both" mode mic/system loopbacks into the mix sink.
             || app.indexOf("flicker_rec") !== -1 || nm.indexOf("flicker_rec") !== -1
             // components/AudioBars: cava on the output monitor.
-            || app === "cava" || bin === "cava" || nm === "cava";
+            || app === "cava" || bin === "cava" || nm === "cava"
+            // PwNodePeakMonitor (QS audio panel's mic level): Quickshell's
+            // own capture stream, node "quickshell".
+            || nm === "quickshell" || app === "quickshell"
+            // AudioPolicy: voice processing, listen to yourself.
+            || nm.startsWith("flicker_");
     }
 
     // User exclusion list (config.audio.micExclude): case-insensitive

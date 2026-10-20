@@ -52,6 +52,25 @@ DropExpand {
         });
     }
 
-    onLifted: src => src.expandedOut = true
-    onLanded: src => src.expandedOut = false
+    // A panel from a button inside a card (media card output → "audio"):
+    // the button itself is the drop's source and starting look.
+    function openPanel(src: Item, id: string): bool {
+        if (root.active)
+            return root.open(src, null);
+        const comp = root.cardFactory?.panelFor(id) ?? null;
+        if (!comp || !src)
+            return false;
+        const spec = root.e.panels?.[id] ?? {};
+        return root.open(src, {
+            panel: comp,
+            width: spec.width,
+            height: spec.height,
+            sourceRadius: Math.min(src.width, src.height) / 2,
+            color: root.surfaceColor
+        });
+    }
+
+    // Only cards leave their slot (a button source just hides under the drop).
+    onLifted: src => { if ("expandedOut" in src) src.expandedOut = true; }
+    onLanded: src => { if ("expandedOut" in src) src.expandedOut = false; }
 }

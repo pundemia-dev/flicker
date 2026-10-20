@@ -6,7 +6,8 @@
 //
 // m = Config.quicksettings, rows = tallest page's rows, editing adds one
 // empty drop row + the footer (hidden-card chips | "Готово"), railIcons =
-// the tab rail right of the grid (several pages, or edit mode).
+// the tab rail right of the grid (several pages, or edit mode), trayIcons =
+// the system tray under it.
 
 function innerWidth(m) {
     return m.cols * m.unit + (m.cols - 1) * m.spacing;
@@ -32,9 +33,10 @@ function cornerButtons(m) {
 }
 
 // railIcons = icons on the rail (pages, + the "+" in edit mode), 0 = no
-// tabs. The corner buttons keep the column even without tabs.
-function railWidth(m, railIcons) {
-    return railIcons > 0 || cornerButtons(m) ? m.spacing + m.railWidth : 0;
+// tabs; trayIcons = system tray items under them (QsTray). The corner
+// buttons keep the column even without either.
+function railWidth(m, railIcons, trayIcons) {
+    return railIcons > 0 || trayIcons > 0 || cornerButtons(m) ? m.spacing + m.railWidth : 0;
 }
 // Session button top (island coords): where the island's right edge stops
 // curving (y = island radius), so it sits in the straight part.
@@ -50,8 +52,14 @@ function sessionSlot(m) {
 function editTop(m, bodyH) {
     return 2 * m.margins + bodyH - sessionTop(m) - m.sessionButtonSize;
 }
-function railHeight(m, railIcons) {
-    const icons = railIcons * m.railIcon + Math.max(0, railIcons - 1) * m.railSpacing;
+function trayHeight(m, trayIcons) {
+    return trayIcons > 0 ? trayIcons * m.trayIcon + (trayIcons - 1) * m.railSpacing : 0;
+}
+// Tabs and tray are one block, centred between the corner slots.
+function railHeight(m, railIcons, trayIcons) {
+    const tabs = railIcons * m.railIcon + Math.max(0, railIcons - 1) * m.railSpacing;
+    const tray = trayHeight(m, trayIcons);
+    const icons = tabs + tray + (tabs > 0 && tray > 0 ? m.trayGap : 0);
     return icons > 0 ? icons + 2 * sessionSlot(m) : sessionSlot(m);
 }
 
@@ -60,10 +68,10 @@ function viewportHeight(m, rows, editing) {
     return r * m.unit + (r - 1) * m.spacing;
 }
 
-function islandSize(m, rows, editing, hiddenCount, railIcons) {
+function islandSize(m, rows, editing, hiddenCount, railIcons, trayIcons) {
     return {
-        width: 2 * m.margins + innerWidth(m) + railWidth(m, railIcons),
-        height: 2 * m.margins + Math.max(viewportHeight(m, rows, editing), railHeight(m, railIcons))
+        width: 2 * m.margins + innerWidth(m) + railWidth(m, railIcons, trayIcons),
+        height: 2 * m.margins + Math.max(viewportHeight(m, rows, editing), railHeight(m, railIcons, trayIcons))
             + (editing ? m.spacing + footerHeight(m, hiddenCount) : 0),
         radius: m.margins + m.unit / 2
     };
