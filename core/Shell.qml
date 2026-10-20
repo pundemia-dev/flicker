@@ -44,6 +44,8 @@ Scope {
     EventDrives { id: eventDrivesService; events: eventsService }
     // Long-process watchers for the status drop (StatusFeeds).
     PacmanWatch { id: pacmanWatchService; events: eventsService }
+    // System updates run from the island (module `updates`, tmux runner).
+    Updates { id: updatesService; events: eventsService; pacman: pacmanWatchService }
     DownloadWatch { id: downloadWatchService; events: eventsService }
     // Clipboard history feed (cliphist) for the launcher's clipboard plugin.
     ClipboardWatch { id: clipboardWatchService }
@@ -123,6 +125,7 @@ Scope {
         localSend: localSendService
         semantic: wallpaperService.semantic
         pacman: pacmanWatchService
+        updates: updatesService
         downloads: downloadWatchService
         dictation: dictationService
         wallpaper: wallpaperService
@@ -219,6 +222,7 @@ Scope {
                 controlCenter: controlCenterService
                 haptics: hapticsService
                 polkit: polkitService
+                updates: updatesService
                 prompter: prompterService
                 wallpaper: wallpaperService
                 countdown: countdownService

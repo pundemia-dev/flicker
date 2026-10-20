@@ -10,7 +10,7 @@ import "../config"
 // pacman / AUR are drawn + animated (indicators/PacmanGlyph.qml,
 // GhostGlyph.qml — the ghost follows pacman), the font glyph
 // stays as the fallback.
-// Nothing pending -> no event.
+// Nothing pending -> no event. Tap = the `updates` module (event `open`).
 // Only after a boot, not a shell restart: the system uptime at shell start
 // must be <= updatesMaxUptimeSec (0 = check on every start).
 // Low Power Mode (services/PowerMode, Config.powerSave.deferUpdates) holds
@@ -58,6 +58,6 @@ Scope {
     function announce(key: string, icon: string, color: string, count: int, glyph: string): void {
         if (count <= 0)
             return;
-        root.events.post({ key, icon, glyph: glyph ?? "", color, family: "nerd", text: `${count}` });
+        root.events.post({ key, icon, glyph: glyph ?? "", color, family: "nerd", text: `${count}`, open: "updates" });
     }
 }

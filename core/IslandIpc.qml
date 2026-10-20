@@ -131,6 +131,13 @@ Scope {
         // Quick Look of a file (any path; ← / → walk the tray).
         function stashPreview(path: string): void { root.island?.openModule("stash", { view: "preview", file: path, returnView: "tray" }); }
         function player(): void { root.island?.openModule("player", {}); }
+        // System updates (pending list / the live run), toggle.
+        function updates(): void {
+            if (root.island?.moduleOpen && root.island.state.activeModule === "updates")
+                root.island.closeModule();
+            else
+                root.island?.openModule("updates", {});
+        }
         function lock(): void { root.lock.activate(); }
         // Session menu (lock / log out / sleep / restart / shut down), toggle.
         function session(): void { root.island?.toggleSession(); }
@@ -213,8 +220,8 @@ Scope {
                 charging: { key: "charging", icon: "\uea38", glyph: "bolt", glyphArgs: { mode: "join" }, color: () => root.battery.levelTone, texts: [() => `${root.battery.percent}%`, "1 h 25 min"] },
                 discharging: { key: "discharging", icon: "\uecec", glyph: "bolt", glyphArgs: { mode: "break" }, color: () => root.battery.levelTone, texts: [() => `${root.battery.percent}%`, "4 h 10 min"] },
                 bluetooth: { key: "bt:demo", icon: "\ueabd", color: "qsBlue", text: "87%" },
-                pacman: { key: "updates:pacman", icon: String.fromCodePoint(0xf0baf), glyph: "pacman", color: "accentYellow", family: "nerd", text: "12" },
-                aur: { key: "updates:aur", icon: "\uf4a2", glyph: "ghost", color: "qsBlue", family: "nerd", text: "3" }
+                pacman: { key: "updates:pacman", icon: String.fromCodePoint(0xf0baf), glyph: "pacman", color: "accentYellow", family: "nerd", text: "12", open: "updates" },
+                aur: { key: "updates:aur", icon: "\uf4a2", glyph: "ghost", color: "qsBlue", family: "nerd", text: "3", open: "updates" }
             };
             // Real announcers (same code path as the live sources).
             const real = {

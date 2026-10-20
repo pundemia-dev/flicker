@@ -19,6 +19,7 @@ Scope {
     required property var localSend
     required property var semantic
     required property var pacman
+    required property var updates
     required property var downloads
     required property var dictation
     required property var wallpaper
@@ -166,15 +167,20 @@ Scope {
         bus: root.events
         key: "pacman"
         delay: Config.data.status.pacmanAnnounceMs ?? 2000
-        on: (root.cfg.pacman ?? true) && (root.pacman?.busy ?? false)
-        entry: ({ priority: 45, color: "accentYellow", progress: null, open: "" })
+        // An island run (services/Updates) is on for its whole length: yay
+        // builds the AUR without the pacman lock.
+        on: (root.cfg.pacman ?? true) && ((root.pacman?.busy ?? false) || root.updates?.phase === "running")
+        entry: ({ priority: 45, color: "accentYellow", progress: null, open: "updates" })
         event: ({
                 glyph: "pacman",
                 glyphArgs: { food: "box" },
                 icon: String.fromCodePoint(0xf0baf),
                 family: "nerd",
                 color: "accentYellow",
-                text: () => root.pacman.count > 0 ? I18n.trN(root.pacman.count, "%1 package", "%1 packages") : I18n.tr("Updating packages")
+                // Tap on the start event = the same module as the drop.
+                open: "updates",
+                text: () => root.updates?.prompt ? I18n.tr("Waiting for answer")
+                    : root.pacman.count > 0 ? I18n.trN(root.pacman.count, "%1 package", "%1 packages") : I18n.tr("Updating packages")
             })
     }
 

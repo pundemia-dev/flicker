@@ -54,6 +54,8 @@ PanelWindow {
     required property var haptics
     // Polkit agent (services/Polkit); the prompt is the `polkit` module.
     required property var polkit
+    // System updates (services/Updates); the `updates` module.
+    required property var updates
     // Teleprompter (services/Prompter); shown as the `prompter` module.
     required property var prompter
     required property var wallpaper
@@ -354,6 +356,13 @@ PanelWindow {
                 ? moduleHost.preferredHeight : c.estimatedHeight;
             return { width: c.width, height: h, radius: c.padding + c.buttonHeight / 2 };
         }
+        // Updates fit their content (package list / log / question lines).
+        if (root.moduleKey === "updates") {
+            const c = root.config.updates;
+            const h = root.shownModule === "updates" && moduleHost.preferredHeight > 0
+                ? moduleHost.preferredHeight : c.padding * 3 + c.discSize + c.logHeight + c.buttonHeight + c.gap * 2;
+            return { width: c.width, height: h, radius: c.padding + c.buttonHeight / 2 };
+        }
         // Session menu: one row of round buttons (count from config).
         if (root.moduleKey === "session") {
             const c = root.config.session;
@@ -642,6 +651,8 @@ PanelWindow {
             openTranscript(root.stash.transcribe.current);
         else if (what === "stash")
             openStash("");
+        else if (what === "updates")
+            openModule("updates", {});
     }
 
     // A pending polkit prompt owns the island: nothing replaces it (the
@@ -927,8 +938,15 @@ PanelWindow {
         }
     }
 
+    // A prompt over the updates module (pkexec of its run) goes back to it
+    // when the flow ends, so the log stays in view.
+    property string polkitReturn: ""
     function openPolkit(): void {
         polkitClose.stop();
+        if (root.moduleOpen && root.state.activeModule === "updates")
+            root.polkitReturn = "updates";
+        else if (!(root.moduleOpen && root.state.activeModule === "polkit"))
+            root.polkitReturn = "";
         openModule("polkit", {});
     }
 
@@ -946,8 +964,14 @@ PanelWindow {
         id: polkitClose
         onTriggered: {
             root.polkit.settle();
-            if (root.moduleOpen && root.state.activeModule === "polkit" && !root.polkit.active)
-                root.closeModule();
+            if (root.moduleOpen && root.state.activeModule === "polkit" && !root.polkit.active) {
+                const back = root.polkitReturn;
+                root.polkitReturn = "";
+                if (back !== "")
+                    root.openModule(back, {});
+                else
+                    root.closeModule();
+            }
         }
     }
 
@@ -1774,6 +1798,7 @@ PanelWindow {
                         controlCenter: root.controlCenter,
                         haptics: root.haptics,
                         polkit: root.polkit,
+                        updates: root.updates,
                         prompter: root.prompter,
                         countdown: root.countdown,
                         shazam: root.shazam,

@@ -12,6 +12,7 @@ import "../modules/polkit"
 import "../modules/prompter"
 import "../modules/timer"
 import "../modules/session"
+import "../modules/updates"
 
 Item {
     id: root
@@ -90,6 +91,8 @@ Item {
                 return timerComp;
             if (root.moduleName === "session")
                 return sessionComp;
+            if (root.moduleName === "updates")
+                return updatesComp;
             return null;
         }
     }
@@ -233,6 +236,15 @@ Item {
             session: root.services.session
             theme: root.services.theme
             cfg: root.services.config.session
+            onCloseRequested: root.closeRequested()
+        }
+    }
+    Component {
+        id: updatesComp
+        UpdatesModule {
+            updates: root.services.updates
+            theme: root.services.theme
+            cfg: root.services.config.updates
             onCloseRequested: root.closeRequested()
         }
     }

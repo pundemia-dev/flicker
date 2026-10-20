@@ -22,6 +22,9 @@ import "../config"
 //          shows, then splits off as the status drop
 //   hold   stays until replaced by a same-key event without `hold` (its
 //          timer starts then) or cancelled — e.g. Shazam "Listening…"
+//   tap    function run on a click on the event (it leaves first)
+//   open   island module opened on a click (on the clicked island),
+//          `openPayload` its payload — e.g. "updates"
 Scope {
     id: root
 

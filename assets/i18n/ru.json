@@ -788,5 +788,29 @@
   "Forget all": "Забыть все",
   "Tap again to forget all": "Нажмите ещё раз, чтобы забыть все",
   "None remembered": "Ничего не запомнено",
-  "Tap to switch": "Нажмите, чтобы переключить"
+  "Tap to switch": "Нажмите, чтобы переключить",
+  "Updating": "Обновление",
+  "Updated": "Обновлено",
+  "Update failed": "Обновление не удалось",
+  "Update interrupted": "Обновление прервано",
+  "Update needs an answer": "Обновление ждёт ответа",
+  "Restart to finish the update": "Перезагрузите для завершения обновления",
+  "Waiting for answer": "Ждёт ответа",
+  "Started in a terminal": "Запущено в терминале",
+  "Repositories + AUR": "Репозитории + AUR",
+  "Repositories": "Репозитории",
+  "AUR": "AUR",
+  "Check": "Проверить",
+  "Update": "Обновить",
+  "Everything": "Всё",
+  "Yes": "Да",
+  "No": "Нет",
+  "Hide": "Скрыть",
+  "The kernel was updated: restart to use it": "Обновлено ядро: перезагрузитесь, чтобы его использовать",
+  "%1 new config file (.pacnew)": [
+    "%1 новый файл настроек (.pacnew)",
+    "%1 новых файла настроек (.pacnew)",
+    "%1 новых файлов настроек (.pacnew)"
+  ],
+  "Couldn't check for updates": "Не удалось проверить обновления"
 }

@@ -383,16 +383,23 @@ Item {
             item.leading = Qt.binding(() => root.statusEvent);
         }
     }
-    // Event `tap` (a function, e.g. open the drive just plugged in): both
-    // halves take the click — only while the visible event has one, so
-    // they never swallow presses meant for the gesture layer otherwise.
+    // Event `tap` (a function, e.g. open the drive just plugged in) or
+    // `open` (an island module name, opened on THIS island): both halves
+    // take the click — only while the visible event has one, so they never
+    // swallow presses meant for the gesture layer otherwise.
     readonly property bool eventTappable: typeof root.events?.current?.tap === "function"
+        || (root.events?.current?.open ?? "") !== ""
     function tapEvent(): void {
-        const tap = root.events?.current?.tap;
-        if (typeof tap !== "function")
+        const ev = root.events?.current;
+        const tap = ev?.tap;
+        const open = ev?.open ?? "";
+        if (typeof tap !== "function" && open === "")
             return;
         root.events.finish();
-        tap();
+        if (typeof tap === "function")
+            tap();
+        else
+            root.requestModule(open, ev.openPayload ?? {});
     }
     MouseArea {
         x: eventIconLoader.x

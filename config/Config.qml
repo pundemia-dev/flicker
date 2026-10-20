@@ -1667,6 +1667,32 @@ Singleton {
                     shakeDamping: 0.12,
                     successHoldMs: 700
                 })
+            // System updates (services/Updates + modules/updates): the run
+            // lives in tmux (scripts/updates/update.sh), polled every pollMs
+            // while it runs; the module shows the last logLines of the last
+            // logTailBytes. recheckMs: the list is re-checked on open when
+            // older. Layout: width, list / log heights, polkit-like sizes.
+            property var updates: ({
+                    pollMs: 700,
+                    recheckMs: 60000,
+                    logTailBytes: 16000,
+                    logLines: 200,
+                    width: 520,
+                    listHeight: 240,
+                    logHeight: 260,
+                    padding: 18,
+                    gap: 12,
+                    discSize: 40,
+                    iconSize: 22,
+                    titleSize: 15,
+                    fontSize: 13,
+                    detailSize: 11,
+                    rowHeight: 26,
+                    logSize: 11,
+                    cardPadding: 12,
+                    buttonHeight: 36,
+                    buttonMinWidth: 96
+                })
             // Teleprompter (services/Prompter + modules/prompter). Island
             // width x height, radius; text px (headings scale by level),
             // reading line at readLine of the viewport height. mode voice |

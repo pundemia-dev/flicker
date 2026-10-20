@@ -36,7 +36,7 @@ user's data) live outside the repo: `CLAUDE.local.md` (git-ignored) and `~/.clau
   `compositor.focusedOutput` — never put an IpcHandler in per-screen Island. Targets: `island` (launcher (toggle), launcherPlugin <id> (apps|clipboard|wallpapers, toggle), quicksettings, quicksettingsEdit/Page/Resize/Expand, quicksettingsPanel <cmd> <arg>, stashMenu <i>,
   notifications, stash (tray toggle), capture (again while open = next mode), captureMode(shot|record|color|
   window|ai|scan), captureScreen (= Enter in the active tool), captureCancel, session (session menu toggle), screenshot
-  (instant, no overlay), record (toggle), recordPause, recordControls, dashboard, player, lock, close, minimal, island, osd, debugState,
+  (instant, no overlay), record (toggle), recordPause, recordControls, dashboard, player, updates (toggle), lock, close, minimal, island, osd, debugState,
   volumeUp/Down/Mute, micMute, brightnessUp/Down, playPause, nextTrack, prevTrack, playerSeek <s>),
   `island powerSave` (Low Power Mode toggle), `island airplane` (Airplane Mode toggle), `island vpn` (VPN on/off, see VPN below), `lock` (activate/isLocked — deliberately NO unlock/toggle over IPC; unlocking needs PAM),
   keyboardDemo layout|caps, shazam (listen / cancel), timer (module toggle), timerStart <min>, timerPause (toggle), timerCancel, stashTranscript <path>, stashPreview <path>,
@@ -845,6 +845,35 @@ user's data) live outside the repo: `CLAUDE.local.md` (git-ignored) and `~/.clau
   `QsMetrics.railWidth` keeps the column even with one page, `railHeight` reserves the button
   slot top AND bottom so the tab icons stay centred. Verified via IPC + wtype + grim: render, arrow selection, Esc close. NOT
   tested: the actions themselves, the armed state, mouse.
+- SYSTEM UPDATES (Oct 2026, user design): module `updates` (`modules/updates/UpdatesModule.qml`) +
+  `services/Updates.qml` + `scripts/updates/update.sh`. Opened by a tap on the pending-count events,
+  the `pacman` status drop (`open: "updates"`), IPC `island updates` (toggle). Idle = pending list
+  (`checkupdates` + `yay -Qua`, repo / AUR sections) with TWO runs (user): «Репозитории» =
+  `pkexec pacman -Syu`, «Всё» = `yay -Syu --sudo pkexec` (repos first, then AUR — AUR alone before
+  the repos would build against stale libs / pull a partial upgrade; NEVER add `yay -Sua`). One
+  button when one side is empty. Root ONLY via pkexec → the island's polkit prompt; NO polkit rule
+  to cache the password (user). The run is NOT a shell child: tmux server `-L flicker` session
+  `update` (a Quickshell Process dies on every hot-reload = pacman killed mid-transaction), started
+  under `systemd-run --user --scope` (the shell lives in driftwm.service, KillMode=control-group: a
+  compositor crash would kill a tmux left in that cgroup), its pane runs `SHELL=/bin/bash` (script -c
+  uses $SHELL = fish here) `script -qfec <cmd> $XDG_RUNTIME_DIR/flicker/update/log` (pty for prompts / progress;
+  the log has a "Script started/done" header + ANSI + \r redraws — `Updates.clean()` strips them).
+  Exit → `status` file (`exit= reboot= pacnew= mode=`; reboot = /usr/lib/modules/$(uname -r) gone).
+  Service polls `update.sh poll` every `updates.pollMs` while running, once at creation (adopts a
+  run after a reload) and on every module open (`viewers` change); `lines` is reassigned only when
+  it changed, and the log is ONE StyledText in a Flickable (a ListView over a fresh array rebuilt
+  itself and lost the scroll every poll; follows the end unless scrolled up). checkupdates failing
+  (exit ≠ 0/2) → `list` prints "error repo" → `listError` («Не удалось проверить», never a fake
+  «Обновлений нет»). Text password prompts are never answered from the island (terminal only); no session + no status + a log = interrupted (exit -1). Prompt detection on
+  the log's partial last line: `[Y/n]` at once → Да / Нет, other `==>`/`:`/`?` lines once the log
+  size stood still a poll → «По умолчанию» (Enter); answers = `tmux send-keys`. «Терминал» =
+  `kitty bash update.sh attach` (a client attached at exit keeps the pane until Enter). Nobody
+  viewing (`viewers`) → events `updates:ask` / `updates:failed`, and `updates:reboot` after a kernel
+  update, all `open: "updates"`. A polkit prompt over the module returns to it (`Island.polkitReturn`).
+  The `pacman` status feed is on for the whole island run (yay builds without db.lck), text «Ждёт
+  ответа» on a prompt. pacman busy without an own run (terminal) → the module shows the tail of
+  /var/log/pacman.log. Verified live with a fake run in the same tmux session (prompt, answer,
+  done + notices); a real -Syu NOT run by the agent.
 - Polkit agent (Oct 2026, refs: DMS PolkitService, end-4 ii, caelestia): `services/Polkit.qml`
   (Quickshell `PolkitAgent` in a Loader, `Config.polkit.enabled`; ONE agent per session —
   a second Flicker / polkit-gnome just fails to register) → `started` opens module `polkit`
@@ -928,6 +957,8 @@ user's data) live outside the repo: `CLAUDE.local.md` (git-ignored) and `~/.clau
   width = per-char advances of the TARGET text), `EventBluetooth` (new connected device → device glyph +
   Battery1 % / name), `EventUpdates` (once, `updatesDelayMs` after start: pacman count, then AUR;
   glyphs from the user's show_updates: md-pac_man f0baf and f4a2 = oct-smiley in Nerd Fonts v3).
+  Event `open: "<module>"` (+ `openPayload`) = tap opens that island module on the CLICKED island
+  (IndicatorLayout.requestModule; `tap` wins when both); EventUpdates' counts open `updates`.
   GLYPH LIBRARY (Oct 2026, user: "draw every one, Apple-style, same kind of animations"; services
   for the new events NOT built yet — only the glyphs): `indicators/glyphs/` = every drawn glyph +
   `GlyphBase.qml` (size/color/args/theme/ready → `begin()` once; `p(key, def)` reads
