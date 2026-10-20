@@ -796,6 +796,39 @@ Singleton {
                     rounding: 16,
                     color: "#101115"
                 })
+            // Touch Bar presses (services/TouchBar, core/TouchBarPresses):
+            // Macs with tiny-dfr only, needs scripts/touchbar/udev.rules.
+            // A tab of width × height px per held button pops out of the
+            // bottom edge; widthMode "button" = the button's own width
+            // instead. The bar covers `span` of the screen width, centred,
+            // moved by `offset` (fractions). color "" = corners.color.
+            // suction* = the concave curve joining the tab to the edge:
+            // px along the screen, px up the side (past the straight side it
+            // climbs onto the corner arc and joins it), curve strength 0..1.
+            // screens: "internal" (eDP) or "all". outline = a rim of `width`
+            // px in `color` (ARGB) around the tab; along the suction it fades
+            // out from `fadeFrom` (0 = join, 1 = foot) to `tail` px past it.
+            property var touchBar: ({
+                    enabled: true,
+                    width: 64,
+                    height: 12,
+                    widthMode: "fixed",
+                    span: 0.72,
+                    offset: 0,
+                    radius: 6,
+                    suctionSpread: 8,
+                    suctionRise: 6,
+                    suctionStrength: 0.55,
+                    squeeze: 0.2,
+                    spring: 6,
+                    damping: 0.35,
+                    minShowMs: 120,
+                    pruneMs: 900,
+                    color: "",
+                    // Gradient rim around the tab, top → base colour.
+                    outline: { width: 1, color: "#73a0a0a0", fadeFrom: 0.5, tail: 10 },
+                    screens: "internal"
+                })
             property var effects: ({
                     disableBlur: false,
                     disableCompositorBlur: false,

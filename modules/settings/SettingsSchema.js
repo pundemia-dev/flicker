@@ -261,6 +261,23 @@ const SIDEBAR = [
                     { key: "keyboard.caps", label: "On Caps Lock", kind: "bool" },
                     { key: "keyboard.followCaret", label: "Follow the text cursor", kind: "bool" },
                     { key: "keyboard.layoutShowMs", label: "Show for", kind: "number", min: 300, max: 5000, step: 100, scale: S, decimals: 1, suffix: " s" }
+                ] },
+                { title: "Touch Bar", footer: "Macs with tiny-dfr: a held Touch Bar button pushes a tab out of the bottom screen edge above it. Suction = the curve joining it to the edge. Needs the udev rule from scripts/touchbar.", dependsOn: "touchBar.enabled", rows: [
+                    { key: "touchBar.enabled", label: "Press tabs", kind: "bool", keywords: "touchbar tiny-dfr" },
+                    { key: "touchBar.widthMode", label: "Width", kind: "choice", segments: true, options: [
+                        { value: "fixed", label: "Fixed" }, { value: "button", label: "Button" }
+                    ] },
+                    { key: "touchBar.width", dependsOn: "touchBar.widthMode=fixed", label: "Tab width", kind: "number", min: 8, max: 400, step: 2, suffix: " px" },
+                    { key: "touchBar.height", label: "Tab height", kind: "number", min: 2, max: 80, step: 1, suffix: " px" },
+                    { key: "touchBar.radius", label: "Corner radius", kind: "number", min: 0, max: 40, step: 1, suffix: " px" },
+                    { key: "touchBar.suctionSpread", label: "Suction along the screen", kind: "number", min: 0, max: 120, step: 1, suffix: " px", keywords: "fillet" },
+                    { key: "touchBar.suctionRise", label: "Suction up the tab", kind: "number", min: 0, max: 60, step: 1, suffix: " px", keywords: "fillet" },
+                    { key: "touchBar.suctionStrength", label: "Suction strength", kind: "number", slider: true, min: 0, max: 1, step: 0.01, scale: 0.01, suffix: " %", keywords: "fillet" },
+                    { key: "touchBar.span", label: "Bar span", kind: "number", slider: true, min: 0.3, max: 1, step: 0.01, scale: 0.01, suffix: " %" },
+                    { key: "touchBar.offset", label: "Bar offset", kind: "number", slider: true, min: -0.2, max: 0.2, step: 0.005, scale: 0.01, decimals: 1, suffix: " %" },
+                    { key: "touchBar.screens", label: "Screens", kind: "choice", segments: true, options: [
+                        { value: "internal", label: "Built-in" }, { value: "all", label: "All" }
+                    ] }
                 ] }
             ]
         },

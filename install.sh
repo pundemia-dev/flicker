@@ -206,8 +206,8 @@ if [[ ! -x "$HOME/.local/bin/nemo-speech" ]]; then
   echo "         see scripts/dictation/nemo-speech.service for the real backend"
 fi
 
-# --- 5. Trackpad haptics (optional, needs a udev rule = root) ---
-echo "5. haptics..."
+# --- 5. Trackpad haptics + Touch Bar tabs (optional, udev rules = root) ---
+echo "5. haptics / touch bar..."
 haptic_found=0
 for b in "$FLICKER_DIR"/scripts/haptics/backends/*/; do
   name=$(basename "$b")
@@ -224,6 +224,16 @@ for b in "$FLICKER_DIR"/scripts/haptics/backends/*/; do
   esac
 done
 (( haptic_found )) || echo "   no haptic trackpad found (fine)"
+
+# Touch Bar press tabs (Macs with tiny-dfr only, udev rule = root).
+tb_dev=$(grep -lx "Dynamic Function Row Virtual Input Device" /sys/class/input/event*/device/name 2>/dev/null | head -1 | cut -d/ -f5)
+if [[ -n "$tb_dev" && ! -r "/dev/input/$tb_dev" ]]; then
+  echo "   touch bar: tiny-dfr found, no access — run:"
+  echo "     sudo install -m644 $FLICKER_DIR/scripts/touchbar/udev.rules /etc/udev/rules.d/70-flicker-touchbar.rules"
+  echo "     sudo udevadm control --reload && sudo udevadm trigger -s input"
+elif [[ -n "$tb_dev" ]]; then
+  echo "   touch bar: usable"
+fi
 
 # --- 6. VPN card (optional, polkit rule = root) ---
 # Start / stop without a password prompt: a polkit rule limited to the

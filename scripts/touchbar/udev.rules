@@ -1,0 +1,6 @@
+# Flicker Touch Bar presses (scripts/touchbar/presses.py): read access for the
+# seat user (uaccess ACL) to the uinput keyboard tiny-dfr creates. It carries
+# only Touch Bar buttons — the main keyboard stays inaccessible.
+# Install: sudo install -m644 udev.rules /etc/udev/rules.d/70-flicker-touchbar.rules
+#          sudo udevadm control --reload && sudo udevadm trigger -s input
+SUBSYSTEM=="input", KERNEL=="event*", ATTRS{name}=="Dynamic Function Row Virtual Input Device", TAG+="uaccess"

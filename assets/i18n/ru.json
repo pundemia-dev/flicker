@@ -812,5 +812,21 @@
     "%1 новых файла настроек (.pacnew)",
     "%1 новых файлов настроек (.pacnew)"
   ],
-  "Couldn't check for updates": "Не удалось проверить обновления"
+  "Couldn't check for updates": "Не удалось проверить обновления",
+  "Touch Bar": "Touch Bar",
+  "Macs with tiny-dfr: a held Touch Bar button pushes a tab out of the bottom screen edge above it. Suction = the curve joining it to the edge. Needs the udev rule from scripts/touchbar.": "Маки с tiny-dfr: зажатая кнопка Touch Bar выдавливает язычок из нижнего края экрана над собой. Присасывание — изгиб, которым язычок переходит в край. Нужно udev-правило из scripts/touchbar.",
+  "Press tabs": "Язычки нажатий",
+  "Width": "Ширина",
+  "Fixed": "Фиксированная",
+  "Button": "По кнопке",
+  "Tab width": "Ширина язычка",
+  "Tab height": "Высота язычка",
+  "Bar span": "Ширина тачбара на экране",
+  "Bar offset": "Сдвиг тачбара",
+  "Screens": "Экраны",
+  "Built-in": "Встроенный",
+  "Corner radius": "Скругление",
+  "Suction along the screen": "Присасывание по экрану",
+  "Suction up the tab": "Присасывание по язычку",
+  "Suction strength": "Сила присасывания"
 }

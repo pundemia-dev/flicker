@@ -26,6 +26,7 @@ Scope {
     required property var charging
     required property var countdown
     required property var keyboard
+    required property var touchBar
     required property var shazam
     required property var statuses
     required property var network
@@ -211,6 +212,9 @@ Scope {
         // Keyboard pill preview: "layout" = flash the current layout,
         // "caps" = toggle a fake Caps Lock (the LED poll restores the truth).
         function keyboardDemo(kind: string): void { root.keyboard.demo(kind); }
+        // Touch Bar press tab preview (no tiny-dfr access needed): a press at
+        // `x` (0..1 along the bar) held for `ms`.
+        function touchBarDemo(x: real, ms: int): void { root.touchBar.demo(x, ms); }
         // Event indicator demo (no real source needed): charging | discharging |
         // bluetooth | pacman | aur | wifi | wifiLost | output | full | critical |
         // display | displayOff | drive | driveOff | downloaded | text

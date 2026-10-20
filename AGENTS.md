@@ -39,7 +39,7 @@ user's data) live outside the repo: `CLAUDE.local.md` (git-ignored) and `~/.clau
   (instant, no overlay), record (toggle), recordPause, recordControls, dashboard, player, updates (toggle), lock, close, minimal, island, osd, debugState,
   volumeUp/Down/Mute, micMute, brightnessUp/Down, playPause, nextTrack, prevTrack, playerSeek <s>),
   `island powerSave` (Low Power Mode toggle), `island airplane` (Airplane Mode toggle), `island vpn` (VPN on/off, see VPN below), `lock` (activate/isLocked — deliberately NO unlock/toggle over IPC; unlocking needs PAM),
-  keyboardDemo layout|caps, shazam (listen / cancel), timer (module toggle), timerStart <min>, timerPause (toggle), timerCancel, stashTranscript <path>, stashPreview <path>,
+  keyboardDemo layout|caps, touchBarDemo <x 0..1> <ms>, shazam (listen / cancel), timer (module toggle), timerStart <min>, timerPause (toggle), timerCancel, stashTranscript <path>, stashPreview <path>,
   statusDemo <name> <percent> (<0 = spinning) / statusDemoEnd <name> / statusNext (= swipe on the drop),
   `dictation` (start/stop/toggle/cancel/status),
   `settings` (open / section <id> / close / toggle — the settings window, section ids in
@@ -106,6 +106,18 @@ user's data) live outside the repo: `CLAUDE.local.md` (git-ignored) and `~/.clau
   (light ink over the track, dark ink clipped to the fill). Tunables `Config.data.osd`. `services/Audio.qml` must keep sink/source in its
   `PwObjectTracker` — untracked nodes never turn `ready`, setVolume was a silent no-op.
   Reference shells cloned in `temp/` (caelestia, DMS, end-4 dots, noctalia (now C++)).
+- Touch Bar press tabs (Oct 2026, Macs with tiny-dfr ONLY — no F-key/other-laptop path by
+  user decision): `scripts/touchbar/presses.py` reads tiny-dfr's uinput device ("Dynamic
+  Function Row Virtual Input Device", never grabbed, never the main keyboard) and lays the
+  buttons out exactly like tiny-dfr `FunctionLayer::draw` (16 px gaps, Stretch, empty slots,
+  "esc" prepended only when the bar is >= 2170 px — this MBP16 bar is 2008 = no esc, read from
+  the `card*-USB-*` DRM mode), re-reading `/etc/tiny-dfr/config.toml` on mtime change
+  (dfr-switcher layouts). It prints only `down <id> <x> <w>` / `up <id>` / `reset` (bar
+  fractions) — key codes stay inside. `services/TouchBar.qml` → ListModel → per-screen
+  `core/TouchBarPresses.qml` (Overlay, empty mask, built-in display by default): CurveRenderer
+  PathSvg tab joined to the edge by concave Bézier suction curves (spread / rise / strength) in `corners.color`, SpringAnimation on height.
+  Access = `scripts/touchbar/udev.rules` (uaccess); without it the script waits and logs the
+  sudo hint once. Config `touchBar` (width/height/widthMode/span/offset in Settings → Keyboard).
 - Trackpad haptics (Oct 2026), hardware-agnostic — full contract in `docs/haptics.md`:
   `services/Haptics.qml` (Shell → Island → services map, ControlCenter, OsdWatcher) runs
   `scripts/haptics/run.py` (dispatcher: `backend: "auto"` probes `order`, or a name, or a

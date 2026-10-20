@@ -73,6 +73,7 @@ Scope {
     Sensors { id: sensorsService; powerMode: powerModeService }
     Weather { id: weatherService }
     Haptics { id: hapticsService }
+    TouchBar { id: touchBarService }
     Stash { id: stashService; cfg: Config.data.stash; events: eventsService }
     // Polkit agent: a request opens the prompt on the focused output.
     Polkit {
@@ -160,6 +161,7 @@ Scope {
         charging: eventChargingService
         countdown: countdownService
         keyboard: keyboardIndicatorService
+        touchBar: touchBarService
         shazam: shazamService
         statuses: statusesService
         network: eventNetworkService
@@ -250,6 +252,11 @@ Scope {
             Corners {
                 targetScreen: modelData
                 visible: !lockScope.locked
+            }
+
+            TouchBarPresses {
+                targetScreen: modelData
+                touchBar: touchBarService
             }
         }
     }
