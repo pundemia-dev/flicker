@@ -179,9 +179,11 @@ prune_rules() {
 # it stays up: what `check` cannot see fails only at start. $1 = Xray with
 # it: "on" (restart on the new $xray_config), "off" (stop), "" (untouched).
 # If it does not come up, the .bak copies go back (the view still describes
-# them), the old config is restarted and this fails.
+# them; $base's too when $with_base is set), the old config is restarted and
+# this fails. Without a .bak (no config before) the unit is stopped instead
+# of left failing.
 restart_checked() {
-    local xr=${1:-} why
+    local xr=${1:-} why restored=""
     systemctl is-active -q "$unit" || return 0
     case $xr in
     on) systemctl restart xray ;;
@@ -191,14 +193,21 @@ restart_checked() {
         { [ "$xr" != on ] || systemctl is-active -q xray; } && return 0
     why=$(journalctl -u "$unit" -u xray -n 20 -o cat --since "-10s" 2>/dev/null | grep -iE 'fatal|error' | tail -n 1 |
         sed 's/\x1b\[[0-9;]*m//g')
-    [ -f "$config.bak" ] || err "sing-box did not start with it${why:+: $why}"
-    install -m 640 -g "$unit" "$config.bak" "$config"
+    if [ -f "$config.bak" ]; then
+        install -m 640 -g "$unit" "$config.bak" "$config"
+        restored=1
+    fi
+    [ -n "${with_base:-}" ] && [ -f "$base.bak" ] && install -m 600 "$base.bak" "$base"
     if [ -n "$xr" ]; then
         [ "$xr" = on ] && [ -f "$xray_config.bak" ] && install -m 640 -g xray "$xray_config.bak" "$xray_config"
-        if uses_xray; then systemctl restart xray; else systemctl stop xray; fi
+        if [ -n "$restored" ] && uses_xray; then systemctl restart xray; else systemctl stop xray; fi
     fi
-    systemctl restart "$unit"
-    err "sing-box did not start with it, previous config restored${why:+: $why}"
+    if [ -n "$restored" ]; then
+        systemctl restart "$unit"
+        err "sing-box did not start with it, previous config restored${why:+: $why}"
+    fi
+    systemctl stop "$unit"
+    err "sing-box did not start with it (no previous config to restore)${why:+: $why}"
 }
 
 # User: download the rule-sets routing $1 needs to $rules_cache (each from
@@ -277,12 +286,13 @@ EOF
 # forward the names to the ISP), then reject (fails fast instead of hanging).
 # `ct status dnat`: sing-box's auto_redirect sends TCP to its local port in
 # the nat output hook, and the filter hook still sees the pre-NAT interface.
+# Into $1 (default $ks_rules).
 write_ks_rules() {
-    local uids
+    local uids out=${1:-$ks_rules}
     uids=$(id -u "$unit") || return 1
     id -u xray >/dev/null 2>&1 && uids="$uids, $(id -u xray)"
-    mkdir -p "$(dirname "$ks_rules")"
-    cat >"$ks_rules" <<EOF
+    mkdir -p "$(dirname "$out")"
+    cat >"$out" <<EOF
 # Flicker VPN kill switch (scripts/vpn/vpn.sh), loaded by ${ks_unit}.service.
 table ${ks_table}
 delete table ${ks_table}
@@ -301,7 +311,7 @@ table ${ks_table} {
     }
 }
 EOF
-    chmod 644 "$ks_rules"
+    chmod 644 "$out"
 }
 
 ks_on() { [ -e "$ks_dropin" ]; }
@@ -311,25 +321,43 @@ ks_on() { [ -e "$ks_dropin" ]; }
 # it if it is up (the file deletes the old table first).
 refresh_ks() {
     ks_on || return 0
-    write_ks_rules && nft -c -f "$ks_rules" || return 1
+    install_ks_rules || return 1
     if systemctl is-active -q "$ks_unit"; then nft -f "$ks_rules"; fi
+}
+
+# Root: write the kill switch's table to $ks_rules only once `nft -c` takes
+# it: the unit loads that file, a broken one would leave the VPN unguarded.
+install_ks_rules() {
+    local tmp rc
+    tmp=$(mktemp) || return 1
+    write_ks_rules "$tmp" && nft -c -f "$tmp" && install -m 644 "$tmp" "$ks_rules"
+    rc=$?
+    rm -f "$tmp"
+    return $rc
 }
 
 # Root: name the TUN of config file $1 $tun_name if it is not yet (one from
 # before the TUN had a fixed name): the kill switch lets only that interface
-# through. The rest = `install` args for it. 0 = it was renamed.
+# through. The rest = `install` args for it. 0 = renamed, 1 = nothing to
+# do (named already, or no such file), 2 = the rename failed.
 name_tun() {
     local f=$1 tmp rc
     shift
     [ -r "$f" ] || return 1
     jq -e --arg n "$tun_name" '[.inbounds[]? | select(.type == "tun")] | all(.interface_name == $n)' "$f" >/dev/null &&
         return 1
-    tmp=$(mktemp) || return 1
+    tmp=$(mktemp) || return 2
     jq --arg n "$tun_name" '(.inbounds[]? | select(.type == "tun") | .interface_name) = $n' "$f" >"$tmp" &&
         sing-box check -c "$tmp" && install "$@" "$tmp" "$f"
     rc=$?
     rm -f "$tmp"
-    return $rc
+    [ $rc -eq 0 ] || return 2
+}
+
+# Root: keep a copy of $1 as $1.bak for a rollback (0600: the same secrets);
+# none (no $1) = no stale .bak either.
+backup() {
+    if [ -f "$1" ]; then install -m 600 "$1" "$1.bak"; else rm -f "$1.bak"; fi
 }
 
 # Tag of the first selector outbound (empty = none).
@@ -350,11 +378,15 @@ state)
     installed=false
     command -v sing-box >/dev/null && installed=true
     st=$(systemctl is-active "$unit" 2>/dev/null)
-    # Up only once both are. Xray dead (not starting) = only its nodes are:
-    # the probe through the active one tells (offline after the stall).
+    # Up only once both are. Xray dead (not starting: failed, stopped, or
+    # waiting out Restart= after a crash, also "activating") = only its
+    # nodes are: the probe through the active one tells (offline after the
+    # stall).
     if [ "$st" = active ] && uses_xray; then
         case $(systemctl is-active xray 2>/dev/null) in
-        activating | reloading) st=activating ;;
+        activating | reloading)
+            [ "$(systemctl show -P SubState xray 2>/dev/null)" = auto-restart ] || st=activating
+            ;;
         esac
     fi
     enabled=false
@@ -496,21 +528,38 @@ _select)
     jq --arg ms "$ms" --arg tag "$2" "$sel" "$config" >"$tmp" || err "jq failed"
     # The base too (first: if the config then fails, the next recompose
     # still picks the node), or the next recompose would switch back.
+    backup "$config"
     if [ -f "$base" ]; then
         jq --arg ms "$ms" --arg tag "$2" "$sel" "$base" >"$btmp" || err "jq failed on $base"
+        backup "$base"
+        with_base=1
         install -m 600 "$btmp" "$base" || err "cannot update $base"
     fi
     install -m 640 -g "$unit" "$tmp" "$config" || err "cannot update $config"
+    # The view only once it is up: a rollback keeps the old node shown.
+    restart_checked
     write_view || err "view update failed"
-    systemctl try-restart "$unit" || err "restart failed"
     echo "OK:$2"
     ;;
 _killswitch)
     [ "$(id -u)" -eq 0 ] || err "root only"
     if [ "$2" = on ]; then
         command -v nft >/dev/null || err "nft (nftables) is not installed"
-        write_ks_rules || err "no $unit user"
-        nft -c -f "$ks_rules" || err "nft rejected the kill switch rules"
+        id -u "$unit" >/dev/null 2>&1 || err "no $unit user"
+        install_ks_rules || err "nft rejected the kill switch rules"
+        # A config from before the TUN had a fixed name: name it, or the
+        # table would block the VPN's own interface. The base too, or the
+        # next recompose would bring the old name back. Before the switch
+        # exists: if that fails, it does not go on.
+        if [ -f "$base" ]; then
+            name_tun "$base" -m 600
+            [ $? -eq 2 ] && err "cannot name the TUN $tun_name in $base"
+        fi
+        name_tun "$config" -m 640 -g "$unit"
+        case $? in
+        0) systemctl try-restart "$unit" ;;
+        2) err "cannot name the TUN $tun_name in $config" ;;
+        esac
         cat >"$ks_unit_file" <<EOF
 # Flicker VPN kill switch (scripts/vpn/vpn.sh): pulled in by ${unit}.service,
 # stopped only by "vpn.sh stop" — it outlives a crashed sing-box.
@@ -526,11 +575,6 @@ ExecStop=-/usr/bin/nft delete table ${ks_table}
 EOF
         mkdir -p "$(dirname "$ks_dropin")"
         printf '[Unit]\nWants=%s.service\n' "$ks_unit" >"$ks_dropin"
-        # A config from before the TUN had a fixed name: name it, or the
-        # table would block the VPN's own interface. The base too, or the
-        # next recompose would bring the old name back.
-        [ -f "$base" ] && name_tun "$base" -m 600
-        name_tun "$config" -m 640 -g "$unit" && systemctl try-restart "$unit"
         # The password-free rule (if installed) learns the new unit.
         [ -e "$rule" ] && [ -n "${3:-}" ] && write_rule "$3"
         systemctl daemon-reload
@@ -581,13 +625,13 @@ _apply)
     # Backups hold the same secrets: root only.
     # Xray's uid may be new to the kill switch: let it through before it runs.
     refresh_ks || err "kill switch update failed"
-    [ -f "$config" ] && install -m 600 "$config" "$config.bak"
+    backup "$config"
     install -m 640 -g "$unit" "$ctmp" "$config"
     xr=off
     if [ -s "$ntmp" ]; then
         xr=on
         mkdir -p "$(dirname "$xray_config")"
-        [ -f "$xray_config" ] && install -m 600 "$xray_config" "$xray_config.bak"
+        backup "$xray_config"
         install -m 640 -g xray "$xtmp" "$xray_config"
     fi
     # Base and view only once it is up: a rollback keeps the old ones.
@@ -625,12 +669,15 @@ _routing | _reroute)
     [ -f "$b" ] || b=$config
     [ -f "$b" ] || err "no config yet: import a subscription first"
     # A base from before the TUN had a fixed name (the kill switch needs it).
-    [ -f "$base" ] && name_tun "$base" -m 600
+    if [ -f "$base" ]; then
+        name_tun "$base" -m 600
+        [ $? -eq 2 ] && err "cannot name the TUN $tun_name in $base"
+    fi
     install_rules "$rtmp" "$dl" || err "rule-set install failed"
     out=$(compose "$b" "$rtmp" "$otmp" "$ctmp") || err "${out#ERR:}"
     mkdir -p "$(dirname "$base")"
     [ -f "$base" ] || install -m 600 "$config" "$base"
-    [ -f "$config" ] && install -m 600 "$config" "$config.bak"
+    backup "$config"
     install -m 640 -g "$unit" "$ctmp" "$config"
     # If it does not come up, the copies below stay the old ones, so the
     # change is still pending.

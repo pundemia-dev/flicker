@@ -187,15 +187,18 @@ Scope {
         }
         onExited: code => {
             const err = opOut.text.split("\n").find(l => l.startsWith("ERR:"));
+            // 126 = pkexec: the prompt was dismissed. 127 = not authorized
+            // (no polkit agent, denied): a failure, not a cancel.
+            const cancelled = !err && code === 126;
+            // The error before `busy` clears: watchers of busy read it.
+            if (code !== 0) {
+                root.error = err ? err.substring(4) : cancelled ? "cancelled" : code === 127 ? "not authorized (polkit)" : `exit ${code}`;
+                root.errorOp = op.kind;
+            }
             root.busy = "";
             root.selecting = "";
             root.opGen++;
             if (code !== 0) {
-                // 126/127 = pkexec: the prompt was dismissed / not authorized
-                // (with an ERR: line the script itself failed).
-                const cancelled = !err && (code === 126 || code === 127);
-                root.error = err ? err.substring(4) : cancelled ? "cancelled" : `exit ${code}`;
-                root.errorOp = op.kind;
                 console.info("[vpn]", op.kind, "failed:", root.error);
                 if (!cancelled)
                     root.post("vpn:error", "accentRed", op.kind === "subscribe" || op.kind === "update"
@@ -217,6 +220,9 @@ Scope {
     // Operations that restart sing-box themselves: while one runs, the unit
     // and the kill switch pass through states that are no real change.
     readonly property bool restarting: ["select", "subscribe", "update", "routing", "killswitch"].includes(root.busy)
+    // Start / stop / restart too pass through "kill switch up, sing-box not"
+    // (it is ordered before sing-box): no "traffic blocked" for those.
+    readonly property bool holdBlocking: root.restarting || ["start", "stop", "restart"].includes(root.busy)
     // Bumped when an operation ends: a poll started before that is stale.
     property int opGen: 0
 
@@ -242,7 +248,7 @@ Scope {
                         root.profiles = s.profiles ?? [];
                     root.subscription = s.subscription;
                     root.killswitch = s.killswitch ?? false;
-                    if (!root.restarting)
+                    if (!root.holdBlocking)
                         root.blocking = s.blocking ?? false;
                     if (root.canon(s.routing) !== root.canon(root.appliedRouting))
                         root.appliedRouting = s.routing ?? {};
