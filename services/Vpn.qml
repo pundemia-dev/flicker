@@ -21,8 +21,6 @@ import "../config"
 Scope {
     id: root
     required property var events
-    // services/Polkit.qml: tells a dismissed prompt from a denial (pkexec 127).
-    property var polkit: null
 
     readonly property var cfg: Config.data.quicksettings.vpn ?? ({})
     readonly property string script: Quickshell.shellDir + "/scripts/vpn/vpn.sh"
@@ -174,7 +172,6 @@ Scope {
     function run(kind: string, args: var): void {
         root.busy = kind;
         root.error = "";
-        op.dismissed = false;
         op.kind = kind;
         op.arg = args[1] ?? "";
         op.command = [root.script, ...args];
@@ -185,21 +182,16 @@ Scope {
         id: op
         property string kind: ""
         property string arg: ""
-        // Our polkit agent's prompt ended without success during it.
-        property bool dismissed: false
         stdout: StdioCollector {
             id: opOut
         }
         onExited: code => {
             const err = opOut.text.split("\n").find(l => l.startsWith("ERR:"));
-            // pkexec: 126 = the prompt was dismissed. 127 = not authorized,
-            // which some agents also say for a dismissed prompt: a cancel when
-            // ours saw its prompt end unsuccessfully, else (no agent, denied
-            // outright) a failure. Without our agent it cannot tell: shown,
-            // no toast.
-            const ownAgent = root.polkit?.registered ?? false;
-            const cancelled = !err && (code === 126 || code === 127 && op.dismissed);
-            const unsure = !err && code === 127 && !ownAgent;
+            // pkexec: 126 = the prompt was dismissed. 127 = not authorized:
+            // no agent / denied, but some agents say so for a dismissed
+            // prompt too. Shown, no toast.
+            const cancelled = !err && code === 126;
+            const unsure = !err && code === 127;
             // The error before `busy` clears: watchers of busy read it.
             if (code !== 0) {
                 root.error = err ? err.substring(4) : cancelled ? "cancelled" : code === 127 ? "not authorized (polkit)" : `exit ${code}`;
@@ -224,14 +216,6 @@ Scope {
             root.stalled = false;
             root.refresh();
             settle.restart();
-        }
-    }
-
-    Connections {
-        target: root.polkit
-        function onFinished(success: bool): void {
-            if (op.running && !success)
-                op.dismissed = true;
         }
     }
 

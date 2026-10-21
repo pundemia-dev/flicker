@@ -107,8 +107,11 @@ here=$(dirname "$self")
 
 # Root, while restart_checked restarts the units: `state` reports
 # restarting (the panel holds the unit / kill switch it shows meanwhile).
+# It holds the root half's pid: a killed one leaves a mark that counts for
+# nothing.
 restart_mark=/run/flicker-vpn/restarting
 marking=""
+unchecked=""
 
 err() {
     [ -n "$marking" ] && rm -f "$restart_mark"
@@ -192,14 +195,18 @@ prune_rules() {
 # If it does not come up, the .bak copies go back (the view still describes
 # them; $base's too when $with_base is set), the old config is restarted
 # (and checked the same way) and this fails. Without a .bak (no config
-# before) the unit is stopped instead of left failing. Only a unit stopped
-# on purpose is left alone: a failed / restarting one is meant to run, the
-# new config gets its try.
+# before) the unit is stopped instead of left failing. A unit that is not
+# running (stopped, failed, crash-looping: maybe not the config's fault,
+# e.g. another VPN holds the routes) is not started here: $unchecked is set,
+# the change is in place for the next start, unverified.
 restart_checked() {
     local xr=${1:-} why restored="" back=""
-    [ "$(systemctl is-active "$unit" 2>/dev/null)" = inactive ] && return 0
+    if ! systemctl is-active -q "$unit"; then
+        unchecked=1
+        return 0
+    fi
     marking=1
-    mkdir -p -m 755 "$(dirname "$restart_mark")" && : >"$restart_mark"
+    mkdir -p -m 755 "$(dirname "$restart_mark")" && echo $$ >"$restart_mark"
     case $xr in
     on) systemctl restart xray ;;
     off) systemctl stop xray ;;
@@ -336,12 +343,11 @@ EOF
 # forward the names to the ISP), then reject (fails fast instead of hanging).
 # `ct status dnat`: sing-box's auto_redirect sends TCP to its local port in
 # the nat output hook, and the filter hook still sees the pre-NAT interface.
-# Into $1 (default $ks_rules).
+# Into $1 (install_ks_rules puts it in place).
 write_ks_rules() {
-    local uids out=${1:-$ks_rules}
+    local uids out=$1
     uids=$(id -u "$unit") || return 1
     id -u xray >/dev/null 2>&1 && uids="$uids, $(id -u xray)"
-    mkdir -p "$(dirname "$out")"
     cat >"$out" <<EOF
 # Flicker VPN kill switch (scripts/vpn/vpn.sh), loaded by ${ks_unit}.service.
 table ${ks_table}
@@ -428,9 +434,12 @@ state)
     installed=false
     command -v sing-box >/dev/null && installed=true
     # Before and after the units are read: a restart that starts or ends
-    # in between still counts. A mark left by a killed run goes stale.
+    # in between still counts. A mark whose writer is gone does not.
     restarting=false
-    marked() { [ -n "$(find "$restart_mark" -mmin -2 2>/dev/null)" ]; }
+    marked() {
+        local p
+        p=$(cat "$restart_mark" 2>/dev/null) && [ -n "$p" ] && [ -d "/proc/$p" ]
+    }
     marked && restarting=true
     st=$(systemctl is-active "$unit" 2>/dev/null)
     # Up only once both are. Xray dead (not starting: failed, stopped, or
@@ -494,7 +503,11 @@ stop)
     # Stop Xray too even if no node needs it any more. A deliberate stop is
     # the one thing that lowers the kill switch (also after a crash).
     units=("$unit")
-    systemctl is-active -q xray && units+=(xray)
+    # Also one waiting out Restart= after a crash (shown as activating).
+    case $(systemctl is-active xray 2>/dev/null) in
+    inactive | failed) ;;
+    *) units+=(xray) ;;
+    esac
     systemctl is-active -q "$ks_unit" && units+=("$ks_unit")
     systemctl stop "${units[@]}" || err "systemctl stop failed"
     ;;
@@ -627,7 +640,10 @@ _killswitch)
         name_tun "$config" -m 640 -g "$unit"
         case $? in
         0) restart_checked ;;
-        2) err "cannot name the TUN $tun_name in $config" ;;
+        2)
+            [ -n "${with_base:-}" ] && install -m 600 "$base.bak" "$base"
+            err "cannot name the TUN $tun_name in $config"
+            ;;
         esac
         cat >"$ks_unit_file" <<EOF
 # Flicker VPN kill switch (scripts/vpn/vpn.sh): pulled in by ${unit}.service,
@@ -709,7 +725,8 @@ _apply)
     install -m 600 "$tmp" "$base"
     write_view "$ntmp" || err "view update failed"
     rm -f "$legacy_nodes"
-    prune_rules "$routing_etc"
+    # Unverified (not running): the old rule-sets stay for a rollback by hand.
+    [ -n "$unchecked" ] || prune_rules "$routing_etc"
     echo "OK:applied"
     ;;
 _routing | _reroute)
@@ -752,7 +769,7 @@ _routing | _reroute)
     # change is still pending.
     restart_checked
     install -m 644 "$rtmp" "$routing_etc"
-    prune_rules "$rtmp"
+    [ -n "$unchecked" ] || prune_rules "$rtmp"
     # The overlay may name its own servers / keys: root only.
     if [ "$1" = _routing ]; then
         if [ -n "$otmp" ]; then install -m 600 "$otmp" "$custom_etc"; else rm -f "$custom_etc"; fi

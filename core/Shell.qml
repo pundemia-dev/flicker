@@ -32,7 +32,7 @@ Scope {
     // Airplane Mode: every radio rfkill-blocked, the previous state restored.
     Airplane { id: airplaneService; events: eventsService; bluetooth: bluetoothService; notifications: notificationsService }
     // VPN: sing-box unit + its subscription nodes (scripts/vpn/vpn.sh).
-    Vpn { id: vpnService; events: eventsService; polkit: polkitService }
+    Vpn { id: vpnService; events: eventsService }
     EventNetwork { id: eventNetworkService; events: eventsService; network: networkService }
     EventAudioOutput { id: eventAudioOutputService; events: eventsService; audio: audioService }
     // Devices as the user sees them (QS audio panel, settings → Sound) and
