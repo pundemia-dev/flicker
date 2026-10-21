@@ -187,6 +187,8 @@ Scope {
         }
         onExited: code => {
             const err = opOut.text.split("\n").find(l => l.startsWith("ERR:"));
+            // sing-box was not running: saved, not tried (vpn.sh restart_checked).
+            const unchecked = opOut.text.split("\n").some(l => l.startsWith("UNCHECKED:"));
             // pkexec: 126 = the prompt was dismissed. 127 = not authorized:
             // no agent / denied, but some agents say so for a dismissed
             // prompt too. Shown, no toast.
@@ -206,9 +208,9 @@ Scope {
                     root.post("vpn:error", "accentRed", op.kind === "subscribe" || op.kind === "update"
                         ? I18n.tr("Subscription failed") : op.kind === "routing" ? I18n.tr("Routing failed") : I18n.tr("VPN failed"));
             } else if (op.kind === "subscribe" || op.kind === "update") {
-                root.post("vpn:sub", "qsBlue", I18n.tr("Subscription updated"));
+                root.post("vpn:sub", "qsBlue", unchecked ? I18n.tr("Subscription saved · applies on next VPN start") : I18n.tr("Subscription updated"));
             } else if (op.kind === "routing") {
-                root.post("vpn:sub", "qsBlue", I18n.tr("Routing applied"));
+                root.post("vpn:sub", "qsBlue", unchecked ? I18n.tr("Routing saved · applies on next VPN start") : I18n.tr("Routing applied"));
             } else if (op.kind === "select" && root.up) {
                 root.events.cancel("vpn:off");
                 root.post("vpn:on", "qsBlue", `VPN · ${op.arg}`);

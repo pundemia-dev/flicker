@@ -107,11 +107,23 @@ here=$(dirname "$self")
 
 # Root, while restart_checked restarts the units: `state` reports
 # restarting (the panel holds the unit / kill switch it shows meanwhile).
-# It holds the root half's pid: a killed one leaves a mark that counts for
-# nothing.
+# It holds the root half's pid and start time: a killed one leaves a mark
+# that counts for nothing, also once the pid is reused.
 restart_mark=/run/flicker-vpn/restarting
 marking=""
 unchecked=""
+
+# Start time (clock ticks since boot) of process $1; fails if it is gone
+# or hidden (/proc mounted hidepid).
+proc_start() {
+    local s
+    s=$(cat "/proc/$1/stat" 2>/dev/null) || return 1
+    # After the command name, which may hold spaces and ")".
+    s=${s##*) }
+    # shellcheck disable=SC2086
+    set -- $s
+    echo "${20}"
+}
 
 err() {
     [ -n "$marking" ] && rm -f "$restart_mark"
@@ -198,15 +210,21 @@ prune_rules() {
 # before) the unit is stopped instead of left failing. A unit that is not
 # running (stopped, failed, crash-looping: maybe not the config's fault,
 # e.g. another VPN holds the routes) is not started here: $unchecked is set,
-# the change is in place for the next start, unverified.
+# the change is in place for the next start, unverified (an UNCHECKED line
+# tells the panel). A running Xray still follows its new config.
 restart_checked() {
     local xr=${1:-} why restored="" back=""
     if ! systemctl is-active -q "$unit"; then
+        case $xr in
+        on) systemctl try-restart xray ;;
+        off) systemctl stop xray ;;
+        esac
         unchecked=1
+        echo "UNCHECKED:sing-box is not running: applies on its next start"
         return 0
     fi
     marking=1
-    mkdir -p -m 755 "$(dirname "$restart_mark")" && echo $$ >"$restart_mark"
+    mkdir -p -m 755 "$(dirname "$restart_mark")" && echo "$$ $(proc_start $$)" >"$restart_mark"
     case $xr in
     on) systemctl restart xray ;;
     off) systemctl stop xray ;;
@@ -233,8 +251,12 @@ restart_checked() {
         fi
     fi
     if [ -n "$restored" ]; then
-        systemctl restart "$unit" && stays_up "$back" &&
+        if systemctl restart "$unit" && stays_up "$back"; then
+            # Xray left alone (not this change's) may be down all the same.
+            [ -z "$xr" ] && uses_xray && ! systemctl is-active -q xray &&
+                err "sing-box did not start with it, previous config restored (but Xray is down: its nodes do not work)${why:+: $why}"
             err "sing-box did not start with it, previous config restored${why:+: $why}"
+        fi
         err "sing-box did not start with it, nor with the previous config${why:+: $why}$(ks_note)"
     fi
     systemctl stop "$unit"
@@ -422,7 +444,7 @@ selector() {
 }
 
 # These go through pkexec: without it its exec fails with 127, which the
-# panel would read as a dismissed prompt.
+# panel would show as "not authorized".
 case "${1:-}" in
 killswitch | select | subscribe | update | apply)
     command -v pkexec >/dev/null || err "pkexec (polkit) is not installed"
@@ -437,8 +459,16 @@ state)
     # in between still counts. A mark whose writer is gone does not.
     restarting=false
     marked() {
-        local p
-        p=$(cat "$restart_mark" 2>/dev/null) && [ -n "$p" ] && [ -d "/proc/$p" ]
+        local p t
+        read -r p t 2>/dev/null <"$restart_mark" || return 1
+        [ -n "$p" ] || return 1
+        if [ -r /proc/1/stat ]; then
+            [ "$(proc_start "$p")" = "$t" ]
+        else
+            # hidepid: root's processes are hidden; a fresh mark only
+            # (stays_up waits ~6 s at most).
+            [ -n "$(find "$restart_mark" -newermt '-10 seconds' 2>/dev/null)" ]
+        fi
     }
     marked && restarting=true
     st=$(systemctl is-active "$unit" 2>/dev/null)
