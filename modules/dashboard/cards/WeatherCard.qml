@@ -32,9 +32,6 @@ DashboardCard {
     required property var weather
     required property var clock
 
-    readonly property int spanCols: 4
-    readonly property int spanRows: 1
-
     color: "transparent"
 
     readonly property bool ok: (weather?.available) ?? false

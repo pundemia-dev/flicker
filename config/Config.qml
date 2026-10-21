@@ -178,6 +178,8 @@ Singleton {
                     // of this many percent (10 → at 10, 20, ...; 1 = every step).
                     osdStepEvery: 10,
                     quickSettings: true,
+                    // Dashboard edit mode: enter, move snap, resize step.
+                    dashboard: true,
                     limits: true,
                     polkit: true,
                     // Wallpaper carousel: click per card passing the centre.
@@ -1199,7 +1201,22 @@ Singleton {
                     bigValueSize: 40,
                     headerTimeSize: 38,
                     headerDateSize: 19,
-                    iconSize: 30
+                    iconSize: 30,
+                    // Edit mode (long press; like Quick Settings): footer chips
+                    // + "Done", edit rim blink, resize arc. Layout itself is
+                    // state, not config: Quickshell.statePath("dashboard.json").
+                    edit: {
+                        chipSize: 34,
+                        chipSpacing: 8,
+                        doneWidth: 84,
+                        titleSize: 13,
+                        subtitleSize: 11,
+                        holdMs: 450,
+                        rimWidth: 3,
+                        rimBlinkMs: 700,
+                        arcWidth: 8,
+                        arcCurve: 0.6
+                    }
                 })
             // Quick Settings (iOS Control Center): cols x N grid of square
             // cells (unit px). Island size/radius are DERIVED

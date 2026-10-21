@@ -6,14 +6,10 @@ import "../../../config"
 // CPU / RAM / disk as three concentric rings + legend. Layout: fixed title
 // row pinned top-left, bottom row = square indicator box (left, as large as
 // fits) + legend column taking the remaining width with auto-scaled fonts.
-// 2x2 square in the grid (see DashboardModule).
+// Stock 2x2; sizes in DashCatalog.js.
 DashboardCard {
     id: root
     required property var systemUsage
-
-    // Grid footprint in units, hardcoded here (grid-first).
-    readonly property int spanCols: 2
-    readonly property int spanRows: 2
 
     readonly property real cpuFrac: (systemUsage?.cpuPerc) ?? 0
     readonly property real memFrac: (systemUsage?.memPerc) ?? 0

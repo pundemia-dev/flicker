@@ -51,6 +51,8 @@ PanelWindow {
     required property var localSend
     // Quick Settings layout state (services/ControlCenter).
     required property var controlCenter
+    // Dashboard layout state (services/DashboardLayout).
+    required property var dashboardLayout
     required property var haptics
     // Polkit agent (services/Polkit); the prompt is the `polkit` module.
     required property var polkit
@@ -327,10 +329,12 @@ PanelWindow {
     readonly property var moduleSize: {
         if (root.moduleKey === "capture")
             return root.captureFrom;
-        // Dashboard: derived from its grid metrics (unit, margins, spacing...),
+        // Dashboard: derived from its grid metrics (unit, margins, spacing...)
+        // and the layout's rows (edit mode adds a drop row + the footer),
         // incl. the concentric corner radius (card radius + margins).
         if (root.moduleKey === "dashboard")
-            return DashMetrics.islandSize(root.config.dashboard);
+            return DashMetrics.islandSize(root.config.dashboard, root.dashboardLayout.rows,
+                root.dashboardLayout.editing, root.dashboardLayout.hiddenIds.length);
         // Quick Settings: rows of the tallest (preview) page; edit mode adds
         // a drop row + the footer, several tabs add the rail.
         if (root.moduleKey === "quicksettings")
@@ -1799,6 +1803,7 @@ PanelWindow {
                         stash: root.stash,
                         localSend: root.localSend,
                         controlCenter: root.controlCenter,
+                        dashboardLayout: root.dashboardLayout,
                         haptics: root.haptics,
                         polkit: root.polkit,
                         updates: root.updates,

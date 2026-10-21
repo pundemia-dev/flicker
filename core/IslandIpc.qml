@@ -124,6 +124,24 @@ Scope {
                 root.island?.openModule("recording-actions", {});
         }
         function dashboard(): void { root.island?.openDashboard(); }
+        // Dashboard straight into edit mode (= long press on it) / a card's
+        // footprint or cell (= the resize arc / a drag; tests without a pointer).
+        function dashboardEdit(): void {
+            root.island?.openDashboard();
+            root.island?.dashboardLayout.beginEdit();
+        }
+        function dashboardResize(id: string, w: int, h: int): void {
+            const dl = root.island?.dashboardLayout;
+            dl?.previewResize(id, w, h);
+            dl?.commit();
+            dl?.save();
+        }
+        function dashboardMove(id: string, x: int, y: int): void {
+            const dl = root.island?.dashboardLayout;
+            dl?.previewMove(id, x, y);
+            dl?.commit();
+            dl?.save();
+        }
         // File tray (toggle). The drop chooser opens on its own when a file
         // is dragged over the island.
         function stash(): void { root.island?.toggleStash(); }

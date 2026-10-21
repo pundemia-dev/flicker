@@ -9,9 +9,6 @@ DashboardCard {
     id: root
     required property var clock
 
-    readonly property int spanCols: 2
-    readonly property int spanRows: 2
-
     readonly property real _pad: (dash?.cardPadding) ?? 10
     readonly property real _fs: Math.max(11, Math.round((root.width - 2 * _pad) / 7 * 0.5))
 

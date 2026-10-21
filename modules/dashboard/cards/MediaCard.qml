@@ -10,10 +10,6 @@ DashboardCard {
     id: root
     required property var players
 
-    // Grid footprint in units, hardcoded here (grid-first).
-    readonly property int spanCols: 2
-    readonly property int spanRows: 2
-
     readonly property real _pad: (dash?.cardPadding) ?? 10
     readonly property real _coverSide: Math.round((root.height - 2 * _pad) * 0.44)
     readonly property real _btnSize: Math.round(_coverSide * 0.55)

@@ -9,10 +9,6 @@ import "../../../config"
 DashboardCard {
     id: root
 
-    // Grid footprint in units, hardcoded here (grid-first).
-    readonly property int spanCols: 2
-    readonly property int spanRows: 1
-
     // Future source: [{ time: "10:30", title: "..." }].
     property var events: []
 

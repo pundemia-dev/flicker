@@ -298,6 +298,7 @@ const SIDEBAR = [
                 ] },
                 { title: "Where", dependsOn: "haptics.enabled", footer: "Steps: a tick each time volume / brightness reaches a multiple of \"Tick every\" (equal to the volume step = every press).", rows: [
                     { key: "haptics.quickSettings", label: "Quick Settings", kind: "bool" },
+                    { key: "haptics.dashboard", label: "Dashboard", kind: "bool" },
                     { key: "haptics.limits", label: "Volume / brightness limits", kind: "bool" },
                     { key: "haptics.osdSteps", label: "Volume / brightness steps", kind: "bool" },
                     { key: "haptics.osdStepEvery", dependsOn: "haptics.osdSteps", label: "Tick every", kind: "number", min: 1, max: 50, step: 1, suffix: " %" },

@@ -5,13 +5,15 @@ import "../../config"
 
 // Edit-mode footer: hidden cards as glyph chips (tap = add back at the
 // first free slot) + "Готово" (saves, leaves edit mode). Row count is
-// mirrored by QsMetrics.footerHeight.
+// mirrored by QsMetrics.footerHeight (DashMetrics.footerHeight for the
+// dashboard, which passes its own catalog's `glyphOf`).
 Item {
     id: root
     required property var cfg
     required property var theme
     property var frost: null
     required property var hiddenIds
+    property var glyphOf: id => QsCatalog.glyphOf(id)
     signal addRequested(string id)
     signal doneRequested
 
@@ -40,7 +42,7 @@ Item {
 
                 Icon {
                     anchors.centerIn: parent
-                    text: QsCatalog.glyphOf(chip.modelData)
+                    text: root.glyphOf(chip.modelData)
                     font.family: root.theme?.iconFamily ?? "tabler-icons"
                     iconSize: Math.round(chip.width * 0.5)
                     iconColor: "white"

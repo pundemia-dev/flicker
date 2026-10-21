@@ -10,9 +10,6 @@ DashboardCard {
     id: root
     required property var battery
 
-    readonly property int spanCols: 2
-    readonly property int spanRows: 1
-
     readonly property real _pad: (dash?.cardPadding) ?? 10
     readonly property real _ringBox: root.height - 2 * _pad
     readonly property real _ringW: Math.max(5, Math.round(_ringBox / 11))

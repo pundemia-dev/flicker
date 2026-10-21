@@ -36,7 +36,7 @@ user's data) live outside the repo: `CLAUDE.local.md` (git-ignored) and `~/.clau
   `compositor.focusedOutput` — never put an IpcHandler in per-screen Island. Targets: `island` (launcher (toggle), launcherPlugin <id> (apps|clipboard|wallpapers, toggle), quicksettings, quicksettingsEdit/Page/Resize/Expand, quicksettingsPanel <cmd> <arg>, stashMenu <i>,
   notifications, stash (tray toggle), capture (again while open = next mode), captureMode(shot|record|color|
   window|ai|scan), captureScreen (= Enter in the active tool), captureCancel, session (session menu toggle), screenshot
-  (instant, no overlay), record (toggle), recordPause, recordControls, dashboard, player, lyrics (player's lyrics panel toggle), updates (toggle), lock, close, minimal, island, osd, debugState,
+  (instant, no overlay), record (toggle), recordPause, recordControls, dashboard, dashboardEdit, dashboardResize, dashboardMove, player, lyrics (player's lyrics panel toggle), updates (toggle), lock, close, minimal, island, osd, debugState,
   volumeUp/Down/Mute, micMute, brightnessUp/Down, playPause, nextTrack, prevTrack, playerSeek <s>),
   `island powerSave` (Low Power Mode toggle), `island airplane` (Airplane Mode toggle), `island vpn` (VPN on/off, see VPN below), `lock` (activate/isLocked — deliberately NO unlock/toggle over IPC; unlocking needs PAM),
   keyboardDemo layout|caps, touchBarDemo <x 0..1> <ms>, shazam (listen / cancel), timer (module toggle), timerStart <min>, timerPause (toggle), timerCancel, stashTranscript <path>, stashPreview <path>,
@@ -521,7 +521,8 @@ user's data) live outside the repo: `CLAUDE.local.md` (git-ignored) and `~/.clau
   via `components/FadeBlur.qml` (blur rises as opacity falls); 4x2 = the player module
   layout (player px × `playerScale`); buttons are the player's own
   (`modules/player/{TransportBtn,SkipBtn,PressDisc}.qml`, extracted from PlayerModule); the
-  lyrics spot is an audio-output button (placeholder, no action yet); 4x4/4x6 add a
+  lyrics spot is the audio-output button (`openOutput` → `panels/AudioPanel` through the QS
+  expander, glyph = current output); 4x4/4x6 add a
   system-volume row (speaker · bar · speaker) under the transport (`audio.quiet()` → no OSD).
   4x4/4x6 (edge inset = 2× the 4x2 margin): transport row = like (placeholder) · prev · play ·
   next · output (bare grey glyph, disc springs away); the output's old spot holds
@@ -1521,10 +1522,29 @@ discovers paths once — hwmon coretemp/k10temp + every `fan*_input` under
 /sys/devices (T2 applesmc `APP0001` is NOT in /sys/class/hwmon) — and skips
 amdgpu/nouveau/radeon: a sleeping dGPU answers EBUSY, never wake it). A
 connections card (Wi-Fi/BT) was tried and rejected by the user. Tabler
-codepoints: `uvx --from fonttools` + getBestCmap(). Cards are placed
-with explicit x/y (`cellX`/`cellY`/`spanPx`), no GridLayout. Updates/Events
-cards stay in cards/ but are off the grid (empty states only);
-content adapts (adaptive fonts/row counts); live: clock header RU, CPU/RAM/disk rings via
+codepoints: `uvx --from fonttools` + getBestCmap(). Layout is editable
+like QS (Oct 2026, user: "the same as QS — an invisible grid, drag + resize"):
+the arrangement above is only the stock layout (`DashCatalog.DEFAULT_LAYOUT`);
+the live one is STATE in `services/DashboardLayout.qml`
+(`statePath("dashboard.json")`, one page, no tabs) on the shared QsGrid engine
+(pin + push, equal cards swap, empty rows squeezed). Rows grow with the
+cards: island H = `DashMetrics.islandSize(cfg, rows, editing, hidden)`, edit
+mode adds a drop row + the footer (`QsEditFooter`, reused via `glyphOf`).
+Allowed footprints per card in `DashCatalog.js` = only shapes the content
+can draw (cards no longer declare spanCols/spanRows). `DashTile` = the card
+Loader (inactive while hidden: UpdatesCard polls checkupdates) + QsCard's
+edit chrome (rim, `QsResizeArc` at cardRadius, "−"); its MouseAreas are
+disabled outside edit mode. Presses: the module owns them (bg MouseArea:
+long press → edit, swipe up > `gestures.presentationDragThreshold` →
+close, tap in edit → save + leave). A passive TapHandler for the long press
+was tried: flaky next to GestureZones' exclusive grab (lost the hold in
+one run, the swipe-up close in another). Edit keys `dashboard.edit`
+(DashMetrics.edit() supplies defaults: config.json replaces the whole
+group), haptics `haptics.dashboard`. IPC dashboardEdit / dashboardResize id
+w h / dashboardMove id x y. Verified with a uinput mouse (temp/vmouse.py
+pattern, 1:1 relative moves after homing to 0,0): long press, drag, arc
+resize, footer add, "−", tap-out, Done, swipe-up close. Updates/Events
+start hidden (footer → add); content adapts (adaptive fonts/row counts); live: clock header RU, CPU/RAM/disk rings via
 `services/SystemUsage`, battery, top processes, now-playing; weather card =
 gradient by two continuous sun factors (daylight `d` = smoothstep ramp
 ramped up at sr-45..sr+45 and down at ss-45..ss+45; horizon glow `w` =
@@ -1891,10 +1911,6 @@ Simplified / not implemented yet (see flicker.md for the intended behaviour):
   Track change: backdrop and cover are `components/CrossfadeImage.qml` (two layers,
   one Spring driver; cover pops 0.85→1 over the old one shrinking, backdrop fades
   in over an opaque old frame — `exitFade: false`, no scale >1 on clipped surfaces).
-- Player lyrics: the «Текст» pill in the player module is a visual placeholder (hover only,
-  no action — user: a layout change/lyrics view comes later). Source decided by the user:
-  lrclib.net via `curl -4` (the Weather fetch pattern, no API key) — plain + synced lyrics;
-  pShell's caelestia C++ lyrics plugin is not portable (pure QML shell).
 - Dictation layout-switch mode `dual` (hot ru+en sessions, zero-latency routing
   on layout switch) is PLANNED, not implemented: `config.dictation.switchMode`
   reserves the key, anything but `"restart"` warns and behaves as `"restart"`.

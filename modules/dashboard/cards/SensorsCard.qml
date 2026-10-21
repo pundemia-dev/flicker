@@ -10,9 +10,6 @@ DashboardCard {
     id: root
     required property var sensors
 
-    readonly property int spanCols: 2
-    readonly property int spanRows: 1
-
     readonly property real _pad: (dash?.cardPadding) ?? 10
     readonly property real temp: (sensors?.cpuTemp) ?? NaN
     readonly property bool hasTemp: isFinite(root.temp)

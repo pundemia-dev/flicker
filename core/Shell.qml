@@ -83,6 +83,7 @@ Scope {
         onStarted: islandRegistry.forOutput(compositorService.focusedOutput ?? "")?.openPolkit()
     }
     ControlCenter { id: controlCenterService; cfg: Config.data.quicksettings; haptics: hapticsService }
+    DashboardLayout { id: dashboardLayoutService; cfg: Config.data.dashboard; haptics: hapticsService }
     LocalSend {
         id: localSendService
         cfg: Config.data.stash
@@ -222,6 +223,7 @@ Scope {
                 stash: stashService
                 localSend: localSendService
                 controlCenter: controlCenterService
+                dashboardLayout: dashboardLayoutService
                 haptics: hapticsService
                 polkit: polkitService
                 updates: updatesService

@@ -10,9 +10,6 @@ import "../../../config"
 DashboardCard {
     id: root
 
-    readonly property int spanCols: 2
-    readonly property int spanRows: 1
-
     // Grid-first: the headline scales to the allocated height
     // (title + subtitle + gaps eat ~40px), clamped to the theme size.
     readonly property real _innerH: root.height - 2 * ((root.dash?.cardPadding) ?? 10)

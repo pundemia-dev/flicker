@@ -10,10 +10,6 @@ DashboardCard {
     id: root
     required property var systemUsage
 
-    // Grid footprint in units, hardcoded here (grid-first).
-    readonly property int spanCols: 4
-    readonly property int spanRows: 1
-
     readonly property int _slots: 3
     readonly property var rows: ((systemUsage?.topProcesses) ?? []).slice(0, _slots)
 

@@ -144,6 +144,8 @@ Item {
             sensors: root.services.sensors
             theme: root.services.theme
             dash: root.services.config.dashboard
+            layout: root.services.dashboardLayout
+            closeDistance: root.services.config.gestures?.presentationDragThreshold ?? 30
             onCloseRequested: root.closeRequested()
         }
     }
