@@ -21,6 +21,8 @@ import "../config"
 Scope {
     id: root
     required property var events
+    // services/Polkit.qml: tells a dismissed prompt from a denial (pkexec 127).
+    property var polkit: null
 
     readonly property var cfg: Config.data.quicksettings.vpn ?? ({})
     readonly property string script: Quickshell.shellDir + "/scripts/vpn/vpn.sh"
@@ -172,6 +174,7 @@ Scope {
     function run(kind: string, args: var): void {
         root.busy = kind;
         root.error = "";
+        op.dismissed = false;
         op.kind = kind;
         op.arg = args[1] ?? "";
         op.command = [root.script, ...args];
@@ -182,14 +185,21 @@ Scope {
         id: op
         property string kind: ""
         property string arg: ""
+        // Our polkit agent's prompt ended without success during it.
+        property bool dismissed: false
         stdout: StdioCollector {
             id: opOut
         }
         onExited: code => {
             const err = opOut.text.split("\n").find(l => l.startsWith("ERR:"));
-            // 126 = pkexec: the prompt was dismissed. 127 = not authorized
-            // (no polkit agent, denied): a failure, not a cancel.
-            const cancelled = !err && code === 126;
+            // pkexec: 126 = the prompt was dismissed. 127 = not authorized,
+            // which some agents also say for a dismissed prompt: a cancel when
+            // ours saw its prompt end unsuccessfully, else (no agent, denied
+            // outright) a failure. Without our agent it cannot tell: shown,
+            // no toast.
+            const ownAgent = root.polkit?.registered ?? false;
+            const cancelled = !err && (code === 126 || code === 127 && op.dismissed);
+            const unsure = !err && code === 127 && !ownAgent;
             // The error before `busy` clears: watchers of busy read it.
             if (code !== 0) {
                 root.error = err ? err.substring(4) : cancelled ? "cancelled" : code === 127 ? "not authorized (polkit)" : `exit ${code}`;
@@ -200,7 +210,7 @@ Scope {
             root.opGen++;
             if (code !== 0) {
                 console.info("[vpn]", op.kind, "failed:", root.error);
-                if (!cancelled)
+                if (!cancelled && !unsure)
                     root.post("vpn:error", "accentRed", op.kind === "subscribe" || op.kind === "update"
                         ? I18n.tr("Subscription failed") : op.kind === "routing" ? I18n.tr("Routing failed") : I18n.tr("VPN failed"));
             } else if (op.kind === "subscribe" || op.kind === "update") {
@@ -217,9 +227,17 @@ Scope {
         }
     }
 
-    // Operations that restart sing-box themselves: while one runs, the unit
+    Connections {
+        target: root.polkit
+        function onFinished(success: bool): void {
+            if (op.running && !success)
+                op.dismissed = true;
+        }
+    }
+
+    // A root half is restarting the units itself (vpn.sh `state`): the unit
     // and the kill switch pass through states that are no real change.
-    readonly property bool restarting: ["select", "subscribe", "update", "routing", "killswitch"].includes(root.busy)
+    property bool restarting: false
     // Start / stop / restart too pass through "kill switch up, sing-box not"
     // (it is ordered before sing-box): no "traffic blocked" for those.
     readonly property bool holdBlocking: root.restarting || ["start", "stop", "restart"].includes(root.busy)
@@ -240,6 +258,7 @@ Scope {
                     root.installed = s.installed;
                     // The profile before the unit: onUpChanged names it.
                     root.profile = s.profile ?? "";
+                    root.restarting = s.restarting ?? false;
                     if (!root.restarting)
                         root.unit = s.unit || "inactive";
                     root.enabled = s.enabled ?? false;
