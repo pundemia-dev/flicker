@@ -1992,7 +1992,7 @@ PanelWindow {
                 caffeine: root.caffeine.active,
                 powerSave: { available: root.powerMode.available, active: root.powerMode.active },
                 airplane: { available: root.airplane.available, active: root.airplane.active },
-                vpn: { status: root.vpn.status, unit: root.vpn.unit, online: root.vpn.online, profile: root.vpn.profile, profiles: root.vpn.profiles.length, busy: root.vpn.busy, error: root.vpn.error, killswitch: root.vpn.killswitch, blocking: root.vpn.blocking, pending: root.vpn.pending, routingPending: root.vpn.routingPending, customPending: root.vpn.customPending },
+                vpn: { status: root.vpn.status, unit: root.vpn.unit, online: root.vpn.online, profile: root.vpn.profile, profiles: root.vpn.profiles.length, busy: root.vpn.busy, error: root.vpn.error, killswitch: root.vpn.killswitch, blocking: root.vpn.blocking, restarting: root.vpn.restarting, holdBlocking: root.vpn.holdBlocking, pending: root.vpn.pending, routingPending: root.vpn.routingPending, customPending: root.vpn.customPending },
                 keyboard: {
                     what: root.keyboard.what,
                     label: root.keyboard.label,

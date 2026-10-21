@@ -105,9 +105,9 @@ tun_name=flicker-tun
 self=$(realpath "$0")
 here=$(dirname "$self")
 
-# Root, while restart_checked restarts the units, holds a lock on this
-# file: `state` reports restarting (the panel holds the unit / kill switch
-# it shows meanwhile). The kernel drops it with the holder, however it ends.
+# Root halves hold a lock on this file (lock_ops): `state` reports
+# restarting (the panel holds the unit / kill switch it shows meanwhile).
+# The kernel drops it with the holder, however it ends.
 restart_mark=/run/flicker-vpn/restarting
 unchecked=""
 
@@ -189,32 +189,28 @@ prune_rules() {
 # Root: restart the running unit on the just-installed $config and make sure
 # it stays up: what `check` cannot see fails only at start. $1 = Xray with
 # it: "on" (restart on the new $xray_config), "off" (stop), "" (untouched).
-# If it does not come up, the .bak copies go back (the view still describes
-# them; $base's too when $with_base is set), the old config is restarted
-# (and checked the same way) and this fails. Without a .bak (no config
-# before) the unit is stopped instead of left failing. A unit that is not
+# If it does not come up, roll_back (the view still describes the .bak
+# copies: it is written only after this). A unit that is not
 # running (stopped, failed, crash-looping: maybe not the config's fault,
 # e.g. another VPN holds the routes) is not started here: $unchecked is set,
 # the change is in place for the next start, unverified (an UNCHECKED line
 # tells the panel). A running Xray still follows its new config.
 restart_checked() {
-    local xr=${1:-} why restored="" back="" xu=""
+    local xr=${1:-} xu=""
     [ "$xr" = on ] && xu=xray
     if ! systemctl is-active -q "$unit"; then
         case $xr in
         on)
-            # A running Xray is checked on its new config: if it does not
-            # stay up, both configs go back (the sing-box one names its
-            # ports / keys).
-            if systemctl is-active -q xray; then
+            # A running (or starting) Xray is checked on its new config: if
+            # it does not stay up, the configs go back (the sing-box one
+            # names its ports / keys).
+            case $(systemctl is-active xray 2>/dev/null) in
+            inactive | failed) ;;
+            *)
                 systemctl restart xray
-                if ! stays_up xray; then
-                    [ -f "$config.bak" ] && install -m 640 -g "$unit" "$config.bak" "$config"
-                    [ -f "$xray_config.bak" ] && install -m 640 -g xray "$xray_config.bak" "$xray_config"
-                    systemctl restart xray
-                    err "Xray did not start with it, previous config restored"
-                fi
-            fi
+                stays_up xray || roll_back xray on
+                ;;
+            esac
             ;;
         off) systemctl stop xray ;;
         esac
@@ -222,67 +218,95 @@ restart_checked() {
         echo "UNCHECKED:sing-box is not running: applies on its next start"
         return 0
     fi
-    mkdir -p -m 755 "$(dirname "$restart_mark")"
-    exec 9>"$restart_mark" && chmod 644 "$restart_mark" && flock 9
     case $xr in
     on) systemctl restart xray ;;
     off) systemctl stop xray ;;
     esac
     # shellcheck disable=SC2086 # $xu: none or one word
-    if systemctl restart "$unit" && stays_up "$unit" $xu; then
-        exec 9>&-
-        return 0
-    fi
-    why=$(journalctl -u "$unit" ${xr:+-u xray} -n 20 -o cat --since "-10s" 2>/dev/null | grep -iE 'fatal|error' |
+    systemctl restart "$unit" && stays_up "$unit" $xu && return 0
+    roll_back "$unit" "$xr"
+}
+
+# Root: $1 (sing-box or xray) did not come up on the new configs ($2 = Xray
+# as for restart_checked). The .bak copies go back ($base's too with
+# $with_base), what ran before runs again and is checked the same way, and
+# this fails, saying how that went. A config without a .bak (none before)
+# is not run again: sing-box is stopped instead of left failing.
+roll_back() {
+    local what=$1 xr=${2:-} name=sing-box why restored="" xrestored="" up=()
+    [ "$what" = xray ] && name=Xray
+    why=$(journalctl -u "$what" ${xr:+-u xray} -n 20 -o cat --since "-10s" 2>/dev/null | grep -iE 'fatal|error' |
         tail -n 1 | sed 's/\x1b\[[0-9;]*m//g')
     if [ -f "$config.bak" ]; then
         install -m 640 -g "$unit" "$config.bak" "$config"
         restored=1
     fi
     [ -n "${with_base:-}" ] && [ -f "$base.bak" ] && install -m 600 "$base.bak" "$base"
+    if [ "$xr" = on ] && [ -f "$xray_config.bak" ]; then
+        install -m 640 -g xray "$xray_config.bak" "$xray_config"
+        xrestored=1
+    fi
+    if [ "$what" = "$unit" ] && [ -z "$restored" ]; then
+        [ -n "$xr" ] && systemctl stop xray
+        systemctl stop "$unit"
+        err "sing-box did not start with it (no previous config to restore)${why:+: $why}$(ks_note)"
+    fi
+    # Xray, if this touched it: on its old config if the old setup uses it,
+    # else stopped.
     if [ -n "$xr" ]; then
-        [ "$xr" = on ] && [ -f "$xray_config.bak" ] && install -m 640 -g xray "$xray_config.bak" "$xray_config"
-        if [ -n "$restored" ] && uses_xray; then
+        if uses_xray && { [ "$xr" = off ] || [ -n "$xrestored" ]; }; then
             systemctl restart xray
-            back=xray
+            up+=(xray)
         else
             systemctl stop xray
         fi
     fi
-    if [ -n "$restored" ]; then
-        # shellcheck disable=SC2086 # $back: none or one word
-        if systemctl restart "$unit" && stays_up "$unit" $back; then
-            # Xray left alone (not this change's) may be down all the same.
-            [ -z "$xr" ] && uses_xray && [ "$(xray_state)" = down ] &&
-                err "sing-box did not start with it, previous config restored (but Xray is down or restarting after a crash: its nodes do not work now)${why:+: $why}"
-            err "sing-box did not start with it, previous config restored${why:+: $why}"
-        fi
-        err "sing-box did not start with it, nor with the previous config${why:+: $why}$(ks_note)"
+    if [ "$what" = "$unit" ]; then
+        systemctl restart "$unit"
+        up=("$unit" "${up[@]}")
     fi
-    systemctl stop "$unit"
-    err "sing-box did not start with it (no previous config to restore)${why:+: $why}$(ks_note)"
+    [ ${#up[@]} -gt 0 ] && ! stays_up "${up[@]}" &&
+        err "$name did not start with it, nor with the previous config${why:+: $why}$(ks_note)"
+    [ "$what" = xray ] && [ -z "$xrestored" ] &&
+        err "Xray did not start with it (no previous config to restore: stopped)${why:+: $why}"
+    # Xray left alone (not this change's) may be down all the same.
+    [ -z "$xr" ] && uses_xray && [ "$(xray_state)" = down ] &&
+        err "$name did not start with it, previous config restored (but Xray is down or restarting after a crash: its nodes do not work now)${why:+: $why}"
+    err "$name did not start with it, previous config restored${why:+: $why}"
 }
 
-# Root: the units $@ come up and stay up for a second; a failed / stopped
+# Root: the units $@ come up and stay up for a second; any failed / stopped
 # one ends the wait early, ~6 s at most.
 stays_up() {
     local i u s n=0
     for i in $(seq 30); do
         sleep 0.2
+        s=active
         for u in "$@"; do
-            s=$(systemctl is-active "$u" 2>/dev/null)
-            [ "$s" = active ] || break
+            case $(systemctl is-active "$u" 2>/dev/null) in
+            active) ;;
+            failed | inactive) return 1 ;;
+            *) s=starting ;;
+            esac
         done
-        case $s in
-        active)
+        if [ "$s" = active ]; then
             n=$((n + 1))
             [ $n -ge 5 ] && return 0
-            ;;
-        failed | inactive) return 1 ;;
-        *) n=0 ;;
-        esac
+        else
+            n=0
+        fi
     done
     return 1
+}
+
+# Root halves that change configs run one at a time: an exclusive lock on
+# $restart_mark, taken before their .bak copies (a second one would
+# overwrite the first's rollback). `state` reads it as restarting. 30 s at
+# most: the file is world-readable, anyone can hold a shared lock on it.
+lock_ops() {
+    mkdir -p -m 755 "$(dirname "$restart_mark")" || err "cannot create $(dirname "$restart_mark")"
+    exec 9>>"$restart_mark" && chmod 644 "$restart_mark" || err "cannot open $restart_mark"
+    flock -w 30 9 || err "another VPN operation is still running"
 }
 
 # Xray: up | starting | down (failed, stopped, or waiting out Restart= after
@@ -621,6 +645,7 @@ setup)
 # Root halves (pkexec) -------------------------------------------------------
 _select)
     [ "$(id -u)" -eq 0 ] || err "root only"
+    lock_ops
     ms=$(selector)
     [ -n "$ms" ] || err "no selector outbound in $config"
     jq -e --arg ms "$ms" --arg tag "$2" \
@@ -651,6 +676,7 @@ _select)
     ;;
 _killswitch)
     [ "$(id -u)" -eq 0 ] || err "root only"
+    lock_ops
     if [ "$2" = on ]; then
         command -v nft >/dev/null || err "nft (nftables) is not installed"
         id -u "$unit" >/dev/null 2>&1 || err "no $unit user"
@@ -706,6 +732,7 @@ EOF
     ;;
 _apply)
     [ "$(id -u)" -eq 0 ] || err "root only"
+    lock_ops
     # Not *.json and not in /etc/sing-box: the unit merges every *.json there.
     tmp=$(mktemp) || err "mktemp"
     xtmp=$(mktemp) || err "mktemp"
@@ -761,6 +788,7 @@ _apply)
     ;;
 _routing | _reroute)
     [ "$(id -u)" -eq 0 ] || err "root only"
+    lock_ops
     # $2 the routing (JSON text, not a path: a password-free caller could
     # name a root-only file, which would end up 0644 in $routing_etc).
     # _routing (polkit asks): $3 the user's overlay (may be missing), $4 the
