@@ -86,6 +86,10 @@ user's data) live outside the repo: `CLAUDE.local.md` (git-ignored) and `~/.clau
   fullscreen = top-level `State.fullscreen[].output` (window `mode: "Fit"` is NOT
   fullscreen), no workspaces; protocol source in /usr/src/debug/driftwm/*/src/ipc/protocol.rs.
   Backends get `active` from Detect — only the detected one polls/subscribes.
+  Hyprland backend: `hyprctl -j monitors/workspaces/clients`, refreshed on any `.socket2.sock`
+  event (debounced) + poll every 2×`pollMs` (drag/resize emits no event); fullscreen = client
+  `fullscreen` 2/3 (1 = maximized). KeyboardLayout: `hyprctl -j devices` main keyboard +
+  `activelayout>>KB,LAYOUT` (full XKB names). Verified in a nested Hyprland 0.56 (Oct 2026).
 - Compositor exposes per-screen state: `perScreen` map + `fullscreenOn(name)`/`workspaceOn(name)`
   with global fallback. Island uses `screen.name`. Niri backend polls `windows` + `workspaces`
   + `outputs`; this niri (26.04) has NO `is_fullscreen` in windows JSON, so fullscreen =

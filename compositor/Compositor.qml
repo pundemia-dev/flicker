@@ -50,6 +50,6 @@ Item {
     function stopRecording(): void { recorder?.stop(); }
 
     Niri { id: niriBackend; active: root.detect.backendName === "niri" }
-    Hyprland { id: hyprBackend }
+    Hyprland { id: hyprBackend; active: root.detect.backendName === "hyprland" }
     Drift { id: driftBackend; active: root.detect.backendName === "drift" }
 }

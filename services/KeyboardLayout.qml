@@ -15,7 +15,10 @@ import "../config"
 // after non-text keys).
 // niri: long-lived `niri msg --json event-stream`; the stream replays
 // KeyboardLayoutsChanged on connect, then KeyboardLayoutSwitched per tap.
-// Anything else (hyprland/…) is untracked: lang stays "" and dictation
+// hyprland: one-shot `hyprctl -j devices` (main keyboard's active_keymap),
+// then `activelayout>>KEYBOARD,LAYOUT` lines on the event socket
+// (.socket2.sock); virtual keyboards (wtype/dictation typer) are ignored.
+// Anything else is untracked: lang stays "" and dictation
 // falls back to its configured language.
 Item {
     id: root
@@ -33,6 +36,8 @@ Item {
         const desktop = (Quickshell.env("XDG_CURRENT_DESKTOP") ?? "").toLowerCase();
         if (desktop.indexOf("drift") !== -1)
             return "drift";
+        if ((Quickshell.env("HYPRLAND_INSTANCE_SIGNATURE") ?? "").length > 0)
+            return "hyprland";
         return "";
     }
 
@@ -80,6 +85,8 @@ Item {
                 driftSub.command = ["driftwm", "msg", "subscribe", "--json"];
                 driftSub.running = true;
             }
+        } else if (root._backend === "hyprland") {
+            hyprEvents.connected = true;
         } else if (root._backend === "niri") {
             if (!niriSub.running) {
                 niriSub.command = ["niri", "msg", "--json", "event-stream"];
@@ -101,8 +108,54 @@ Item {
             driftInit.command = ["driftwm", "msg", "--json", "state"];
             driftInit.running = true;
             root._startWatcher();
+        } else if (root._backend === "hyprland") {
+            hyprInit.running = true;
+            root._startWatcher();
         } else if (root._backend === "niri") {
             root._startWatcher();
+        }
+    }
+
+    Process {
+        id: hyprInit
+        command: ["hyprctl", "-j", "devices"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try {
+                    const kbs = JSON.parse(text ?? "")?.keyboards ?? [];
+                    const kb = kbs.find(k => k.main) ?? kbs.find(k => (k.name ?? "").indexOf("virtual") === -1) ?? null;
+                    if (kb)
+                        root._set(kb.active_keymap ?? "", "");
+                } catch (e) {
+                    console.warn("[KeyboardLayout] hyprland devices parse:", e);
+                }
+            }
+        }
+    }
+
+    Socket {
+        id: hyprEvents
+        path: {
+            const sig = Quickshell.env("HYPRLAND_INSTANCE_SIGNATURE") ?? "";
+            return sig.length > 0 ? `${Quickshell.env("XDG_RUNTIME_DIR") ?? ""}/hypr/${sig}/.socket2.sock` : "";
+        }
+        parser: SplitParser {
+            onRead: line => {
+                const l = line ?? "";
+                if (!l.startsWith("activelayout>>"))
+                    return;
+                const body = l.slice("activelayout>>".length);
+                const comma = body.indexOf(",");
+                if (comma < 0 || body.slice(0, comma).indexOf("virtual") !== -1)
+                    return;
+                root._set(body.slice(comma + 1), "");
+            }
+        }
+        onConnectedChanged: {
+            if (!connected && root._backend === "hyprland") {
+                console.warn("[KeyboardLayout] hyprland event socket closed — retrying");
+                retryTimer.restart();
+            }
         }
     }
 
