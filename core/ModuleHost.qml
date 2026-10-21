@@ -154,6 +154,8 @@ Item {
             theme: root.services.theme
             haptics: root.services.haptics
             cfg: root.services.config.dashboard
+            lyricsCfg: root.services.config.lyrics ?? ({})
+            baseWidth: (root.services.config.modules ?? {}).player?.width ?? 360
             surfaceRadius: root.services.config.island.radius
             onCloseRequested: root.closeRequested()
         }

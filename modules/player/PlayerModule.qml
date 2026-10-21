@@ -6,7 +6,9 @@ import "../../config"
 
 // Player module: full-height cover on the left (rounded like dashboard
 // cards); right column = track title (bold) + artist with the lyrics button
-// beside that block, pinned to the TOP edge; transport buttons attached with
+// beside that block, pinned to the TOP edge (the button opens the lyrics
+// panel: the island grows by `lyrics.panelWidth` to the right, the player
+// part keeps its config width — core/Island moduleSize); transport buttons attached with
 // a gap above the progress block (bar + elapsed / remaining), which is
 // pinned to the BOTTOM edge. Position ticking follows the documented
 // MprisPlayer pattern: reads are live, but positionChanged must be emitted
@@ -20,6 +22,11 @@ Item {
     property var theme: null
     property var haptics: null
     property var cfg: null
+    // Lyrics panel config (Config.data.lyrics) and the player part's own
+    // width (config.modules.player.width): the panel lives right of it.
+    property var lyricsCfg: ({})
+    property real baseWidth: width
+    readonly property var lyrics: players.lyrics
     // Island corner radius: the backdrop fills the whole module and the
     // island's clip is rectangular, so the art rounds itself.
     property real surfaceRadius: 0
@@ -81,9 +88,13 @@ Item {
     }
 
     Row {
-        anchors.fill: parent
+        id: main
+        anchors.left: parent.left
+        anchors.top: parent.top
+        anchors.bottom: parent.bottom
         // 12 -> 21: module-edge to content gap (spec: x1.75).
         anchors.margins: 16
+        width: root.baseWidth - 32
         spacing: 14
 
         // Cover slot (shared element "cover", see core/TransitionLayer):
@@ -148,22 +159,21 @@ Item {
                     }
                 }
 
-                // Lyrics toggle: placeholder only — a layout change (lyrics
-                // view) comes later; source decided: lrclib.net via curl
-                // (Weather fetch pattern). No action wired yet.
+                // Lyrics toggle: lit while the panel is shown.
                 Rectangle {
                     id: lyricsBtn
                     anchors.verticalCenter: parent.verticalCenter
                     width: 42
                     height: 42
                     radius: 21
-                    color: lyricsMa.containsMouse ? "#40FFFFFF" : "#26FFFFFF"
+                    color: root.lyrics.shown ? (lyricsMa.containsMouse ? "#F2FFFFFF" : "#DDFFFFFF")
+                        : lyricsMa.containsMouse ? "#40FFFFFF" : "#26FFFFFF"
 
                     Text {
                         id: lyricsLabel
                         anchors.centerIn: parent
                         text: "\ufebc"
-                        color: "#DFE6F2"
+                        color: root.lyrics.shown ? "#1C1F24" : "#DFE6F2"
                         font.family: root.iconFamily
                         font.pixelSize: 20
                     }
@@ -171,6 +181,8 @@ Item {
                         id: lyricsMa
                         anchors.fill: parent
                         hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: root.lyrics.toggle()
                     }
                 }
             }
@@ -247,5 +259,21 @@ Item {
                 }
             }
         }
+    }
+
+    // Lyrics panel right of the player part; the island's growth reveals it.
+    LyricsView {
+        id: lyricsView
+        x: root.baseWidth - 16 + (root.lyricsCfg.gap ?? 18)
+        y: 8
+        width: (root.lyricsCfg.panelWidth ?? 300) - (root.lyricsCfg.gap ?? 18)
+        height: parent.height - 16
+        lyrics: root.lyrics
+        player: root.player
+        cfg: root.lyricsCfg
+        running: root.lyrics.shown
+        opacity: root.lyrics.shown ? 1 : 0
+        visible: opacity > 0.01
+        Behavior on opacity { Spring { stiffness: 3; damp: 0.5; eps: 0.005 } }
     }
 }

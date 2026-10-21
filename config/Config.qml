@@ -1351,6 +1351,36 @@ Singleton {
                     fetchTimeoutSec: 10,
                     cacheMax: 200
                 })
+            // Lyrics panel of the player module (services/Lyrics.qml +
+            // modules/player/LyricsView.qml): the island grows by panelWidth
+            // to the right. lrclib.net + NetEase + Genius via scripts/lyrics/fetch.py, cached;
+            // a miss is retried after noneTtlSec; deadlineSec caps one whole
+            // lookup (all sources). sources: tried in order
+            // (local .lrc next to the file, lrclib, netease, genius); a synced
+            // hit wins over plain text from an earlier source. offsetMs shifts every
+            // synced line (+ = later), leadSec switches a line that much
+            // early. Wheel / drag scroll stops the auto-follow for
+            // followDelayMs; a gap of gapDotsSec+ between lines (or before
+            // the first one) shows the breathing dots.
+            property var lyrics: ({
+                    panelWidth: 300,
+                    sources: ["local", "lrclib", "netease", "genius"],
+                    gap: 18,
+                    fontSize: 15,
+                    lineSpacing: 9,
+                    fadeEdge: 0.22,
+                    pastOpacity: 0.4,
+                    nextOpacity: 0.55,
+                    inactiveScale: 0.94,
+                    offsetMs: 0,
+                    leadSec: 0.15,
+                    followDelayMs: 3000,
+                    gapDotsSec: 4,
+                    debounceMs: 400,
+                    fetchTimeoutSec: 10,
+                    deadlineSec: 30,
+                    noneTtlSec: 43200
+                })
             // Shape-built volume glyph (components/VolumeIcon.qml): timed arc
             // fade + pulse()/wave() bump (up OutCubic, down InOutCubic); only
             // the mute slash is a spring.

@@ -132,6 +132,16 @@ Scope {
         // Quick Look of a file (any path; ← / → walk the tray).
         function stashPreview(path: string): void { root.island?.openModule("stash", { view: "preview", file: path, returnView: "tray" }); }
         function player(): void { root.island?.openModule("player", {}); }
+        // Lyrics panel toggle; opens the player first when it is not shown.
+        function lyrics(): void {
+            const open = root.island?.moduleOpen && root.island.state.activeModule === "player";
+            if (!open) {
+                root.players.lyrics.shown = true;
+                root.island?.openModule("player", {});
+            } else {
+                root.players.lyrics.toggle();
+            }
+        }
         // System updates (pending list / the live run), toggle.
         function updates(): void {
             if (root.island?.moduleOpen && root.island.state.activeModule === "updates")

@@ -828,5 +828,10 @@
   "Corner radius": "Скругление",
   "Suction along the screen": "Присасывание по экрану",
   "Suction up the tab": "Присасывание по язычку",
-  "Suction strength": "Сила присасывания"
+  "Suction strength": "Сила присасывания",
+  "Searching for lyrics…": "Ищем текст…",
+  "Couldn't load lyrics": "Не удалось загрузить текст",
+  "Instrumental": "Инструментал",
+  "No lyrics found": "Текст не найден",
+  "Tap to retry": "Нажмите, чтобы повторить"
 }

@@ -111,6 +111,11 @@ ls -t "$(dirname "$f")" | tail -n +$(($4 + 1)) | sed "s|^|$(dirname "$f")/|" | x
         }
     }
 
+    // Lyrics of the active track (player module's lyrics panel).
+    property Lyrics lyrics: Lyrics {
+        players: root
+    }
+
     function playPause(): void {
         if (active?.canTogglePlaying)
             active.togglePlaying();

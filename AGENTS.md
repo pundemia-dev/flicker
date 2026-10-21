@@ -36,7 +36,7 @@ user's data) live outside the repo: `CLAUDE.local.md` (git-ignored) and `~/.clau
   `compositor.focusedOutput` — never put an IpcHandler in per-screen Island. Targets: `island` (launcher (toggle), launcherPlugin <id> (apps|clipboard|wallpapers, toggle), quicksettings, quicksettingsEdit/Page/Resize/Expand, quicksettingsPanel <cmd> <arg>, stashMenu <i>,
   notifications, stash (tray toggle), capture (again while open = next mode), captureMode(shot|record|color|
   window|ai|scan), captureScreen (= Enter in the active tool), captureCancel, session (session menu toggle), screenshot
-  (instant, no overlay), record (toggle), recordPause, recordControls, dashboard, player, updates (toggle), lock, close, minimal, island, osd, debugState,
+  (instant, no overlay), record (toggle), recordPause, recordControls, dashboard, player, lyrics (player's lyrics panel toggle), updates (toggle), lock, close, minimal, island, osd, debugState,
   volumeUp/Down/Mute, micMute, brightnessUp/Down, playPause, nextTrack, prevTrack, playerSeek <s>),
   `island powerSave` (Low Power Mode toggle), `island airplane` (Airplane Mode toggle), `island vpn` (VPN on/off, see VPN below), `lock` (activate/isLocked — deliberately NO unlock/toggle over IPC; unlocking needs PAM),
   keyboardDemo layout|caps, touchBarDemo <x 0..1> <ms>, shazam (listen / cancel), timer (module toggle), timerStart <min>, timerPause (toggle), timerCancel, stashTranscript <path>, stashPreview <path>,
@@ -152,6 +152,15 @@ user's data) live outside the repo: `CLAUDE.local.md` (git-ignored) and `~/.clau
   (`haptics.wallpapers`; recording speed ruler = click per value passing the centre while scrolled /
   dragged, `haptics.recordSpeed`, haptics reach plugins via `LauncherPlugin.host.haptics`). Explicitly NOT wanted: GestureZones swipes, dashboard drawer
   threshold, notification swipe, QS tab rubber band. Probe/CLI tools in `temp/haptic/`.
+- Lyrics (Oct 2026): `services/Lyrics.qml` is owned by Players (`players.lyrics`, no Shell
+  wiring) and runs `scripts/lyrics/fetch.py` (`lyrics.sources`: local .lrc next to the file →
+  lrclib → NetEase (synced) → Genius (plain, last resort); synced beats plain; urllib forced to
+  IPv4; name variants split "A/B" artist tags and drop (…) title tails; cache incl. misses in
+  `cachePath("lyrics")`). Musixmatch was tried: its anonymous token (`000000…`) only returns a
+  fixed placeholder track — unusable without a real user token; Yandex Music answers 451. `lyrics.shown` widens the player island by `lyrics.panelWidth`
+  (Island moduleSize); the player part keeps `modules.player.width`. `LyricsView`: springs only,
+  tap = seek via TapHandler (passive grab — swipe-up close still works), edge fade is per-line
+  opacity (MultiEffect masks are binary here). Config group `lyrics`.
 - `Process.signal(2)` sends SIGINT (pShell pattern); `terminate("SIGINT")` does NOT work —
   use `signal()` for graceful stops (see Dictation).
 - ContentSwap commits content at the handover (after the blur-in stage): Island renders `shownModule`/

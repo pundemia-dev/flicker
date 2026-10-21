@@ -381,6 +381,9 @@ PanelWindow {
         const all = root.config.modules ?? {};
         const size = all[root.moduleKey] ?? all[root.state.activeModule]
             ?? ({ width: root.islandCfg.moduleWidth, height: root.islandCfg.moduleHeight });
+        // Player: the lyrics panel widens the island to the right.
+        if (root.moduleKey === "player" && (root.players.lyrics?.shown ?? false))
+            return { width: size.width + (root.config.lyrics?.panelWidth ?? 300), height: size.height, radius: size.radius };
         // Recording controls: width fits the row so the side gaps equal
         // the top/bottom gap (the module reports it once rendered).
         if (root.moduleKey === "recording-actions" && root.shownModule === "recording-actions"
