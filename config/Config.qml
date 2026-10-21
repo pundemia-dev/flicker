@@ -803,10 +803,11 @@ Singleton {
             // instead. The bar covers `span` of the screen width, centred,
             // moved by `offset` (fractions). color "" = corners.color.
             // suction* = the concave curve joining the tab to the edge:
-            // px along the screen, px up the side (past the straight side it
-            // climbs onto the corner arc and joins it), curve strength 0..1.
+            // px along the screen, px up the side, curve strength 0..1;
+            // `radius` = the rounding from the top of the suction into the
+            // top edge (px along the top), not a rectangle corner.
             // screens: "internal" (eDP) or "all". outline = a rim of `width`
-            // px in `color` (ARGB) around the tab; along the suction it fades
+            // physical px in `color` (ARGB) around the tab; along the suction it fades
             // out from `fadeFrom` (0 = join, 1 = foot) to `tail` px past it.
             property var touchBar: ({
                     enabled: true,

@@ -21,6 +21,13 @@ PanelWindow {
     readonly property bool internal: /^(eDP|LVDS|DSI)/.test(root.targetScreen?.name ?? "")
     readonly property real tabHeight: root.cfg.height ?? 12
     readonly property color tabColor: root.cfg.color || Config.data.corners?.color || "#101115"
+    // Straight edges sit on the physical pixel grid and the rim is whole
+    // physical pixels: at a fractional scale (1.25) a 1 px line between
+    // pixels is smeared over two rows.
+    readonly property real dpr: root.targetScreen?.devicePixelRatio || 1
+    function snap(v: real): real {
+        return Math.round(v * root.dpr) / root.dpr;
+    }
 
     visible: root.touchBar.enabled && (root.internal || root.cfg.screens === "all")
     color: "transparent"
@@ -31,8 +38,15 @@ PanelWindow {
     anchors.bottom: true
     anchors.left: true
     anchors.right: true
-    // Room for the spring overshoot.
-    implicitHeight: Math.ceil(root.tabHeight * 1.6) + 4
+    // Room for the spring overshoot; a height that is whole physical pixels
+    // too, so the base (y = height) is on the grid.
+    implicitHeight: {
+        const need = Math.ceil(root.tabHeight * 1.6) + 4;
+        for (let hh = need; hh < need + 8; hh++)
+            if (Math.abs(hh * root.dpr - Math.round(hh * root.dpr)) < 1e-6)
+                return hh;
+        return need;
+    }
 
     mask: Region {}
 
@@ -83,56 +97,48 @@ PanelWindow {
 
             // Tab geometry with the outline pushed `d` px outwards (d = 0:
             // the fill, d = outline.width: the rim drawn under it): same
-            // corner centres and the same join angle, so the rim stays even
-            // along the suction too.
+            // centres, radii + d, so the rim stays even all along.
             //
-            // Suction = a concave cubic from `suctionSpread` px out along the
-            // screen edge (horizontal there) up to `suctionRise` px. Above the
-            // straight side it climbs onto the corner arc and joins it
-            // tangentially at that height, the arc rounding the rest. Its
-            // control points sit `suctionStrength` of the way towards the
-            // corner where the two tangents cross: 0 = a straight chamfer,
-            // ~0.55 = an elliptic arc, 1 = pulled tight into the corner.
+            // Profile of a side, from the screen edge up: suction = a concave
+            // cubic from `suctionSpread` px out along the edge (horizontal
+            // there) up to `suctionRise` px (vertical there), its control
+            // points `suctionStrength` of the way towards the corner where
+            // the two tangents cross (0 = a straight chamfer, ~0.55 = an
+            // elliptic arc, 1 = pulled tight into the corner). Then the
+            // rounding: a convex quarter ellipse from the top of the suction
+            // straight into the top edge, `radius` px along the top and the
+            // rest of the height up — no rectangle corner in between.
+            // Without suction it is a plain rounded corner.
             function geo(d: real): var {
-                const h = tab.h, w = tab.curW, b = root.height;
-                if (h < 0.3 || w < 1)
+                if (tab.h < 0.3 || tab.curW < 1)
                     return null;
-                const r = Math.max(0, Math.min(root.cfg.radius ?? 6, w / 2, h));
+                const h = root.snap(tab.h), b = root.height;
+                const r = Math.max(0, Math.min(root.cfg.radius ?? 6, tab.curW / 2));
                 const sx = Math.max(0, root.cfg.suctionSpread ?? 8);
                 const sy = Math.min(Math.max(0, root.cfg.suctionRise ?? 6), h * 0.95);
                 const k = Math.max(0, Math.min(1, root.cfg.suctionStrength ?? 0.55));
-                const g = { d, b, r, R: r + d, cy: b - h + r, top: b - h - d, yb: b - d, pts: null };
+                const on = sx > d && sy > 0;
+                const ry = on ? h - sy : Math.min(r, h);
+                const g = { d, b, r, rx: r + d, ry: ry + d, cy: b - h + ry, top: b - h - d, yb: b - d, pts: null };
                 // Left half in x offsets from the tab's left edge; the right
                 // half is its mirror (rt - u).
-                const l = tab.cx - w / 2, rt = tab.cx + w / 2;
+                const l = root.snap(tab.cx - tab.curW / 2), rt = root.snap(tab.cx + tab.curW / 2);
                 g.L = u => l + u;
                 g.M = u => rt - u;
-                if (sx > 0 && sy > 0 && sx > d) {
-                    // Join angle on the arc (0 = still on the straight side).
-                    const sin = r > 0 && b - sy < g.cy ? Math.min(0.98, (g.cy - (b - sy)) / r) : 0;
-                    const cos = Math.sqrt(1 - sin * sin);
-                    const p = sin > 0 ? [r - g.R * cos, g.cy - g.R * sin] : [-d, b - sy];
-                    if (p[1] < g.yb) {
-                        // Crossing of the edge with the tangent at p.
-                        const x = [p[0] - (g.yb - p[1]) * sin / cos, g.yb];
-                        const f = [Math.min(-sx, x[0]), g.yb];
-                        g.pts = { f, p, onArc: sin > 0,
-                            c1: [f[0] + k * (x[0] - f[0]), g.yb],
-                            c2: [p[0] + k * (x[0] - p[0]), p[1] + k * (x[1] - p[1])] };
-                    }
+                if (on) {
+                    const p = [-d, b - sy], f = [-sx, g.yb];
+                    // Tangent crossing: straight below p on the edge.
+                    g.pts = { f, p, c1: [f[0] + k * (p[0] - f[0]), g.yb], c2: [p[0], p[1] + k * (g.yb - p[1])] };
                 }
                 return g;
             }
 
-            // From the join point (or the side's foot) over the top to the
-            // mirrored one: the part without suction.
+            // From the top of the suction (or the side's foot) over the top
+            // to the mirrored one: the part without suction.
             function bodySegment(g: var): string {
-                const { L, M, R, r, cy, top, d, pts } = g;
-                let s = pts && pts.onArc ? "" : ` L ${L(-d)} ${cy}`;
-                s += ` A ${R} ${R} 0 0 1 ${L(r)} ${top} L ${M(r)} ${top}`;
-                s += pts && pts.onArc ? ` A ${R} ${R} 0 0 1 ${M(pts.p[0])} ${pts.p[1]}`
-                    : ` A ${R} ${R} 0 0 1 ${M(-d)} ${cy}`;
-                return s;
+                const { L, M, rx, ry, r, cy, top, d } = g;
+                return ` L ${L(-d)} ${cy} A ${rx} ${ry} 0 0 1 ${L(r)} ${top} L ${M(r)} ${top}`
+                    + ` A ${rx} ${ry} 0 0 1 ${M(-d)} ${cy}`;
             }
             function startOf(g: var): var {
                 return g.pts ? g.pts.p : [-g.d, g.b];
@@ -147,7 +153,6 @@ PanelWindow {
                     return `M ${L(0)} ${b}` + tab.bodySegment(g) + ` L ${M(0)} ${b} Z`;
                 return `M ${L(pts.f[0])} ${b} C ${L(pts.c1[0])} ${yb} ${L(pts.c2[0])} ${pts.c2[1]} ${L(pts.p[0])} ${pts.p[1]}`
                     + tab.bodySegment(g)
-                    + (pts.onArc ? "" : ` L ${M(pts.p[0])} ${pts.p[1]}`)
                     + ` C ${M(pts.c2[0])} ${pts.c2[1]} ${M(pts.c1[0])} ${yb} ${M(pts.f[0])} ${b} Z`;
             }
 
@@ -155,7 +160,8 @@ PanelWindow {
             // suction it fades out (from `fadeFrom` of the way from the join
             // to the foot) and runs `tail` px past the foot along the edge.
             readonly property var outline: root.cfg.outline ?? ({})
-            readonly property real rim: tab.outline.width ?? 1
+            // In physical pixels.
+            readonly property real rim: (tab.outline.width ?? 1) / root.dpr
             readonly property color rimColor: tab.outline.color ?? "#73a0a0a0"
             readonly property color rimClear: Qt.rgba(tab.rimColor.r, tab.rimColor.g, tab.rimColor.b, 0)
             readonly property var rimGeo: tab.rim > 0 ? tab.geo(tab.rim) : null
@@ -165,7 +171,7 @@ PanelWindow {
                     return "M 0 0";
                 const p = tab.startOf(g);
                 return `M ${g.L(p[0])} ${g.b} L ${g.L(p[0])} ${p[1]}` + tab.bodySegment(g)
-                    + (g.pts && !g.pts.onArc ? ` L ${g.M(p[0])} ${p[1]}` : "") + ` L ${g.M(p[0])} ${g.b} Z`;
+                    + ` L ${g.M(p[0])} ${g.b} Z`;
             }
             function rimSide(X: var): string {
                 const g = tab.rimGeo, pts = g?.pts;

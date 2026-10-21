@@ -115,7 +115,7 @@ user's data) live outside the repo: `CLAUDE.local.md` (git-ignored) and `~/.clau
   (dfr-switcher layouts). It prints only `down <id> <x> <w>` / `up <id>` / `reset` (bar
   fractions) — key codes stay inside. `services/TouchBar.qml` → ListModel → per-screen
   `core/TouchBarPresses.qml` (Overlay, empty mask, built-in display by default): CurveRenderer
-  PathSvg tab joined to the edge by concave Bézier suction curves (spread / rise / strength) in `corners.color`, SpringAnimation on height.
+  PathSvg tab joined to the edge by concave Bézier suction curves (spread / rise / strength) and a convex quarter ellipse (`radius` along the top, the rest of the height up) from the suction straight into the top edge in `corners.color`, SpringAnimation on height.
   Access = `scripts/touchbar/udev.rules` (uaccess); without it the script waits and logs the
   sudo hint once. Config `touchBar` (width/height/widthMode/span/offset in Settings → Keyboard).
 - Trackpad haptics (Oct 2026), hardware-agnostic — full contract in `docs/haptics.md`:
