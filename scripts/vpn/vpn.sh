@@ -105,28 +105,13 @@ tun_name=flicker-tun
 self=$(realpath "$0")
 here=$(dirname "$self")
 
-# Root, while restart_checked restarts the units: `state` reports
-# restarting (the panel holds the unit / kill switch it shows meanwhile).
-# It holds the root half's pid and start time: a killed one leaves a mark
-# that counts for nothing, also once the pid is reused.
+# Root, while restart_checked restarts the units, holds a lock on this
+# file: `state` reports restarting (the panel holds the unit / kill switch
+# it shows meanwhile). The kernel drops it with the holder, however it ends.
 restart_mark=/run/flicker-vpn/restarting
-marking=""
 unchecked=""
 
-# Start time (clock ticks since boot) of process $1; fails if it is gone
-# or hidden (/proc mounted hidepid).
-proc_start() {
-    local s
-    s=$(cat "/proc/$1/stat" 2>/dev/null) || return 1
-    # After the command name, which may hold spaces and ")".
-    s=${s##*) }
-    # shellcheck disable=SC2086
-    set -- $s
-    echo "${20}"
-}
-
 err() {
-    [ -n "$marking" ] && rm -f "$restart_mark"
     echo "ERR:$*"
     exit 1
 }
@@ -213,25 +198,39 @@ prune_rules() {
 # the change is in place for the next start, unverified (an UNCHECKED line
 # tells the panel). A running Xray still follows its new config.
 restart_checked() {
-    local xr=${1:-} why restored="" back=""
+    local xr=${1:-} why restored="" back="" xu=""
+    [ "$xr" = on ] && xu=xray
     if ! systemctl is-active -q "$unit"; then
         case $xr in
-        on) systemctl try-restart xray ;;
+        on)
+            # A running Xray is checked on its new config: if it does not
+            # stay up, both configs go back (the sing-box one names its
+            # ports / keys).
+            if systemctl is-active -q xray; then
+                systemctl restart xray
+                if ! stays_up xray; then
+                    [ -f "$config.bak" ] && install -m 640 -g "$unit" "$config.bak" "$config"
+                    [ -f "$xray_config.bak" ] && install -m 640 -g xray "$xray_config.bak" "$xray_config"
+                    systemctl restart xray
+                    err "Xray did not start with it, previous config restored"
+                fi
+            fi
+            ;;
         off) systemctl stop xray ;;
         esac
         unchecked=1
         echo "UNCHECKED:sing-box is not running: applies on its next start"
         return 0
     fi
-    marking=1
-    mkdir -p -m 755 "$(dirname "$restart_mark")" && echo "$$ $(proc_start $$)" >"$restart_mark"
+    mkdir -p -m 755 "$(dirname "$restart_mark")"
+    exec 9>"$restart_mark" && chmod 644 "$restart_mark" && flock 9
     case $xr in
     on) systemctl restart xray ;;
     off) systemctl stop xray ;;
     esac
-    if systemctl restart "$unit" && stays_up "$xr"; then
-        rm -f "$restart_mark"
-        marking=""
+    # shellcheck disable=SC2086 # $xu: none or one word
+    if systemctl restart "$unit" && stays_up "$unit" $xu; then
+        exec 9>&-
         return 0
     fi
     why=$(journalctl -u "$unit" ${xr:+-u xray} -n 20 -o cat --since "-10s" 2>/dev/null | grep -iE 'fatal|error' |
@@ -245,16 +244,17 @@ restart_checked() {
         [ "$xr" = on ] && [ -f "$xray_config.bak" ] && install -m 640 -g xray "$xray_config.bak" "$xray_config"
         if [ -n "$restored" ] && uses_xray; then
             systemctl restart xray
-            back=on
+            back=xray
         else
             systemctl stop xray
         fi
     fi
     if [ -n "$restored" ]; then
-        if systemctl restart "$unit" && stays_up "$back"; then
+        # shellcheck disable=SC2086 # $back: none or one word
+        if systemctl restart "$unit" && stays_up "$unit" $back; then
             # Xray left alone (not this change's) may be down all the same.
-            [ -z "$xr" ] && uses_xray && ! systemctl is-active -q xray &&
-                err "sing-box did not start with it, previous config restored (but Xray is down: its nodes do not work)${why:+: $why}"
+            [ -z "$xr" ] && uses_xray && [ "$(xray_state)" = down ] &&
+                err "sing-box did not start with it, previous config restored (but Xray is down or restarting after a crash: its nodes do not work now)${why:+: $why}"
             err "sing-box did not start with it, previous config restored${why:+: $why}"
         fi
         err "sing-box did not start with it, nor with the previous config${why:+: $why}$(ks_note)"
@@ -263,14 +263,16 @@ restart_checked() {
     err "sing-box did not start with it (no previous config to restore)${why:+: $why}$(ks_note)"
 }
 
-# Root: the unit (and Xray with $1 = on) comes up and stays up for a second;
-# a failed / stopped one ends the wait early, ~6 s at most.
+# Root: the units $@ come up and stay up for a second; a failed / stopped
+# one ends the wait early, ~6 s at most.
 stays_up() {
-    local i s n=0
+    local i u s n=0
     for i in $(seq 30); do
         sleep 0.2
-        s=$(systemctl is-active "$unit" 2>/dev/null)
-        [ "${1:-}" = on ] && [ "$s" = active ] && s=$(systemctl is-active xray 2>/dev/null)
+        for u in "$@"; do
+            s=$(systemctl is-active "$u" 2>/dev/null)
+            [ "$s" = active ] || break
+        done
         case $s in
         active)
             n=$((n + 1))
@@ -281,6 +283,22 @@ stays_up() {
         esac
     done
     return 1
+}
+
+# Xray: up | starting | down (failed, stopped, or waiting out Restart= after
+# a crash, which is "activating" too: auto-restart, auto-restart-queued in
+# systemd 254+).
+xray_state() {
+    case $(systemctl is-active xray 2>/dev/null) in
+    active) echo up ;;
+    activating | reloading)
+        case $(systemctl show -P SubState xray 2>/dev/null) in
+        auto-restart*) echo down ;;
+        *) echo starting ;;
+        esac
+        ;;
+    *) echo down ;;
+    esac
 }
 
 # Root: a note for an error that leaves sing-box down while the kill switch
@@ -456,36 +474,18 @@ state)
     installed=false
     command -v sing-box >/dev/null && installed=true
     # Before and after the units are read: a restart that starts or ends
-    # in between still counts. A mark whose writer is gone does not.
+    # in between still counts. Locked = a root half is restarting (a shared
+    # lock needs only read access; 1 = held, anything else = no).
     restarting=false
     marked() {
-        local p t
-        read -r p t 2>/dev/null <"$restart_mark" || return 1
-        [ -n "$p" ] || return 1
-        if [ -r /proc/1/stat ]; then
-            [ "$(proc_start "$p")" = "$t" ]
-        else
-            # hidepid: root's processes are hidden; a fresh mark only
-            # (stays_up waits ~6 s at most).
-            [ -n "$(find "$restart_mark" -newermt '-10 seconds' 2>/dev/null)" ]
-        fi
-    }
+        { flock -n -s 9; [ $? -eq 1 ]; } 9<"$restart_mark"
+    } 2>/dev/null
     marked && restarting=true
     st=$(systemctl is-active "$unit" 2>/dev/null)
-    # Up only once both are. Xray dead (not starting: failed, stopped, or
-    # waiting out Restart= after a crash, also "activating") = only its
-    # nodes are: the probe through the active one tells (offline after the
-    # stall).
-    if [ "$st" = active ] && uses_xray; then
-        case $(systemctl is-active xray 2>/dev/null) in
-        activating | reloading)
-            # auto-restart, auto-restart-queued (systemd 254+)
-            case $(systemctl show -P SubState xray 2>/dev/null) in
-            auto-restart*) ;;
-            *) st=activating ;;
-            esac
-            ;;
-        esac
+    # Up only once both are. Xray down (xray_state) = only its nodes are:
+    # the probe through the active one tells (offline after the stall).
+    if [ "$st" = active ] && uses_xray && [ "$(xray_state)" = starting ]; then
+        st=activating
     fi
     enabled=false
     [ "$(systemctl is-enabled "$unit" 2>/dev/null)" = enabled ] && enabled=true
