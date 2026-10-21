@@ -47,8 +47,20 @@ Item {
             wifi: wifiPanelComp,
             bluetooth: btPanelComp,
             vpn: vpnPanelComp,
-            audio: audioPanelComp
+            audio: audioPanelComp,
+            tray: trayMenuComp
         })[id] ?? null;
+    }
+    // A system tray item's menu (QsTray: right click / long press).
+    Component {
+        id: trayMenuComp
+        TrayMenuPanel {
+            services: root.services
+            onCloseRequested: root.closeRequested()
+            cfg: root.services.config.quicksettings
+            theme: root.theme
+            frost: root.services.frost ?? null
+        }
     }
     Component {
         id: wifiPanelComp

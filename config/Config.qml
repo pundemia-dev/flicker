@@ -1312,7 +1312,9 @@ Singleton {
                             wifi: ({ width: 340, height: 300 }),
                             bluetooth: ({ width: 340, height: 300 }),
                             vpn: ({ width: 340, height: 420 }),
-                            audio: ({ width: 340, height: 460 })
+                            audio: ({ width: 340, height: 460 }),
+                            // Tray item menu: height = its rows, at most this.
+                            tray: ({ width: 300, height: 420 })
                         })
                     }),
                     // List panels of expanded cards (panels/WifiPanel,

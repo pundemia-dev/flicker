@@ -53,20 +53,23 @@ DropExpand {
     }
 
     // A panel from a button inside a card (media card output → "audio"):
-    // the button itself is the drop's source and starting look.
-    function openPanel(src: Item, id: string): bool {
+    // the button itself is the drop's source and starting look. `extra`:
+    // width / height overriding `expand.panels.<id>`, payload.
+    function openPanel(src: Item, id: string, extra: var): bool {
         if (root.active)
             return root.open(src, null);
         const comp = root.cardFactory?.panelFor(id) ?? null;
         if (!comp || !src)
             return false;
         const spec = root.e.panels?.[id] ?? {};
+        const x = extra ?? {};
         return root.open(src, {
             panel: comp,
-            width: spec.width,
-            height: spec.height,
+            width: x.width ?? spec.width,
+            height: x.height ?? spec.height,
             sourceRadius: Math.min(src.width, src.height) / 2,
-            color: root.surfaceColor
+            color: root.surfaceColor,
+            payload: x.payload
         });
     }
 

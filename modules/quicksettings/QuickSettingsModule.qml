@@ -167,10 +167,15 @@ Item {
         return expander.panel?.debug?.(cmd, arg) ?? "{}";
     }
 
-    // Debug IPC (island quicksettingsExpand <id>); "" folds it back.
+    // Debug IPC (island quicksettingsExpand <id>); "" folds it back;
+    // "tray<i>" = the menu of tray item i.
     function expandCard(id: string): void {
         if (!id) {
             expander.close();
+            return;
+        }
+        if (id.startsWith("tray")) {
+            tray.openMenuAt(parseInt(id.slice(4)) || 0);
             return;
         }
         for (let i = 0; i < cardRepeater.count; i++) {
@@ -453,6 +458,7 @@ Item {
 
         // System tray under the tab icons (shown with one page too).
         QsTray {
+            id: tray
             x: rail.x + (rail.width - width) / 2
             y: rail.y + rail.belowTop
             cfg: root.cfg
@@ -460,6 +466,14 @@ Item {
             frost: root.frost
             visible: root.cc.trayIcons > 0
             onActivated: root.closeRequested()
+            onMenuRequested: (src, payload, h) => {
+                if (!root.editing)
+                    expander.openPanel(src, "tray", {
+                        payload: payload,
+                        width: root.cfg.expand?.panels?.tray?.width ?? 300,
+                        height: h
+                    });
+            }
         }
 
         // Session menu: top-right corner, in the rail column (not a card).

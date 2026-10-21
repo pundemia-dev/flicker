@@ -367,7 +367,8 @@ user's data) live outside the repo: `CLAUDE.local.md` (git-ignored) and `~/.clau
   page's biggest card, disc follows `pagePos`; system tray (`QsTray`, SNI, `quicksettings.tray`) =
   a block under the tab icons centred together with them (`QsTabRail.below/belowTop`, also with one
   page; sized via `ControlCenter.trayIcons` → `QsMetrics.railHeight`): left = activate + close QS,
-  right = QsMenuAnchor (platform popup; NOT live-tested by hand), middle = secondaryActivate; switch by vertical swipe/drag (cards forward
+  right / long press (holdMs) = the item's DBus menu as an expander panel (`panels/TrayMenuPanel`, submenus in place;
+  QsMenuAnchor is useless here — it needs `//@ pragma UseQApplication`; debug IPC `quicksettingsExpand tray<i>`), middle = secondaryActivate; switch by vertical swipe/drag (cards forward
   theirs as swipe* in the static module's coords — the strip moves under the pointer), the
   wheel, a rail tap. CLOSE (user): tap on empty space, or swipe up STARTING in the bottom
   `closeZone`. The module owns ALL its presses (background MouseArea below the cards) —
