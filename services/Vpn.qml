@@ -163,8 +163,10 @@ Scope {
         speedProc.running = true;
     }
     function refresh(): void {
-        if (!stateProc.running)
-            stateProc.running = true;
+        if (stateProc.running)
+            return;
+        stateProc.gen = root.opGen;
+        stateProc.running = true;
     }
 
     function run(kind: string, args: var): void {
@@ -187,12 +189,15 @@ Scope {
             const err = opOut.text.split("\n").find(l => l.startsWith("ERR:"));
             root.busy = "";
             root.selecting = "";
+            root.opGen++;
             if (code !== 0) {
-                // 126/127 = pkexec: the prompt was dismissed / not authorized.
-                root.error = err ? err.substring(4) : code === 126 || code === 127 ? "cancelled" : `exit ${code}`;
+                // 126/127 = pkexec: the prompt was dismissed / not authorized
+                // (with an ERR: line the script itself failed).
+                const cancelled = !err && (code === 126 || code === 127);
+                root.error = err ? err.substring(4) : cancelled ? "cancelled" : `exit ${code}`;
                 root.errorOp = op.kind;
                 console.info("[vpn]", op.kind, "failed:", root.error);
-                if (code !== 126 && code !== 127)
+                if (!cancelled)
                     root.post("vpn:error", "accentRed", op.kind === "subscribe" || op.kind === "update"
                         ? I18n.tr("Subscription failed") : op.kind === "routing" ? I18n.tr("Routing failed") : I18n.tr("VPN failed"));
             } else if (op.kind === "subscribe" || op.kind === "update") {
@@ -209,23 +214,36 @@ Scope {
         }
     }
 
+    // Operations that restart sing-box themselves: while one runs, the unit
+    // and the kill switch pass through states that are no real change.
+    readonly property bool restarting: ["select", "subscribe", "update", "routing", "killswitch"].includes(root.busy)
+    // Bumped when an operation ends: a poll started before that is stale.
+    property int opGen: 0
+
     Process {
         id: stateProc
+        property int gen: 0
         command: [root.script, "state"]
+        onExited: if (stateProc.gen !== root.opGen) Qt.callLater(root.refresh)
         stdout: StdioCollector {
             onStreamFinished: {
+                if (stateProc.gen !== root.opGen)
+                    return;
                 try {
                     const s = JSON.parse(text);
                     root.installed = s.installed;
-                    root.unit = s.unit || "inactive";
+                    // The profile before the unit: onUpChanged names it.
+                    root.profile = s.profile ?? "";
+                    if (!root.restarting)
+                        root.unit = s.unit || "inactive";
                     root.enabled = s.enabled ?? false;
                     root.online = s.online;
-                    root.profile = s.profile ?? "";
                     if (JSON.stringify(s.profiles) !== JSON.stringify(root.profiles))
                         root.profiles = s.profiles ?? [];
                     root.subscription = s.subscription;
                     root.killswitch = s.killswitch ?? false;
-                    root.blocking = s.blocking ?? false;
+                    if (!root.restarting)
+                        root.blocking = s.blocking ?? false;
                     if (root.canon(s.routing) !== root.canon(root.appliedRouting))
                         root.appliedRouting = s.routing ?? {};
                     root.customPending = s.customPending ?? false;

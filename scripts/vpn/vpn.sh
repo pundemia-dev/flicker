@@ -164,9 +164,41 @@ compose() {
 
 # Root: the rule-sets routing $1 needs, from the calling user's download
 # dir $2 (owned by them, no symlinks: routing.py install-rules) to
-# $rules_etc; ones no longer needed go.
+# $rules_etc. Ones no longer needed stay until prune_rules (a rollback may
+# need them).
 install_rules() {
     python3 -I "$here/routing.py" install-rules "$1" "${2:-}" "$rules_etc" "${PKEXEC_UID:--1}"
+}
+
+# Root: drop the rule-sets routing $1 does not need (the new config is up).
+prune_rules() {
+    python3 -I "$here/routing.py" prune-rules "$1" "$rules_etc"
+}
+
+# Root: restart the running unit on the just-installed $config and make sure
+# it stays up: what `check` cannot see fails only at start. $1 = Xray with
+# it: "on" (restart on the new $xray_config), "off" (stop), "" (untouched).
+# If it does not come up, the .bak copies go back (the view still describes
+# them), the old config is restarted and this fails.
+restart_checked() {
+    local xr=${1:-} why
+    systemctl is-active -q "$unit" || return 0
+    case $xr in
+    on) systemctl restart xray ;;
+    off) systemctl stop xray ;;
+    esac
+    systemctl restart "$unit" && sleep 3 && systemctl is-active -q "$unit" &&
+        { [ "$xr" != on ] || systemctl is-active -q xray; } && return 0
+    why=$(journalctl -u "$unit" -u xray -n 20 -o cat --since "-10s" 2>/dev/null | grep -iE 'fatal|error' | tail -n 1 |
+        sed 's/\x1b\[[0-9;]*m//g')
+    [ -f "$config.bak" ] || err "sing-box did not start with it${why:+: $why}"
+    install -m 640 -g "$unit" "$config.bak" "$config"
+    if [ -n "$xr" ]; then
+        [ "$xr" = on ] && [ -f "$xray_config.bak" ] && install -m 640 -g xray "$xray_config.bak" "$xray_config"
+        if uses_xray; then systemctl restart xray; else systemctl stop xray; fi
+    fi
+    systemctl restart "$unit"
+    err "sing-box did not start with it, previous config restored${why:+: $why}"
 }
 
 # User: download the rule-sets routing $1 needs to $rules_cache (each from
@@ -190,8 +222,9 @@ fetch_rules() {
             fi
         done
         rm -f "$rules_cache/$f.part"
-        # A stale copy beats none (GitHub unreachable right now).
-        [ -n "$got" ] || [ -s "$rules_cache/$f" ] || err "cannot download ${f%.srs}"
+        # A stale copy beats none (GitHub unreachable right now): ours, or
+        # root's installed one (install_rules keeps it when we have none).
+        [ -n "$got" ] || [ -s "$rules_cache/$f" ] || [ -s "$rules_etc/$f" ] || err "cannot download ${f%.srs}"
     done <<<"$list"
 }
 
@@ -273,19 +306,56 @@ EOF
 
 ks_on() { [ -e "$ks_dropin" ]; }
 
+# Root: while the kill switch is on, rewrite its table (the uids it lets
+# through: Xray may have been installed since it was turned on) and reload
+# it if it is up (the file deletes the old table first).
+refresh_ks() {
+    ks_on || return 0
+    write_ks_rules && nft -c -f "$ks_rules" || return 1
+    if systemctl is-active -q "$ks_unit"; then nft -f "$ks_rules"; fi
+}
+
+# Root: name the TUN of config file $1 $tun_name if it is not yet (one from
+# before the TUN had a fixed name): the kill switch lets only that interface
+# through. The rest = `install` args for it. 0 = it was renamed.
+name_tun() {
+    local f=$1 tmp rc
+    shift
+    [ -r "$f" ] || return 1
+    jq -e --arg n "$tun_name" '[.inbounds[]? | select(.type == "tun")] | all(.interface_name == $n)' "$f" >/dev/null &&
+        return 1
+    tmp=$(mktemp) || return 1
+    jq --arg n "$tun_name" '(.inbounds[]? | select(.type == "tun") | .interface_name) = $n' "$f" >"$tmp" &&
+        sing-box check -c "$tmp" && install "$@" "$tmp" "$f"
+    rc=$?
+    rm -f "$tmp"
+    return $rc
+}
+
 # Tag of the first selector outbound (empty = none).
 selector() {
     jq -r '[.outbounds[]? | select(.type == "selector") | .tag][0] // empty' "$config" 2>/dev/null
 }
+
+# These go through pkexec: without it its exec fails with 127, which the
+# panel would read as a dismissed prompt.
+case "${1:-}" in
+killswitch | select | subscribe | update | apply)
+    command -v pkexec >/dev/null || err "pkexec (polkit) is not installed"
+    ;;
+esac
 
 case "${1:-}" in
 state)
     installed=false
     command -v sing-box >/dev/null && installed=true
     st=$(systemctl is-active "$unit" 2>/dev/null)
-    # Up only once both are: Xray down = its nodes are dead.
-    if [ "$st" = active ] && uses_xray && ! systemctl is-active -q xray; then
-        st=activating
+    # Up only once both are. Xray dead (not starting) = only its nodes are:
+    # the probe through the active one tells (offline after the stall).
+    if [ "$st" = active ] && uses_xray; then
+        case $(systemctl is-active xray 2>/dev/null) in
+        activating | reloading) st=activating ;;
+        esac
     fi
     enabled=false
     [ "$(systemctl is-enabled "$unit" 2>/dev/null)" = enabled ] && enabled=true
@@ -420,15 +490,17 @@ _select)
     jq -e --arg ms "$ms" --arg tag "$2" \
         '.outbounds[] | select(.type == "selector" and .tag == $ms) | .outbounds | index($tag) != null' \
         "$config" >/dev/null || err "no node $2"
-    tmp=$(mktemp) || err "mktemp"
+    tmp=$(mktemp) && btmp=$(mktemp) || err "mktemp"
+    trap 'rm -f "$tmp" "$btmp"' EXIT
     sel='(.outbounds[] | select(.type == "selector" and .tag == $ms) | .default) = $tag'
-    jq --arg ms "$ms" --arg tag "$2" "$sel" "$config" >"$tmp" || { rm -f "$tmp"; err "jq failed"; }
-    install -m 640 -g "$unit" "$tmp" "$config"
-    # The base too, or the next recompose would switch back.
+    jq --arg ms "$ms" --arg tag "$2" "$sel" "$config" >"$tmp" || err "jq failed"
+    # The base too (first: if the config then fails, the next recompose
+    # still picks the node), or the next recompose would switch back.
     if [ -f "$base" ]; then
-        jq --arg ms "$ms" --arg tag "$2" "$sel" "$base" >"$tmp" && install -m 600 "$tmp" "$base"
+        jq --arg ms "$ms" --arg tag "$2" "$sel" "$base" >"$btmp" || err "jq failed on $base"
+        install -m 600 "$btmp" "$base" || err "cannot update $base"
     fi
-    rm -f "$tmp"
+    install -m 640 -g "$unit" "$tmp" "$config" || err "cannot update $config"
     write_view || err "view update failed"
     systemctl try-restart "$unit" || err "restart failed"
     echo "OK:$2"
@@ -455,15 +527,10 @@ EOF
         mkdir -p "$(dirname "$ks_dropin")"
         printf '[Unit]\nWants=%s.service\n' "$ks_unit" >"$ks_dropin"
         # A config from before the TUN had a fixed name: name it, or the
-        # table would block the VPN's own interface.
-        if [ -r "$config" ] && ! jq -e --arg n "$tun_name" \
-            '[.inbounds[]? | select(.type == "tun")] | all(.interface_name == $n)' "$config" >/dev/null; then
-            tmp=$(mktemp) || err "mktemp"
-            jq --arg n "$tun_name" '(.inbounds[]? | select(.type == "tun") | .interface_name) = $n' "$config" >"$tmp" &&
-                sing-box check -c "$tmp" && install -m 640 -g "$unit" "$tmp" "$config"
-            rm -f "$tmp"
-            systemctl try-restart "$unit"
-        fi
+        # table would block the VPN's own interface. The base too, or the
+        # next recompose would bring the old name back.
+        [ -f "$base" ] && name_tun "$base" -m 600
+        name_tun "$config" -m 640 -g "$unit" && systemctl try-restart "$unit"
         # The password-free rule (if installed) learns the new unit.
         [ -e "$rule" ] && [ -n "${3:-}" ] && write_rule "$3"
         systemctl daemon-reload
@@ -501,7 +568,7 @@ _apply)
     fi
     sing-box check -c "$tmp" || err "sing-box rejected the generated config"
     # $tmp = the new base; the config = it + the applied routing / overlay.
-    install_rules "$routing_etc" "${3:-}"
+    install_rules "$routing_etc" "${3:-}" || err "rule-set install failed"
     ctmp=$(mktemp) || err "mktemp"
     trap 'rm -f "$tmp" "$xtmp" "$ntmp" "$etmp" "$ctmp"' EXIT
     out=$(compose "$tmp" "$routing_etc" "$custom_etc" "$ctmp") || err "${out#ERR:}"
@@ -512,25 +579,24 @@ _apply)
     fi
     mkdir -p "$(dirname "$config")"
     # Backups hold the same secrets: root only.
+    # Xray's uid may be new to the kill switch: let it through before it runs.
+    refresh_ks || err "kill switch update failed"
     [ -f "$config" ] && install -m 600 "$config" "$config.bak"
-    mkdir -p "$(dirname "$base")"
-    install -m 600 "$tmp" "$base"
     install -m 640 -g "$unit" "$ctmp" "$config"
+    xr=off
     if [ -s "$ntmp" ]; then
+        xr=on
         mkdir -p "$(dirname "$xray_config")"
         [ -f "$xray_config" ] && install -m 600 "$xray_config" "$xray_config.bak"
         install -m 640 -g xray "$xtmp" "$xray_config"
     fi
+    # Base and view only once it is up: a rollback keeps the old ones.
+    restart_checked "$xr"
+    mkdir -p "$(dirname "$base")"
+    install -m 600 "$tmp" "$base"
     write_view "$ntmp" || err "view update failed"
     rm -f "$legacy_nodes"
-    if systemctl is-active -q "$unit"; then
-        if [ -s "$ntmp" ]; then
-            systemctl restart xray || err "xray restart failed"
-        else
-            systemctl stop xray
-        fi
-    fi
-    systemctl try-restart "$unit" || err "restart failed"
+    prune_rules "$routing_etc"
     echo "OK:applied"
     ;;
 _routing | _reroute)
@@ -558,27 +624,19 @@ _routing | _reroute)
     b=$base
     [ -f "$b" ] || b=$config
     [ -f "$b" ] || err "no config yet: import a subscription first"
+    # A base from before the TUN had a fixed name (the kill switch needs it).
+    [ -f "$base" ] && name_tun "$base" -m 600
     install_rules "$rtmp" "$dl" || err "rule-set install failed"
     out=$(compose "$b" "$rtmp" "$otmp" "$ctmp") || err "${out#ERR:}"
     mkdir -p "$(dirname "$base")"
     [ -f "$base" ] || install -m 600 "$config" "$base"
     [ -f "$config" ] && install -m 600 "$config" "$config.bak"
     install -m 640 -g "$unit" "$ctmp" "$config"
-    # Restart and make sure it stays up: what `check` cannot see fails only
-    # at start. If it does not come up, the previous config goes back (and
-    # the copies below stay the old ones, so the change is still pending).
-    if systemctl is-active -q "$unit"; then
-        systemctl restart "$unit" || err "restart failed"
-        sleep 3
-        if ! systemctl is-active -q "$unit"; then
-            why=$(journalctl -u "$unit" -n 20 -o cat --since "-10s" 2>/dev/null | grep -iE 'fatal|error' | tail -n 1 |
-                sed 's/\x1b\[[0-9;]*m//g')
-            install -m 640 -g "$unit" "$config.bak" "$config"
-            systemctl restart "$unit"
-            err "sing-box did not start with it, previous config restored${why:+: $why}"
-        fi
-    fi
+    # If it does not come up, the copies below stay the old ones, so the
+    # change is still pending.
+    restart_checked
     install -m 644 "$rtmp" "$routing_etc"
+    prune_rules "$rtmp"
     # The overlay may name its own servers / keys: root only.
     if [ "$1" = _routing ]; then
         if [ -n "$otmp" ]; then install -m 600 "$otmp" "$custom_etc"; else rm -f "$custom_etc"; fi

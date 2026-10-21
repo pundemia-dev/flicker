@@ -230,11 +230,12 @@ def compose_routing(cfg, routing, rules_dir):
 
 def install_rules(routing, src, dst, uid):
     """Root: copy the .srs files `routing` needs from user `uid`'s download
-    dir `src` to `dst`, drop the ones it no longer needs. `src` and its files
-    are opened without following a final symlink and must be owned by `uid`
-    (a password-free caller picks `src`: no root-only file may come out of
-    it). A file that fails the checks is skipped: an older copy in `dst`
-    stays, compose reports a missing one."""
+    dir `src` to `dst`. `src` and its files are opened without following a
+    final symlink and must be owned by `uid` (a password-free caller picks
+    `src`: no root-only file may come out of it). A file that fails the
+    checks is skipped: an older copy in `dst` stays, compose reports a
+    missing one. Nothing is dropped here: a rollback to the previous config
+    still needs its rule-sets (prune_rules, once the new one is up)."""
     need = [f for f, _ in rulesets(routing)]
     os.makedirs(dst, mode=0o755, exist_ok=True)
     dfd = None
@@ -267,6 +268,13 @@ def install_rules(routing, src, dst, uid):
         os.replace(tmp, os.path.join(dst, f))
     if dfd is not None:
         os.close(dfd)
+
+
+def prune_rules(routing, dst):
+    """Root: drop the .srs files in `dst` that `routing` does not need."""
+    need = [f for f, _ in rulesets(routing)]
+    if not os.path.isdir(dst):
+        return
     for f in os.listdir(dst):
         if f.endswith(".srs") and f not in need:
             os.remove(os.path.join(dst, f))
@@ -371,6 +379,8 @@ def main():
                 print("\t".join([f] + urls))
         elif a[:1] == ["install-rules"] and len(a) == 5:
             install_rules(load(a[1], {}), a[2], a[3], int(a[4]) if a[4].lstrip("-").isdigit() else -1)
+        elif a[:1] == ["prune-rules"] and len(a) == 3:
+            prune_rules(load(a[1], {}), a[2])
         elif a[:1] == ["compose"] and len(a) == 6:
             cfg = load(a[1], None)
             if not isinstance(cfg, dict):
