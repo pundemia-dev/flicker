@@ -110,6 +110,8 @@ here=$(dirname "$self")
 # The kernel drops it with the holder, however it ends.
 restart_mark=/run/flicker-vpn/restarting
 unchecked=""
+# Xray ran before restart_checked touched it (roll_back runs it again).
+xray_ran=""
 
 err() {
     echo "ERR:$*"
@@ -207,6 +209,7 @@ restart_checked() {
             case $(systemctl is-active xray 2>/dev/null) in
             inactive | failed) ;;
             *)
+                xray_ran=1
                 systemctl restart xray
                 stays_up xray || roll_back xray on
                 ;;
@@ -218,6 +221,7 @@ restart_checked() {
         echo "UNCHECKED:sing-box is not running: applies on its next start"
         return 0
     fi
+    systemctl is-active -q xray && xray_ran=1
     case $xr in
     on) systemctl restart xray ;;
     off) systemctl stop xray ;;
@@ -251,10 +255,10 @@ roll_back() {
         systemctl stop "$unit"
         err "sing-box did not start with it (no previous config to restore)${why:+: $why}$(ks_note)"
     fi
-    # Xray, if this touched it: on its old config if the old setup uses it,
-    # else stopped.
+    # Xray, if this touched it: on its old config if the old setup uses it
+    # or it ran before, else stopped.
     if [ -n "$xr" ]; then
-        if uses_xray && { [ "$xr" = off ] || [ -n "$xrestored" ]; }; then
+        if { uses_xray || [ -n "$xray_ran" ]; } && { [ "$xr" = off ] || [ -n "$xrestored" ]; }; then
             systemctl restart xray
             up+=(xray)
         else

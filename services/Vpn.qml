@@ -283,7 +283,9 @@ Scope {
     Timer {
         id: stall
         interval: root.cfg.stallMs ?? 12000
-        running: root.unit === "active" && !root.online && root.busy === "" && !root.stalled
+        // Not while a root half restarts (also one run outside the panel):
+        // the unit is held then, the probe is not.
+        running: root.unit === "active" && !root.online && root.busy === "" && !root.restarting && !root.stalled
         onTriggered: root.stalled = true
     }
     onOnlineChanged: if (root.online) root.stalled = false
