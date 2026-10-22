@@ -270,6 +270,51 @@ Scope {
         }
     }
 
+    // ---- outputs without a wallpaper ----
+
+    // wallr restores only the outputs it has a last_wallpaper for, so a
+    // newly plugged monitor stays empty. At start and on every screen change
+    // (after wallr's own hotplug settles, fillNewOutputsDelayMs) such outputs
+    // get the wallpaper of another output, else the newest history entry.
+    Connections {
+        target: Quickshell
+        function onScreensChanged(): void {
+            fillTimer.restart();
+        }
+    }
+
+    Timer {
+        id: fillTimer
+        running: true
+        interval: root.cfg.fillNewOutputsDelayMs ?? 1500
+        onTriggered: root.fillNewOutputs()
+    }
+
+    function fillNewOutputs(): void {
+        if (!(root.cfg.fillNewOutputs ?? true) || Quickshell.screens.length === 0)
+            return;
+        if (unsetProc.running) {
+            fillTimer.restart();
+            return;
+        }
+        unsetProc.command = [root.scripts + "unset.sh"].concat(Quickshell.screens.map(s => s.name));
+        unsetProc.running = true;
+    }
+
+    Process {
+        id: unsetProc
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const lines = this.text.split("\n").filter(l => l.length > 0);
+                const src = (lines.find(l => l.startsWith("=")) ?? "").slice(1) || (root.history[0] ?? "");
+                if (!src)
+                    return;
+                for (const name of lines.filter(l => !l.startsWith("=")))
+                    root.setOn(src, root.applyOpts(name));
+            }
+        }
+    }
+
     // Configured effect/duration/theme for a real (non-preview) set.
     function applyOpts(output: string): var {
         return Object.assign({

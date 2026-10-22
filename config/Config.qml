@@ -1634,6 +1634,11 @@ Singleton {
                             fillBlurThreshold: 0.8,
                             fillBlurSigma: 8,
                             fillBlurDim: 0.25,
+                            // An output wallr has no wallpaper for (a newly
+                            // plugged monitor) gets the one of another output,
+                            // checked at start and delayMs after a screen change.
+                            fillNewOutputs: true,
+                            fillNewOutputsDelayMs: 1500,
                             // Accent colour of the shell (Theme qsBlue/cardBlue:
                             // toggles, selections, launcher tag, stash) from the
                             // wallpaper: matugen primary palette at accentTone.

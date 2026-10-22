@@ -770,6 +770,10 @@ user's data) live outside the repo: `CLAUDE.local.md` (git-ignored) and `~/.clau
   blurred (blur at 1/8 size: ~1 s for 3500×5000), darkened copy at the output's size, cached in
   `<thumbCache>/fill/<md5>.jpg` + `.src` (original path); `scripts/wallpapers/current.sh` maps
   wallr's last_wallpaper back through `.src` so the carousel still centres on the original.
+  wallr restores only outputs it has a last_wallpaper for (a new monitor stays empty) →
+  `Wallpaper.fillNewOutputs` (start + `fillNewOutputsDelayMs` after `screensChanged`;
+  `fillNewOutputs`) runs `scripts/wallpapers/unset.sh` and sets such outputs to another
+  output's wallpaper (else history[0]), no history push. Verified live on niri (DP-5, Oct 2026).
   Accent from the wallpaper (`accentFromWallpaper`, default on): `Wallpaper.updateAccent` runs
   `matugen image <path> --json hex --dry-run --prefer saturation -m dark` (matugen 4 refuses
   without --prefer when not on a terminal) and sets `Theme.wallAccent` = palettes.primary
