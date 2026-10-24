@@ -895,5 +895,12 @@
   "Focused display": "Дисплее с фокусом",
   "Only selected": "Только выбранных",
   "All but selected": "Всех, кроме выбранных",
-  "Selected": "Выбранные"
+  "Selected": "Выбранные",
+  "Bluetooth": "Bluetooth",
+  "Turn off when idle": "Выключать без подключений",
+  "Turned off when nothing has been connected this long. 0 = never.": "Выключается, если столько времени ничего не подключено. 0 — никогда.",
+  "Keep after reboot": "Сохранять после перезагрузки",
+  "Switched back to how it was before a reboot or a shell restart.": "Возвращается в то состояние, что было до перезагрузки или перезапуска шелла.",
+  "Keep brightness after reboot": "Сохранять яркость после перезагрузки",
+  "Keep volume after reboot": "Сохранять громкость после перезагрузки"
 }

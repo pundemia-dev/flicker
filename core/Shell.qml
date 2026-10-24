@@ -32,7 +32,7 @@ Scope {
     // Low Power Mode: system power-saver profile + background work shed.
     PowerMode { id: powerModeService; events: eventsService }
     // Airplane Mode: every radio rfkill-blocked, the previous state restored.
-    Airplane { id: airplaneService; events: eventsService; bluetooth: bluetoothService; notifications: notificationsService }
+    Airplane { id: airplaneService; events: eventsService; bluetooth: bluetoothService; network: networkService; notifications: notificationsService }
     // VPN: sing-box unit + its subscription nodes (scripts/vpn/vpn.sh).
     Vpn { id: vpnService; events: eventsService }
     EventNetwork { id: eventNetworkService; events: eventsService; network: networkService }

@@ -495,6 +495,18 @@ user's data) live outside the repo: `CLAUDE.local.md` (git-ignored) and `~/.clau
   (live state), tap = disconnect / connect / pair → trusted + connect. `services/Bluetooth`
   used `adapter.powered`, which does NOT exist in Quickshell (`enabled` does): the card read Off
   forever, toggle dead — fixed. Panels get services through the factory's Component bindings.
+  State that survives a reboot (statePath files): Wi‑Fi / Bluetooth switch (`wifi.json` /
+  `bluetooth.json`, saved only on taps in the card/panel), Airplane Mode (`on` in `airplane.json`;
+  systemd-rfkill is masked here), Caffeine, brightness (systemd-backlight keeps nothing for
+  gmux_backlight), default-sink volume+mute (`volume.json`, per node name, re-applied to the
+  start-up sink only). Radios are re-applied once per login, orchestrated by Airplane (marker
+  `$XDG_RUNTIME_DIR/flicker-radios-restored`; a hot reload would otherwise undo nmcli changes);
+  Airplane on at start = re-blocked, the switches are skipped. Any Airplane exit (Fn key / rfkill
+  elsewhere too) switches NM's Wi‑Fi back on (snapshot, else the saved switch) and drops the
+  snapshot. `bluetooth.autoOffMin` (10, 0 = never): adapter off after that long with nothing
+  connected and no discovery; not saved as the switch state. Re-applying each one on start is gated by
+  `persist.{wifi,bluetooth,airplane,caffeine,volume,brightness}` (all true; the state is saved
+  regardless) — settings: Quick Settings → Keep after reboot, Sound, Volume & Brightness.
   Debug IPC `quicksettingsExpand <id>` ("" folds back). Verified via that IPC + grim frames
   (both ways, both panels; BT discovery found nearby devices). NOT tested: the real long press,
   BT connect / pair taps.

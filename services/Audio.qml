@@ -1,5 +1,6 @@
 import QtQuick
 import Quickshell
+import Quickshell.Io
 import Quickshell.Services.Pipewire
 import "../config"
 
@@ -60,7 +61,10 @@ Scope {
     // compositor binds, pavucontrol, apps) are pulled back to the limit too.
     // Deferred: writing the volume inside its own change handler is a
     // binding loop on `volume`.
-    onVolumeChanged: Qt.callLater(root.enforceCap)
+    onVolumeChanged: {
+        Qt.callLater(root.enforceCap);
+        root.queueVolumeSave();
+    }
     onMaxVolumeChanged: Qt.callLater(root.enforceCap)
     function enforceCap(): void {
         if (sink?.ready && sink?.audio && sink.audio.volume > maxVolume + 0.001)
@@ -162,6 +166,58 @@ Scope {
     Connections {
         target: Pipewire.nodes
         function onValuesChanged(): void { root.refresh(); }
+    }
+
+    // Output volume + mute per sink (node name) persist in
+    // statePath("volume.json") (any change, 1 s debounce) and are re-applied
+    // to the default sink once per shell start: WirePlumber's own route
+    // state did not keep the T2 speakers' level. Later device switches are
+    // WirePlumber's (a BT headset may have changed its level elsewhere).
+    property var savedVolumes: ({})
+    property bool volumeRestored: false
+    readonly property bool sinkReady: !!(sink?.ready && sink?.audio)
+    onSinkReadyChanged: Qt.callLater(root.restoreVolume)
+    Component.onCompleted: Qt.callLater(root.restoreVolume)
+    onMutedChanged: root.queueVolumeSave()
+    function queueVolumeSave(): void {
+        if (root.volumeRestored && root.sinkReady)
+            volumeSave.restart();
+    }
+    function restoreVolume(): void {
+        if (root.volumeRestored || !root.sinkReady)
+            return;
+        root.volumeRestored = true;
+        const v = root.savedVolumes[root.sink.name ?? ""];
+        if (!v || typeof v.volume !== "number" || !(Config.data.persist?.volume ?? true))
+            return;
+        root.quiet();
+        root.sink.audio.volume = Math.max(0, Math.min(root.maxVolume, v.volume));
+        root.sink.audio.muted = !!v.muted;
+    }
+    Timer {
+        id: volumeSave
+        interval: 1000
+        onTriggered: {
+            if (!root.sinkReady || !root.sink.name)
+                return;
+            const next = Object.assign({}, root.savedVolumes);
+            next[root.sink.name] = { volume: root.volume, muted: root.muted };
+            root.savedVolumes = next;
+            volumeFile.setText(JSON.stringify({ version: 1, sinks: next }));
+        }
+    }
+    FileView {
+        id: volumeFile
+        path: Quickshell.statePath("volume.json")
+        blockLoading: true
+        printErrors: false
+        onLoaded: {
+            try {
+                root.savedVolumes = JSON.parse(volumeFile.text()).sinks ?? {};
+            } catch (e) {
+                console.warn("Audio: bad volume state file, ignoring:", e);
+            }
+        }
     }
 
     // Default sink/source must be tracked too: an unbound node never turns

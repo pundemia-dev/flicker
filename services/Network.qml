@@ -395,6 +395,8 @@ QtObject {
 
     function setWifiEnabled(enabled: bool): void {
         wifiEnabled = enabled;
+        root.savedRadio = enabled;
+        radioState.setText(JSON.stringify({ version: 1, wifi: enabled }));
         if (!enabled)
             root.networks = [];
         Quickshell.execDetached(["nmcli", "radio", "wifi", enabled ? "on" : "off"]);
@@ -464,6 +466,33 @@ QtObject {
         repeat: true
         running: true
         onTriggered: root.refresh()
+    }
+
+    // The switch's last state (card / panel) persists in statePath("wifi.json")
+    // (`savedRadio`: true / false / null = never tapped). Airplane re-applies it
+    // once per login (restoreRadio), unless it restores Airplane Mode itself. Only taps
+    // here are saved: Airplane Mode and nmcli from elsewhere leave it alone.
+    property var savedRadio: null
+    property FileView radioState: FileView {
+        path: Quickshell.statePath("wifi.json")
+        blockLoading: true
+        printErrors: false
+        onLoaded: {
+            try {
+                const s = JSON.parse(radioState.text());
+                if (typeof s.wifi === "boolean")
+                    root.savedRadio = s.wifi;
+            } catch (e) {
+                console.warn("Network: bad state file, ignoring:", e);
+            }
+        }
+    }
+
+    function restoreRadio(): void {
+        if (root.savedRadio === null || !(Config.data.persist?.wifi ?? true))
+            return;
+        Quickshell.execDetached(["nmcli", "radio", "wifi", root.savedRadio ? "on" : "off"]);
+        refreshTimer.restart();
     }
 
     Component.onCompleted: root.refresh()

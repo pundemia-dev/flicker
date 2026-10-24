@@ -224,6 +224,12 @@ const SIDEBAR = [
                     { key: "quicksettings.tray", label: "System tray", kind: "bool", keywords: "tray StatusNotifier" },
                     { key: "quicksettings.holdMs", label: "Hold to edit", kind: "number", min: 200, max: 1500, step: 50, scale: S, decimals: 2, suffix: " s" },
                     { key: "quicksettings.wheelStep", label: "Slider wheel step", kind: "number", min: 0.01, max: 0.2, step: 0.01, scale: 0.01, suffix: " %" }
+                ] },
+                { title: "Keep after reboot", footer: "Switched back to how it was before a reboot or a shell restart.", rows: [
+                    { key: "persist.wifi", label: "Wi-Fi", kind: "bool", keywords: "remember restore reboot" },
+                    { key: "persist.bluetooth", label: "Bluetooth", kind: "bool", keywords: "remember restore reboot" },
+                    { key: "persist.airplane", label: "Airplane Mode", kind: "bool", keywords: "remember restore reboot" },
+                    { key: "persist.caffeine", label: "Caffeine", kind: "bool", keywords: "remember restore reboot" }
                 ] }
             ]
         },
@@ -236,7 +242,8 @@ const SIDEBAR = [
                     { key: "timings.osdAutoCloseMs", label: "Hide after", kind: "number", min: 500, max: 5000, step: 100, scale: S, decimals: 1, suffix: " s" }
                 ] },
                 { title: "Steps", footer: "Volume step and limits are in Sound.", rows: [
-                    { key: "brightness.step", label: "Brightness step", kind: "number", min: 0.01, max: 0.25, step: 0.01, scale: 0.01, suffix: " %" }
+                    { key: "brightness.step", label: "Brightness step", kind: "number", min: 0.01, max: 0.25, step: 0.01, scale: 0.01, suffix: " %" },
+                    { key: "persist.brightness", label: "Keep brightness after reboot", kind: "bool", keywords: "remember restore" }
                 ] }
             ]
         },
@@ -256,7 +263,8 @@ const SIDEBAR = [
                     { store: "wp", key: "linking.pause-playback", label: "Pause when the output goes away", kind: "bool", keywords: "unplug headphones" },
                     { store: "wp", key: "device.routes.mute-on-alsa-playback-removed", label: "Mute after unplugging headphones", kind: "bool" },
                     { store: "wp", key: "device.routes.mute-on-bluetooth-playback-removed", label: "Mute after Bluetooth disconnects", kind: "bool" },
-                    { store: "wp", key: "node.stream.restore-target", label: "Remember each app's output", kind: "bool", keywords: "route stream" }
+                    { store: "wp", key: "node.stream.restore-target", label: "Remember each app's output", kind: "bool", keywords: "route stream" },
+                    { key: "persist.volume", label: "Keep volume after reboot", kind: "bool", keywords: "remember restore" }
                 ] },
                 { title: "Bluetooth", rows: [
                     { store: "wp", key: "bluetooth.autoswitch-to-headset-profile", label: "Call mode when an app records", kind: "bool", keywords: "headset hfp profile microphone" },
@@ -553,6 +561,9 @@ const SIDEBAR = [
                 { rows: [
                     { key: "network.hotspotName", label: "Hotspot name", kind: "text" },
                     { key: "network.portalUrl", label: "Captive portal page", kind: "text" }
+                ] },
+                { title: "Bluetooth", footer: "Turned off when nothing has been connected this long. 0 = never.", rows: [
+                    { key: "bluetooth.autoOffMin", label: "Turn off when idle", kind: "number", min: 0, max: 60, step: 1, suffix: " min", keywords: "bluetooth battery auto off" }
                 ] }
             ]
         },

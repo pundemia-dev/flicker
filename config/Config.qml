@@ -1032,6 +1032,21 @@ Singleton {
                     portalUrl: "http://neverssl.com",
                     hotspotName: "Hotspot"
                 })
+            // What comes back after a reboot / shell restart (the state is
+            // saved either way; this only gates re-applying it on start).
+            property var persist: ({
+                    wifi: true,
+                    bluetooth: true,
+                    airplane: true,
+                    caffeine: true,
+                    volume: true,
+                    brightness: true
+                })
+            // Adapter powered off after this many minutes with nothing
+            // connected (services/Bluetooth); 0 = never.
+            property var bluetooth: ({
+                    autoOffMin: 10
+                })
             // Screen recording (services/Recorder + scripts/capture/record.sh):
             // audioDefault "auto" = last choice | none | system | mic | both.
             property var recorder: ({

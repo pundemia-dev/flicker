@@ -7,6 +7,9 @@ import "../config"
 // brightnessctl directly, other tools) are picked up by an inotify watch on
 // the sysfs `brightness` file (noctalia approach): writes through the VFS
 // raise IN_MODIFY even on sysfs (verified Oct 2026, gmux_backlight).
+// The level persists (statePath("brightness.json"), any change, 2 s
+// debounce) and is re-applied on start: systemd-backlight keeps no state
+// for gmux_backlight here. Never restored below restoreMin.
 QtObject {
     id: root
 
@@ -17,6 +20,7 @@ QtObject {
     property string device: ""
     property string deviceClass: "backlight"
     property int maxRaw: 0
+    readonly property real restoreMin: 0.05
     // OsdWatcher skips changes until this timestamp (UI sliders call quiet()).
     property real osdQuietUntil: 0
 
@@ -53,6 +57,10 @@ QtObject {
                 root.maxRaw = m;
                 root.brightness = c / m;
                 root.initialized = true;
+                if (typeof root.saved === "number" && (Config.data.persist?.brightness ?? true)) {
+                    root.quiet();
+                    root.setBrightness(Math.max(root.restoreMin, root.saved));
+                }
             }
         }
     }
@@ -71,6 +79,30 @@ QtObject {
             // don't let the raw readback nudge it (spurious OSD repaint).
             if (Math.round(v * 100) !== Math.round(root.brightness * 100))
                 root.brightness = v;
+        }
+    }
+
+    property var saved: null
+    onBrightnessChanged: if (root.initialized) saveTimer.restart()
+    property Timer saveTimer: Timer {
+        interval: 2000
+        onTriggered: {
+            root.saved = root.brightness;
+            stateFile.setText(JSON.stringify({ version: 1, device: root.device, level: root.brightness }));
+        }
+    }
+    property FileView stateFile: FileView {
+        path: Quickshell.statePath("brightness.json")
+        blockLoading: true
+        printErrors: false
+        onLoaded: {
+            try {
+                const level = JSON.parse(stateFile.text()).level;
+                if (typeof level === "number")
+                    root.saved = level;
+            } catch (e) {
+                console.warn("Brightness: bad state file, ignoring:", e);
+            }
         }
     }
 }
