@@ -888,5 +888,12 @@
   "Low only": "Только неважные",
   "Normal only": "Только обычные",
   "Critical only": "Только важные",
-  "Silent while Do Not Disturb is on (but critical ones with Let critical through, and rules that pass it), muted by a rule, and when the app asks for no sound.": "Без звука в режиме «Не беспокоить» (кроме важных при «Пропускать важные» и правил, которые его обходят), при заглушении правилом и когда приложение просит тишины."
+  "Silent while Do Not Disturb is on (but critical ones with Let critical through, and rules that pass it), muted by a rule, and when the app asks for no sound.": "Без звука в режиме «Не беспокоить» (кроме важных при «Пропускать важные» и правил, которые его обходят), при заглушении правилом и когда приложение просит тишины.",
+  "Without a connected display to show on, toasts go to the focused one. The Notification Center opens on any.": "Если ни одного подходящего дисплея не подключено, уведомления показываются на дисплее с фокусом. Центр уведомлений открывается на любом.",
+  "Show toasts on": "Показывать на",
+  "All displays": "Всех дисплеях",
+  "Focused display": "Дисплее с фокусом",
+  "Only selected": "Только выбранных",
+  "All but selected": "Всех, кроме выбранных",
+  "Selected": "Выбранные"
 }

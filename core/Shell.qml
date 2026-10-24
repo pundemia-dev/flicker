@@ -20,7 +20,8 @@ Scope {
     Battery { id: batteryService }
     Brightness { id: brightnessService }
     // privacy / recorder: screen sharing = DND by itself + hidden toast text.
-    Notifications { id: notificationsService; privacy: privacyService; recorder: recorderService }
+    // compositor: the focused output (notifications.screens "focused").
+    Notifications { id: notificationsService; privacy: privacyService; recorder: recorderService; compositor: compositorService }
     Privacy { id: privacyService; audio: audioService }
     // Event indicators (one at a time in the bar) + their sources.
     Events { id: eventsService }

@@ -906,6 +906,11 @@ Singleton {
                     // screencast) or recorded.
                     dndAllowCritical: true,
                     dndWhileSharing: true,
+                    // Displays that show toasts: "all" | "focused" | "only" /
+                    // "except" (screenList = connector names). None left
+                    // connected = the focused one (never silently lost).
+                    screens: "all",
+                    screenList: [],
                     // Toast text hidden (app name + "Notification" until the
                     // card is pulled open): "off" | "sharing" | "always".
                     privacy: "sharing",
@@ -914,11 +919,10 @@ Singleton {
                     // stored at all.
                     historyMaxAgeHours: 0,
                     historyLowUrgency: true,
-                    // Same app + title + text again: within dedupeWindowMs of
-                    // the stored copy the repeat is dropped (that copy stays,
-                    // on screen too); later it replaces it.
+                    // Same app + title + text again: while the stored copy is
+                    // still on screen / queued the repeat is dropped (not a
+                    // critical one); later it replaces that copy.
                     dedupe: true,
-                    dedupeWindowMs: 60000,
                     // "Copy 123456" button for one-time codes (2FA / login).
                     codeCopy: true,
                     // Per-app rules (settings → Notifications → Rules), the

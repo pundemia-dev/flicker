@@ -13,13 +13,13 @@ Item {
     signal notificationClosed(var notif)
     property var history: []
     // Shown but not stored (low urgency with historyLowUrgency off, a rule's
-    // history off): released once every island is done with its toast
-    // (toastClosed counts them down from `viewers`); transientMs only
+    // history off): released once every target island is done with its
+    // toast (toastClosed counts entry.toastViews down); transientMs only
     // guards against a leak.
     property var transients: []
     readonly property int transientMs: 1800000
-    // Islands listening to notificationReceived (each registers itself).
-    property int viewers: 0
+    // Injected (Shell): the focused output, for notifications.screens.
+    property var compositor: null
     property bool doNotDisturb: false
     // Injected (Shell): a PipeWire screencast or our own recording =
     // "sharing" (DND by itself, toast text hidden — see Config).
@@ -142,15 +142,23 @@ Item {
     }
 
     // Empty pattern = any; a bad regex never matches (settings shows it).
+    // Compiled rule patterns (null = invalid), rebuilt with the config.
+    property var reCache: ({})
+    function compiled(pattern: string): var {
+        if (!(pattern in root.reCache)) {
+            try {
+                root.reCache[pattern] = new RegExp(pattern, "i");
+            } catch (e) {
+                root.reCache[pattern] = null;
+            }
+        }
+        return root.reCache[pattern];
+    }
     function matches(pattern: string, values: var): bool {
         if (!pattern)
             return true;
-        try {
-            const re = new RegExp(pattern, "i");
-            return values.some(v => re.test(v ?? ""));
-        } catch (e) {
-            return false;
-        }
+        const re = root.compiled(pattern);
+        return !!re && values.some(v => re.test(v ?? ""));
     }
 
     // The first live rule matching (a rule without any condition matches
@@ -197,7 +205,10 @@ Item {
     function newRuleId(): string {
         return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
     }
-    onCfgChanged: Qt.callLater(root.ensureRuleIds)
+    onCfgChanged: {
+        root.reCache = {};
+        Qt.callLater(root.ensureRuleIds);
+    }
     function ensureRuleIds(): void {
         const rules = root.cfg.rules ?? [];
         if (rules.every(r => !r || r.id))
@@ -217,8 +228,12 @@ Item {
         const until = span === "hour" ? now.getTime() + 3600000
             : span === "today" ? new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).getTime() : 0;
         const rules = (root.cfg.rules ?? []).map(r => Object.assign({}, r));
-        const hit = rules.find(r => r.app === app && !r.text && !r.urgency && r.toast === false && r.sound === false);
+        // The app's own rule (same app pattern, no other condition) is
+        // reused whatever the user changed in it since.
+        const hit = rules.find(r => r.app === app && !r.text && !r.urgency);
         if (hit) {
+            hit.toast = false;
+            hit.sound = false;
             hit.until = until;
             hit.enabled = true;
         } else {
@@ -244,13 +259,32 @@ Item {
         return queued ? Math.min(ms, c.flowShowQueuedMs ?? 3000) : ms;
     }
 
-    // One island is done with an entry's toast (shown and gone, or the
-    // island went away): a transient one is released after the last.
+    // Outputs that show a toast (notifications.screens), decided once per
+    // arrival. Focus not known yet = the first output; nothing left to
+    // show on = the focused one, so a toast is never silently lost.
+    function toastScreens(): var {
+        const mode = root.cfg.screens ?? "all";
+        const list = root.cfg.screenList ?? [];
+        const names = Quickshell.screens.map(s => s.name);
+        const reported = root.compositor?.focusedOutput ?? "";
+        const focused = names.includes(reported) ? reported : (names[0] ?? "");
+        let targets = mode === "focused" ? [focused]
+            : mode === "only" ? list : mode === "except" ? names.filter(n => !list.includes(n)) : names;
+        targets = targets.filter(n => names.includes(n));
+        if (targets.length === 0 && focused !== "")
+            targets = [focused];
+        return targets;
+    }
+
+    // One target island is done with an entry's toast (shown and gone,
+    // or the island went away): toastViews > 0 = still on screen or
+    // queued somewhere (dedupe reads it); a transient one is released
+    // after the last.
     function toastClosed(entry: var): void {
-        if (!root.transients.includes(entry))
+        if (!entry || entry.toastViews <= 0)
             return;
         entry.toastViews -= 1;
-        if (entry.toastViews <= 0)
+        if (entry.toastViews <= 0 && root.transients.includes(entry))
             entry.release();
     }
 
@@ -359,14 +393,19 @@ Item {
                 notif.dismiss();
                 return;
             }
-            const policy = root.policyFor(notif);
+            // A repeat while the copy we have is still on screen / queued
+            // is merged into it (dropped); a critical one always comes
+            // through. Later repeats replace the copy (below).
             const dup = root.duplicateOf(notif);
-            // A repeat soon after: merged into the copy we have (which may
-            // still be on screen), the new one goes.
-            if (dup && Date.now() - dup.time < (root.cfg.dedupeWindowMs ?? 60000)) {
+            if (dup && dup.toastViews > 0 && notif.urgency !== NotificationUrgency.Critical) {
                 notif.dismiss();
                 return;
             }
+            const policy = root.policyFor(notif);
+            // Toast only where notifications.screens says (none = no toast).
+            const screens = policy.toast ? root.toastScreens() : [];
+            if (screens.length === 0)
+                policy.toast = false;
             // Nowhere to go (no toast, not stored): dropped like suppress.
             if (!policy.toast && !policy.history) {
                 notif.dismiss();
@@ -384,7 +423,8 @@ Item {
                 resolve: root.resolveIcons,
                 service: root,
                 policy: policy,
-                toastViews: root.viewers
+                toastScreens: screens,
+                toastViews: screens.length
             });
             entry.closed.connect(() => root.forget(entry));
             if (!policy.history) {

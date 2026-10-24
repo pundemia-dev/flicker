@@ -205,6 +205,14 @@ FloatingWindow {
 
     // Choice options; `optionsFrom` = live ones (the VPN's servers).
     function optionsOf(row: var): var {
+        // Connected outputs (+ chosen ones not connected now, so they can
+        // be unchecked).
+        if (row.optionsFrom === "screens") {
+            const names = Quickshell.screens.map(s => s.name);
+            const chosen = (root.valueOf(row) ?? []).filter(n => !names.includes(n));
+            return [...Quickshell.screens.map(s => ({ value: s.name, label: s.model ? `${s.name} · ${s.model}` : s.name })),
+                ...chosen.map(n => ({ value: n, label: n }))];
+        }
         if (row.optionsFrom === "vpnProfiles")
             return (root.vpn?.profiles ?? []).map(p => ({ value: p.tag, label: p.tag }));
         if (row.optionsFrom === "audioProfiles") {
@@ -229,6 +237,8 @@ FloatingWindow {
             switch (g.generate) {
             case "vpnRules":
                 return [Vpn.rulesGroup(g, root.rules(), tr)];
+            case "setChecks":
+                return [Object.assign({}, g, { rows: root.optionsOf(g.set).map(o => ({ kind: "check", label: o.label, option: o.value, set: g.set })) })];
             case "notifRules":
                 return [Notifs.rulesGroup(g, Config.get(Notifs.LIST) ?? [], tr)];
             case "audioOutputs":

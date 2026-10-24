@@ -372,16 +372,25 @@ user's data) live outside the repo: `CLAUDE.local.md` (git-ignored) and `~/.clau
   today / always) = `Notifications.mute` → a rule `{app: ^name$, toast/sound false, until}`;
   `sweep()` (60 s, only while needed) drops expired rules, history past
   `historyMaxAgeHours`, transients (30 min leak guard only). history=false → `transients`
-  (not in the center), released once EVERY island is done: `toastViews` = `viewers` (islands
-  register) at arrival, each Island hands an entry back once (`toasting` + `toastDone`: flow card
-  gone via the derived `flowEntry`, ticker end, island destroyed). Toast time = `toastMs`
+  (not in the center), released once EVERY target island is done: the service picks the outputs
+  once per arrival (`toastScreens()` → `entry.toastScreens`, `toastViews` = their count; 0 = no
+  toast), only those islands take it, each hands it back once (`toasting` + `toastDone`: flow
+  card gone via the derived `flowEntry`, ticker end, island destroyed). `toastViews > 0` = still
+  on screen / queued (dedupe). Toast time = `toastMs`
   (urgency, rule, `appTimeout`; critical 0 = until dismissed, no queue shortening; the ticker
   then loops until hovered / fullscreen ends). Pills capped by `flowMaxActions` (Dismiss
-  always; kept Copy > Reply > sender's > Mute). `quiet` = DND switch || `dndWhileSharing` && sharing (Privacy screen
+  always; kept Copy > Reply > sender's > Mute).
+  Toast displays: `notifications.screens` all | focused | only | except + `screenList`
+  (connector names; set row `optionsFrom: "screens"` = connected + chosen-but-absent);
+  decided by the service (focus not reported yet = the first output; nothing left connected =
+  the focused one). Set pages are live (generated group "setChecks"). One monitor here: only
+  the fallback paths were tested. `quiet` = DND switch || `dndWhileSharing` && sharing (Privacy screen
   nodes || own recording); `redact` (privacy off|sharing|always) = card/ticker show the app
   name only until the flow card is pulled open. `expireTimeout` is in MS (verified with
   notify-send -t). Dedupe = same app+summary+body replaces the older entry, silent within
-  `dedupeWindowMs` (within it the NEW one is dismissed, the stored copy stays on screen).
+  while the stored copy is on screen / queued (`toastViews > 0`) the NEW one is dismissed
+  (never a critical one); later it replaces the copy. Rule regexes cached (`reCache`, reset on
+  config change); Mute reuses the app's own rule (same pattern, no other condition).
   `entry.code` = the 4–8 digit number nearest a code word → "Copy" pill (wl-copy).
   TransitionLayer.launch turnaround: stop() may land the flying element (finish → el null);
   lifting null threw and aborted openModule — queued flow cards never opened (pre-existing,

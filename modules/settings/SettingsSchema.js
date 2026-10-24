@@ -20,7 +20,8 @@
 //   text                  inline field; `array` = string list joined by
 //                         spaces (argv / paths)
 //   set     options       multi-select drill-down; the config holds the
-//                         checked values (`invert`: the unchecked ones)
+//                         checked values (`invert`: the unchecked ones);
+//                         `optionsFrom` works here too
 //   page    page          drill-down to { title, groups }; `detail` =
 //                         grey text before the chevron, `muted` = grey label
 //   action  action        tappable blue text (SettingsWindow.act());
@@ -185,6 +186,14 @@ const SIDEBAR = [
                     { key: "notifications.privacy", label: "Toast text", kind: "choice", keywords: "hide private sharing", options: [
                         { value: "off", label: "Shown" }, { value: "sharing", label: "Hidden while sharing" }, { value: "always", label: "Hidden" }
                     ] }
+                ] },
+                { title: "Displays", footer: "Without a connected display to show on, toasts go to the focused one. The Notification Center opens on any.", rows: [
+                    { key: "notifications.screens", label: "Show toasts on", kind: "choice", keywords: "monitor output screen", options: [
+                        { value: "all", label: "All displays" }, { value: "focused", label: "Focused display" },
+                        { value: "only", label: "Only selected" }, { value: "except", label: "All but selected" }
+                    ] },
+                    { key: "notifications.screenList", label: "Selected", kind: "set", optionsFrom: "screens", keywords: "monitor output screen",
+                        dependsOn: ["!notifications.screens=all", "!notifications.screens=focused"] }
                 ] },
                 { title: "Rules", footer: "Mute an app from a notification: pull it open, then Mute.", generate: "notifRules", rows: [] },
                 { title: "Sound", footer: "Silent while Do Not Disturb is on (but critical ones with Let critical through, and rules that pass it), muted by a rule, and when the app asks for no sound.", rows: [

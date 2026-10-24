@@ -18,8 +18,10 @@ QtObject {
     // arrival may do (Notifications.policyFor; durationMs read by toastMs).
     property var service: null
     property var policy: ({})
-    // Islands still showing / holding its toast (a transient entry is
-    // released at 0, Notifications.toastClosed).
+    // Outputs picked to toast it (Notifications.toastScreens) and how many
+    // of their islands still show / hold it (0 = off screen; a transient
+    // entry is released at 0, Notifications.toastClosed).
+    property var toastScreens: []
     property int toastViews: 0
     signal closed
 

@@ -74,11 +74,14 @@ Item {
         return (list ?? []).includes(v) !== !!row.invert;
     }
 
+    // A set's options (`optionsFrom` = live ones, SettingsWindow.optionsOf).
+    readonly property var setOptions: root.kind === "set" ? root.host.optionsOf(root.row) : []
+
     function setSummary(): string {
-        const on = root.row.options.filter(o => root.setHas(root.row, root.value, o.value));
+        const on = root.setOptions.filter(o => root.setHas(root.row, root.value, o.value));
         if (on.length === 0)
             return I18n.tr("None");
-        if (on.length === root.row.options.length)
+        if (on.length === root.setOptions.length)
             return I18n.tr("All");
         return on.map(o => I18n.tr(o.label)).join(", ");
     }
@@ -87,9 +90,10 @@ Item {
         const set = root.row.set;
         const list = root.value ?? [];
         const on = !root.setHas(set, list, root.row.option);
-        const known = set.options.map(o => o.value);
+        const options = root.host.optionsOf(set);
+        const known = options.map(o => o.value);
         // Canonical option order; values the schema does not know are kept.
-        const next = set.options.filter(o => o.value === root.row.option ? on : root.setHas(set, list, o.value))
+        const next = options.filter(o => o.value === root.row.option ? on : root.setHas(set, list, o.value))
             .map(o => o.value);
         const stored = set.invert ? known.filter(v => !next.includes(v)) : next;
         root.host.setValue(set, stored.concat(list.filter(v => !known.includes(v))));
@@ -110,9 +114,11 @@ Item {
         else if (root.kind === "page")
             root.host.push(root.row.page, root.row.section ?? "");
         else if (root.kind === "set")
+            // Rows built live (SettingsWindow.groupsOf "setChecks"): an
+            // `optionsFrom` set follows its source while the page is open.
             root.host.push({
                 title: root.row.label,
-                groups: [{ rows: root.row.options.map(o => ({ kind: "check", label: o.label, option: o.value, set: root.row })) }]
+                groups: [{ generate: "setChecks", set: root.row, ref: root.row.key, rows: [] }]
             }, root.row.section ?? "");
         else if (root.menuChoice)
             root.host.openMenu(root.row, valueText);

@@ -244,8 +244,8 @@ PanelWindow {
         ? (root.state.activePayload?.notification ?? null) : null
     // Toasts this island took (shown, queued, pending) and is not done
     // with: each is handed back exactly once (toastDone), so the service
-    // releases an entry kept out of the history only after EVERY island is
-    // done with it (Notifications.toastClosed counts them).
+    // knows when every target island is done (Notifications.toastClosed
+    // counts entry.toastViews down: dedupe, transient release).
     property var toasting: []
     function toastDone(entry: var): void {
         if (!entry || !root.toasting.includes(entry))
@@ -467,11 +467,9 @@ PanelWindow {
         state.setMinimal();
         startupTimer.start();
         root.registry.register(root);
-        root.notifications.viewers += 1;
     }
     Component.onDestruction: {
         root.registry.unregister(root);
-        root.notifications.viewers -= 1;
         for (const e of [...root.toasting])
             root.toastDone(e);
     }
@@ -1231,6 +1229,9 @@ PanelWindow {
         // Only toasts arrive here (the service applied DND, rules and
         // onlyUrgentToast).
         function onNotificationReceived(notif) {
+            // Only the outputs the service picked (notifications.screens).
+            if (!(notif?.toastScreens ?? []).includes(root.screen?.name ?? ""))
+                return;
             root.toasting = [...root.toasting, notif];
             if (root.moduleOpen) {
                 root.notificationQueue.enqueue(notif);
@@ -2031,7 +2032,6 @@ PanelWindow {
                         code: n?.code ?? ""
                     })),
                 transients: (root.notifications.transients ?? []).length,
-                notifViewers: root.notifications.viewers,
                 notifQuiet: root.notifications.quiet,
                 notifRedact: root.notifications.redact,
                 mic: {
