@@ -892,9 +892,44 @@ Singleton {
                     sound: true,
                     soundLowUrgency: false,
                     soundFile: "/usr/share/sounds/freedesktop/stereo/message-new-instant.oga",
-                    // Flow toast lifetime: alone vs. with more queued behind.
+                    // Flow toast lifetime: alone vs. with more queued behind;
+                    // by urgency (flowShowMs = normal; critical 0 = until
+                    // dismissed, the queue waits). appTimeout: a sender's own
+                    // expire timeout (> 0) replaces these.
                     flowShowMs: 5000,
                     flowShowQueuedMs: 3000,
+                    flowShowLowMs: 3000,
+                    flowShowCriticalMs: 10000,
+                    appTimeout: false,
+                    // Do Not Disturb: critical ones still toast / sound;
+                    // DND on by itself while the screen is shared (PipeWire
+                    // screencast) or recorded.
+                    dndAllowCritical: true,
+                    dndWhileSharing: true,
+                    // Toast text hidden (app name + "Notification" until the
+                    // card is pulled open): "off" | "sharing" | "always".
+                    privacy: "sharing",
+                    // Center history: entries older than this are dropped (0 =
+                    // kept until historyLimit pushes them out); low urgency
+                    // stored at all.
+                    historyMaxAgeHours: 0,
+                    historyLowUrgency: true,
+                    // Same app + title + text again: within dedupeWindowMs of
+                    // the stored copy the repeat is dropped (that copy stays,
+                    // on screen too); later it replaces it.
+                    dedupe: true,
+                    dedupeWindowMs: 60000,
+                    // "Copy 123456" button for one-time codes (2FA / login).
+                    codeCopy: true,
+                    // Per-app rules (settings → Notifications → Rules), the
+                    // first enabled match wins: { name, enabled, app, text
+                    // (case-insensitive regex: app = appName / desktop-entry,
+                    // text = title / body), urgency ("" | low | normal |
+                    // critical), toast, sound, history (false = off),
+                    // bypassDnd, durationMs (0 = default), until (ms epoch,
+                    // 0 = forever; an expired rule is removed) }. "Mute" on a
+                    // notification adds { app, toast: false, sound: false, until }.
+                    rules: [],
                     // Collapse-to-bar pause between queued flow cards.
                     flowSwapGapMs: 300,
                     // Flow card gestures: drag down past flowPullThreshold

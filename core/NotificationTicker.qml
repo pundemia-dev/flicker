@@ -17,6 +17,8 @@ Item {
     property real iconSize: 24
     property color fadeColor: "black"
     property bool running: false
+    // Privacy (Notifications.redact): the app name only.
+    property bool redacted: false
 
     readonly property real gap: root.cfg?.tickerIconGap ?? 8
     // Viewport fits short text, capped at tickerWidth (longer text scrolls).
@@ -25,10 +27,10 @@ Item {
     readonly property real reserve: root.iconSize + root.gap + root.viewportWidth + (root.cfg?.tickerRowGap ?? 12)
 
     readonly property string appName: root.notif?.appName ?? ""
-    readonly property string image: root.notif?.image ?? ""
+    readonly property string image: root.redacted ? "" : (root.notif?.image ?? "")
     readonly property string appIcon: root.notif?.appIcon ?? ""
-    readonly property string summary: (root.notif?.summary ?? "").replace(/\s+/g, " ").trim()
-    readonly property string body: (root.notif?.body ?? "").replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim()
+    readonly property string summary: (root.redacted ? "" : (root.notif?.summary ?? "")).replace(/\s+/g, " ").trim()
+    readonly property string body: (root.redacted ? "" : (root.notif?.body ?? "")).replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim()
 
     readonly property real loopGap: root.cfg?.tickerLoopGap ?? 48
     readonly property real speed: Math.max(1, root.cfg?.tickerSpeed ?? 60)   // px / s

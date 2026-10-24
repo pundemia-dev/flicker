@@ -6,6 +6,7 @@ import "SettingsSchema.js" as Schema
 import "SettingsSearch.js" as Search
 import "SettingsVpn.js" as Vpn
 import "SettingsAudio.js" as AudioSettings
+import "SettingsNotifs.js" as Notifs
 
 // Settings window: sidebar of sections (iOS tiles; an end-4 style icon rail
 // when the window is narrow) + the page in a rounded content card
@@ -21,6 +22,7 @@ FloatingWindow {
     required property var audio
     required property var audioDevices
     required property var audioPolicy
+    required property var notifications
     property string initialSection: "general"
 
     property string section: Schema.section(root.initialSection).id
@@ -143,6 +145,10 @@ FloatingWindow {
             return root.wallpaper?.cfg[row.key];
         if (row.store === "vpn")
             return root.vpn?.[row.key];
+        if (row.store === "notifications")
+            return root.notifications?.[row.key];
+        if (row.store === "notifRule")
+            return Notifs.field(root.ruleAt(row.ref), row.key);
         if (row.store === "vpnRule") {
             // A deleted rule's page reads its copy while it slides away.
             const list = root.rules();
@@ -170,6 +176,19 @@ FloatingWindow {
                 root.vpn?.setKillswitch(value);
             else if (row.key === "profile")
                 root.vpn?.select(value);
+        } else if (row.store === "notifications") {
+            if (root.notifications)
+                root.notifications[row.key] = value;
+        } else if (row.store === "notifRule") {
+            const list = root.listOf(row.ref).map(r => Object.assign({}, r));
+            const rule = list[root.refIndex(row.ref)];
+            if (!rule)
+                return;
+            if (value === Notifs.DEFAULTS[row.key] || row.key === "name" && `${value}`.trim() === "")
+                delete rule[row.key];
+            else
+                rule[row.key] = value;
+            Config.set(row.ref.list, list);
         } else if (row.store === "vpnRule") {
             const list = root.rules().map(r => Object.assign({}, r));
             if (!list[row.ref.index])
@@ -210,6 +229,8 @@ FloatingWindow {
             switch (g.generate) {
             case "vpnRules":
                 return [Vpn.rulesGroup(g, root.rules(), tr)];
+            case "notifRules":
+                return [Notifs.rulesGroup(g, Config.get(Notifs.LIST) ?? [], tr)];
             case "audioOutputs":
             case "audioInputs":
                 return [AudioSettings.listGroup(g, root.audioDevices, g.generate === "audioOutputs", hidden, tr)];
@@ -305,6 +326,18 @@ FloatingWindow {
                 return { text: bad, alert: true };
             break;
         }
+        case "notifRule": {
+            const bad = Notifs.ruleError(root.ruleAt(group.ref), tr);
+            if (bad)
+                return { text: bad, alert: true };
+            break;
+        }
+        case "notifRuleUntil": {
+            const until = root.ruleAt(group.ref)?.until ?? 0;
+            if (until > 0)
+                return { text: I18n.tr("Expires %1, then the rule is removed.").arg(Notifs.clock(until)), alert: false };
+            break;
+        }
         }
         return plain;
     }
@@ -323,6 +356,24 @@ FloatingWindow {
 
     function rules(): var {
         return Config.get("vpn.routing.rules") ?? [];
+    }
+
+    // A rule page's list (ref.list: the VPN routing rules by default) and
+    // its rule; a deleted one's page reads its copy while it slides away.
+    // A ref with an `id` (notification rules) finds its rule by it: the
+    // service reorders that list on its own (mute adds, sweep removes);
+    // -1 = deleted / gone.
+    function listOf(ref: var): var {
+        return Config.get(ref?.list ?? "vpn.routing.rules") ?? [];
+    }
+    function refIndex(ref: var): int {
+        if (!ref || ref.index < 0)
+            return -1;
+        return ref.id ? root.listOf(ref).findIndex(r => r?.id === ref.id) : ref.index;
+    }
+    function ruleAt(ref: var): var {
+        const i = root.refIndex(ref);
+        return (i < 0 ? ref.gone : root.listOf(ref)[i]) ?? {};
     }
 
     function canAct(row: var): bool {
@@ -363,9 +414,13 @@ FloatingWindow {
         // rules() also makes the binding re-read after a move: the ref's
         // index is a plain JS field, not a notifying property.
         case "ruleUp":
-            return root.rules().length > 0 && row.ref.index > 0;
-        case "ruleDown":
-            return row.ref.index < root.rules().length - 1;
+            return root.listOf(row.ref).length > 0 && root.refIndex(row.ref) > 0;
+        case "ruleDown": {
+            const i = root.refIndex(row.ref);
+            return i >= 0 && i < root.listOf(row.ref).length - 1;
+        }
+        case "notifRuleForever":
+            return (root.ruleAt(row.ref).until ?? 0) > 0;
         }
         return true;
     }
@@ -377,8 +432,10 @@ FloatingWindow {
             return;
         }
         root.armed = null;
-        const list = root.rules().slice();
-        const i = row.ref?.index ?? -1;
+        // The rule list the row works on (ref.list; Add rule: the VPN's).
+        const path = row.ref?.list ?? "vpn.routing.rules";
+        const list = (Config.get(path) ?? []).slice();
+        const i = row.ref ? root.refIndex(row.ref) : -1;
         switch (row.action) {
         case "vpnApply":
         case "vpnRefresh":
@@ -446,6 +503,21 @@ FloatingWindow {
         case "vpnLogs":
             root.vpn?.openLogs();
             break;
+        case "notifRuleAdd": {
+            const rules = (Config.get(Notifs.LIST) ?? []).slice();
+            const id = root.notifications?.newRuleId() ?? `${Date.now()}`;
+            rules.push({ id: id, enabled: true, app: "" });
+            Config.set(Notifs.LIST, rules);
+            root.push(Notifs.rulePage({ index: rules.length - 1, id: id, list: Notifs.LIST }), row.section ?? "");
+            break;
+        }
+        case "notifRuleForever":
+            if (list[i]) {
+                list[i] = Object.assign({}, list[i]);
+                delete list[i].until;
+                Config.set(path, list);
+            }
+            break;
         case "ruleAdd":
             list.push({ action: "direct", match: [], enabled: true });
             Config.set("vpn.routing.rules", list);
@@ -460,17 +532,20 @@ FloatingWindow {
                 break;
             [list[i], list[j]] = [list[j], list[i]];
             row.ref.index = j;
-            Config.set("vpn.routing.rules", list);
+            Config.set(path, list);
             break;
         }
         case "ruleDelete":
             // The page keeps a copy while it slides away (and its close
             // does not take the next rule for an empty one).
-            row.ref.gone = list[i];
+            // Already gone (expired meanwhile): only the page leaves.
+            row.ref.gone = i < 0 ? root.ruleAt(row.ref) : list[i];
             row.ref.index = -1;
             stack.pop();
+            if (i < 0)
+                break;
             list.splice(i, 1);
-            Config.set("vpn.routing.rules", list);
+            Config.set(path, list);
             break;
         }
     }
@@ -479,13 +554,15 @@ FloatingWindow {
     // has no matches takes the rule with it (an Add rule left unfilled).
     function pageClosed(page: var): void {
         const ref = page?.ruleRef;
-        if (!ref || ref.index < 0)
+        const at = root.refIndex(ref);
+        if (at < 0)
             return;
-        const list = root.rules().slice();
-        if (list[ref.index] && Vpn.isEmpty(list[ref.index])) {
-            list.splice(ref.index, 1);
+        const list = root.listOf(ref).slice();
+        const empty = ref.list === Notifs.LIST ? Notifs.isEmpty : Vpn.isEmpty;
+        if (list[at] && empty(list[at])) {
+            list.splice(at, 1);
             ref.index = -1;
-            Config.set("vpn.routing.rules", list);
+            Config.set(ref.list ?? "vpn.routing.rules", list);
         }
     }
 

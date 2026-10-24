@@ -14,6 +14,7 @@ Scope {
     required property var audio
     required property var audioDevices
     required property var audioPolicy
+    required property var notifications
 
     property bool shown: false
     // Section the window (re)opens on: the last one shown or requested.
@@ -38,6 +39,7 @@ Scope {
             audio: root.audio
             audioDevices: root.audioDevices
             audioPolicy: root.audioPolicy
+            notifications: root.notifications
             initialSection: root.lastSection
             onSectionChanged: root.lastSection = section
             onClosed: root.shown = false

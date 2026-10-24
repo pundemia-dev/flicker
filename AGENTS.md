@@ -360,6 +360,35 @@ user's data) live outside the repo: `CLAUDE.local.md` (git-ignored) and `~/.clau
   (`actionable` = not a collapsed stack) grows by `extraHeight`, NotificationGroup lays tiles out
   by the sum, NotificationCenter owns ONE open panel (`actionEntry/actionStage`, `wantsKeyboard`);
   an action / reply there collapses the tile (center stays open). Center panel NOT live-tested.
+- Notification policy (Oct 2026, user: rules / DND / privacy like DMS, Noctalia, swaync): ONE
+  decision per arrival in `Notifications.policyFor` → `entry.policy` {toast, sound, history,
+  bypassDnd, durationMs}; Island only gets toasts (`onlyUrgentToast` moved out of Island).
+  Rules = `notifications.rules` (first live match wins; regex app = appName|desktopEntry, text =
+  summary|body; flags only take away, but bypassDnd/durationMs), edited in settings
+  (`SettingsNotifs.js`, store "notifRule", refs `{index, id, list}`: rules carry a stable `id`
+  (`ensureRuleIds` adds missing ones) and pages resolve by it (`SettingsWindow.refIndex`) since
+  mute / sweep reorder the list under an open page; the VPN rule actions
+  ruleUp/Down/Delete/pageClosed are list-generic now). Pill "Mute" (stage "mute": 1 hour /
+  today / always) = `Notifications.mute` → a rule `{app: ^name$, toast/sound false, until}`;
+  `sweep()` (60 s, only while needed) drops expired rules, history past
+  `historyMaxAgeHours`, transients (30 min leak guard only). history=false → `transients`
+  (not in the center), released once EVERY island is done: `toastViews` = `viewers` (islands
+  register) at arrival, each Island hands an entry back once (`toasting` + `toastDone`: flow card
+  gone via the derived `flowEntry`, ticker end, island destroyed). Toast time = `toastMs`
+  (urgency, rule, `appTimeout`; critical 0 = until dismissed, no queue shortening; the ticker
+  then loops until hovered / fullscreen ends). Pills capped by `flowMaxActions` (Dismiss
+  always; kept Copy > Reply > sender's > Mute). `quiet` = DND switch || `dndWhileSharing` && sharing (Privacy screen
+  nodes || own recording); `redact` (privacy off|sharing|always) = card/ticker show the app
+  name only until the flow card is pulled open. `expireTimeout` is in MS (verified with
+  notify-send -t). Dedupe = same app+summary+body replaces the older entry, silent within
+  `dedupeWindowMs` (within it the NEW one is dismissed, the stored copy stays on screen).
+  `entry.code` = the 4–8 digit number nearest a code word → "Copy" pill (wl-copy).
+  TransitionLayer.launch turnaround: stop() may land the flying element (finish → el null);
+  lifting null threw and aborted openModule — queued flow cards never opened (pre-existing,
+  fixed Oct 2026). Verified live via notify-send + debugState (notifs.timeoutMs/code, transients):
+  drop/muted/transient rules, dedupe, code, critical 10 s / until dismissed + queue, timed
+  rule removal, rule ids, queue advance. NOT tested:
+  the pills by pointer, DND while sharing, redaction visuals, rule pages in the UI.
 - Quick Settings (`modules/quicksettings/`, Oct 2026) = iOS Control Center: TABS (pages)
   of a 4-col grid of square cells (`Config.data.quicksettings`), island size/radius DERIVED
   in `QsMetrics.js` (radius = margins + unit/2; card radius = unit/2 → 1x1 circle, 1xN

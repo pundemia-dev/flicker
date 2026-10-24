@@ -57,6 +57,8 @@ Item {
 
     function fmtNumber(v: var): string {
         const n = Number(v ?? 0) / (root.row.scale ?? 1);
+        if (n === 0 && root.row.zeroLabel)
+            return I18n.tr(root.row.zeroLabel);
         return n.toFixed(root.row.decimals ?? 0) + I18n.tr(root.row.suffix ?? "");
     }
 

@@ -29,7 +29,7 @@ Item {
     readonly property real threshold: root.cfg?.flowPullThreshold ?? 36
     readonly property real closeDistance: 30
 
-    // "" collapsed | "actions" | "reply"
+    // "" collapsed | "actions" | "mute" | "reply"
     property string stage: ""
     property bool dragging: false
     property real pull: 0
@@ -50,6 +50,8 @@ Item {
         height: root.baseHeight - 2 * root.margin
         notif: root.entry
         cfg: root.cfg
+        // Hidden text shows once the card is pulled open.
+        redacted: (root.service?.redact ?? false) && root.stage === ""
     }
 
     // Gestures (below the panel: its buttons take their own presses).

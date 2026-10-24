@@ -2,9 +2,10 @@ import QtQuick
 import "../../components"
 import "../../config"
 
-// Context panel under a notification (flow card + center tiles): the
-// sender's actions, Reply and Dismiss as label-fitted pills centred in the
-// row, or — stage "reply" — the inline reply field. The owner places it
+// Context panel under a notification (flow card + center tiles): Copy
+// <code> (one-time codes), the sender's actions, Reply, Mute and Dismiss as
+// label-fitted pills centred in the row; stage "mute" = how long (1 hour,
+// today, always) instead; stage "reply" = the inline reply field. The owner places it
 // below its card, drives `stage` and `reveal` (0..1, follows its own
 // growing height) and grows by `panelExtra` while it is open.
 Item {
@@ -14,7 +15,7 @@ Item {
     property var cfg
     property var theme
     property var frost: null
-    // "" collapsed | "actions" | "reply"
+    // "" collapsed | "actions" | "mute" | "reply"
     property string stage: ""
     property real reveal: 0
 
@@ -47,21 +48,45 @@ Item {
         const e = root.entry;
         if (!e)
             return [];
-        const fixed = [];
-        if (e.canReply)
-            fixed.push({ id: "__reply", text: I18n.tr("Reply") });
-        fixed.push({ id: "__dismiss", text: I18n.tr("Dismiss") });
-        const max = root.cfg?.flowMaxActions ?? 4;
-        return [...(e.actions ?? []).slice(0, Math.max(0, max - fixed.length)), ...fixed];
+        // At most flowMaxActions (Dismiss always stays): kept by priority
+        // Dismiss > Copy > Reply > the sender's actions > Mute, shown in
+        // the row order Copy, sender's, Reply, Mute, Dismiss.
+        const code = { id: "__code", text: I18n.tr("Copy %1").arg(e.code), rank: 1 };
+        const reply = { id: "__reply", text: I18n.tr("Reply"), rank: 2 };
+        const mute = { id: "__mute", text: I18n.tr("Mute"), rank: 99 };
+        const row = [
+            ...(e.code ? [code] : []),
+            ...(e.actions ?? []).map((a, i) => Object.assign({ rank: 3 + i / 100 }, a)),
+            ...(e.canReply ? [reply] : []),
+            ...((e.appName ?? "") !== "" ? [mute] : [])
+        ];
+        const room = Math.max(1, root.cfg?.flowMaxActions ?? 4) - 1;
+        const kept = row.slice().sort((a, b) => a.rank - b.rank).slice(0, room);
+        return [...row.filter(b => kept.includes(b)), { id: "__dismiss", text: I18n.tr("Dismiss") }];
     }
 
+    readonly property var muteButtons: [
+        { id: "__back", text: "\uea60", glyph: true },
+        { id: "__hour", text: I18n.tr("1 hour") },
+        { id: "__today", text: I18n.tr("Today") },
+        { id: "__always", text: I18n.tr("Always") }
+    ]
+
     function press(id: string): void {
-        if (id === "__reply") {
-            root.stageRequested("reply");
+        if (id === "__reply" || id === "__mute") {
+            root.stageRequested(id.slice(2));
+            return;
+        }
+        if (id === "__back") {
+            root.stageRequested("actions");
             return;
         }
         if (id === "__dismiss")
             root.entry?.dismiss();
+        else if (id === "__code")
+            root.entry?.copyCode();
+        else if (id === "__hour" || id === "__today" || id === "__always")
+            root.entry?.mute(id.slice(2));
         else
             root.entry?.invoke(id);
         root.finished();
@@ -85,57 +110,67 @@ Item {
     // Slides out from under the card as the owner grows.
     transform: Translate { y: (1 - root.reveal) * -root.buttonH * 0.5 }
 
-    FadeBlur {
-        anchors.fill: parent
-        shown: root.stage !== "reply"
+    // Label-fitted pills centred in the row (an equal share of the row is
+    // only the upper bound); `glyph` = an icon instead of a label.
+    component PillRow: Row {
+        id: pills
+        property var items: []
+        anchors.centerIn: parent
+        spacing: root.spacing
 
-        // Buttons fit their label (+ flowActionPadding), centred; an equal
-        // share of the row is only the upper bound.
-        Row {
-            anchors.centerIn: parent
-            spacing: root.spacing
+        Repeater {
+            model: pills.items
+            delegate: Rectangle {
+                id: btn
+                required property var modelData
+                readonly property real share: (root.width - root.spacing * (pills.items.length - 1)) / Math.max(1, pills.items.length)
+                width: Math.min(share, Math.ceil(label.implicitWidth) + 2 * (root.cfg?.flowActionPadding ?? 16))
+                height: root.buttonH
+                radius: height / 2
+                color: root.surface(btnMa.pressed ? (root.theme?.qsDisc ?? "#3A3A3C")
+                    : btnMa.containsMouse ? (root.theme?.cardTrack ?? "#2C2C2E") : (root.theme?.cardBg ?? "#1C1C1E"))
 
-            Repeater {
-                model: root.buttons
-                delegate: Rectangle {
-                    id: btn
-                    required property var modelData
-                    readonly property real share: (root.width - root.spacing * (root.buttons.length - 1)) / Math.max(1, root.buttons.length)
-                    width: Math.min(share, Math.ceil(label.implicitWidth) + 2 * (root.cfg?.flowActionPadding ?? 16))
-                    height: root.buttonH
-                    radius: height / 2
-                    color: root.surface(btnMa.pressed ? (root.theme?.qsDisc ?? "#3A3A3C")
-                        : btnMa.containsMouse ? (root.theme?.cardTrack ?? "#2C2C2E") : (root.theme?.cardBg ?? "#1C1C1E"))
+                InnerShadow {
+                    anchors.fill: parent
+                    radius: btn.radius
+                    size: Math.round(btn.height * 0.3)
+                    strength: root.shadowStrength
+                    opacity: root.frost?.progress ?? 0
+                }
 
-                    InnerShadow {
-                        anchors.fill: parent
-                        radius: btn.radius
-                        size: Math.round(btn.height * 0.3)
-                        strength: root.shadowStrength
-                        opacity: root.frost?.progress ?? 0
-                    }
-
-                    Text {
-                        id: label
-                        anchors.fill: parent
-                        anchors.leftMargin: 10
-                        anchors.rightMargin: 10
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
-                        text: btn.modelData.text
-                        elide: Text.ElideRight
-                        font.pixelSize: 15
-                        color: btn.modelData.id === "__dismiss" ? (root.theme?.subtleFg ?? "#B9C0CB") : (root.theme?.islandFg ?? "#E9ECF1")
-                    }
-                    MouseArea {
-                        id: btnMa
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        onClicked: root.press(btn.modelData.id)
-                    }
+                Text {
+                    id: label
+                    anchors.fill: parent
+                    anchors.leftMargin: 10
+                    anchors.rightMargin: 10
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                    text: btn.modelData.text
+                    elide: Text.ElideRight
+                    font.family: btn.modelData.glyph ? (root.theme?.iconFamily ?? "tabler-icons") : Qt.application.font.family
+                    font.pixelSize: 15
+                    color: btn.modelData.id === "__dismiss" || btn.modelData.id === "__back" ? (root.theme?.subtleFg ?? "#B9C0CB") : (root.theme?.islandFg ?? "#E9ECF1")
+                }
+                MouseArea {
+                    id: btnMa
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    onClicked: root.press(btn.modelData.id)
                 }
             }
         }
+    }
+
+    FadeBlur {
+        anchors.fill: parent
+        shown: root.stage !== "reply" && root.stage !== "mute"
+        PillRow { items: root.buttons }
+    }
+
+    FadeBlur {
+        anchors.fill: parent
+        shown: root.stage === "mute"
+        PillRow { items: root.muteButtons }
     }
 
     FadeBlur {

@@ -163,6 +163,11 @@ Item {
         if (root.el === element && root.phase === "home") {
             springAnim.stop();
             timedAnim.stop();
+        }
+        // stop() can land it (finish(): docked home, el = null) — then it
+        // takes off fresh below; lifting the null element threw and
+        // aborted the caller's openModule (queued flow cards never opened).
+        if (root.el === element && root.phase === "home") {
             root.contract = c;
             root.slot = null;
             root.lift();

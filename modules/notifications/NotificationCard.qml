@@ -17,10 +17,14 @@ Item {
     // Group counter on the avatar's top-right rim (center: collapsed
     // stacks); hidden at <= 1.
     property int groupCount: 0
+    // Privacy (Notifications.redact): the app name and "Notification"
+    // instead of the title / text, the app icon instead of the sender's
+    // picture.
+    property bool redacted: false
 
     readonly property real avatarSize: root.cfg?.avatarSize ?? 64
     readonly property real badgeSize: root.cfg?.badgeSize ?? 20
-    readonly property string imageSource: root.notif?.image ?? ""
+    readonly property string imageSource: root.redacted ? "" : (root.notif?.image ?? "")
     readonly property string appIconName: root.notif?.appIcon ?? ""
     readonly property bool hasImage: root.imageSource.length > 0
     readonly property bool hasAppIcon: root.appIconName.length > 0
@@ -167,7 +171,7 @@ Item {
 
             Text {
                 width: parent.width - timeBox.width - 8
-                text: root.notif?.summary ?? ""
+                text: root.redacted ? (root.notif?.appName ?? "") : (root.notif?.summary ?? "")
                 color: "#F0F4FB"
                 font.pixelSize: 16
                 maximumLineCount: 1
@@ -175,7 +179,7 @@ Item {
             }
             Text {
                 width: parent.width
-                text: root.notif?.body ?? ""
+                text: root.redacted ? I18n.tr("Notification") : (root.notif?.body ?? "")
                 color: "#C0CAD8"
                 font.pixelSize: 16
                 wrapMode: Text.Wrap

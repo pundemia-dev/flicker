@@ -15,7 +15,8 @@
 //                         control instead of the pull-down menu
 //   number  min max step  raw config units; shown as value / scale with
 //           scale suffix  `decimals` places + suffix; `slider` = a slider
-//           decimals      under the label instead of the stepper
+//           decimals      under the label instead of the stepper;
+//           zeroLabel     `zeroLabel` = shown instead of 0 ("Off")
 //   text                  inline field; `array` = string list joined by
 //                         spaces (argv / paths)
 //   set     options       multi-select drill-down; the config holds the
@@ -164,11 +165,29 @@ const SIDEBAR = [
             groups: [
                 { footer: "Low-urgency notifications go straight to the Notification Center.", rows: [
                     { key: "notifications.onlyUrgentToast", label: "Hide low-urgency toasts", kind: "bool" },
-                    { key: "notifications.flowShowMs", label: "Show toast for", kind: "number", min: 1000, max: 20000, step: 500, scale: S, decimals: 1, suffix: " s" },
-                    { key: "notifications.flowShowQueuedMs", label: "Show queued toast for", kind: "number", min: 1000, max: 20000, step: 500, scale: S, decimals: 1, suffix: " s" },
-                    { key: "notifications.flowMaxActions", label: "Action buttons", kind: "number", min: 0, max: 6, step: 1 }
+                    { key: "notifications.flowMaxActions", label: "Action buttons", kind: "number", min: 0, max: 6, step: 1 },
+                    { key: "notifications.codeCopy", label: "Copy button for codes", kind: "bool", keywords: "2fa otp one-time login verification" },
+                    { key: "notifications.dedupe", label: "Merge repeats", kind: "bool", keywords: "duplicates dedupe spam" }
                 ] },
-                { title: "Sound", footer: "Silent while Do Not Disturb is on, and when the app asks for no sound.", rows: [
+                { title: "Toast duration", footer: "Critical at 0 stays until dismissed; the queue waits behind it. With the app's timeout, an app that sets one decides instead.", rows: [
+                    { key: "notifications.flowShowMs", label: "Normal", kind: "number", min: 1000, max: 20000, step: 500, scale: S, decimals: 1, suffix: " s", keywords: "timeout" },
+                    { key: "notifications.flowShowLowMs", label: "Low urgency", kind: "number", min: 1000, max: 20000, step: 500, scale: S, decimals: 1, suffix: " s", dependsOn: "!notifications.onlyUrgentToast", keywords: "timeout" },
+                    { key: "notifications.flowShowCriticalMs", label: "Critical", kind: "number", min: 0, max: 60000, step: 1000, scale: S, suffix: " s", zeroLabel: "Until dismissed", keywords: "timeout" },
+                    { key: "notifications.flowShowQueuedMs", label: "With more queued", kind: "number", min: 1000, max: 20000, step: 500, scale: S, decimals: 1, suffix: " s", keywords: "timeout" },
+                    { key: "notifications.appTimeout", label: "Use the app's timeout", kind: "bool", keywords: "expire timeout" }
+                ] },
+                { title: "Do Not Disturb", footer: "Notifications still go to the Notification Center, just without a toast or a sound.", rows: [
+                    { store: "notifications", key: "doNotDisturb", label: "Do Not Disturb", kind: "bool", keywords: "dnd silence" },
+                    { key: "notifications.dndWhileSharing", label: "While sharing the screen", kind: "bool", keywords: "dnd screencast recording" },
+                    { key: "notifications.dndAllowCritical", label: "Let critical through", kind: "bool", keywords: "dnd urgent" }
+                ] },
+                { title: "Privacy", footer: "Hidden: a toast shows only the app name until you pull it open. Sharing = a screencast or a screen recording.", rows: [
+                    { key: "notifications.privacy", label: "Toast text", kind: "choice", keywords: "hide private sharing", options: [
+                        { value: "off", label: "Shown" }, { value: "sharing", label: "Hidden while sharing" }, { value: "always", label: "Hidden" }
+                    ] }
+                ] },
+                { title: "Rules", footer: "Mute an app from a notification: pull it open, then Mute.", generate: "notifRules", rows: [] },
+                { title: "Sound", footer: "Silent while Do Not Disturb is on (but critical ones with Let critical through, and rules that pass it), muted by a rule, and when the app asks for no sound.", rows: [
                     { key: "notifications.sound", label: "Play a sound", kind: "bool" },
                     { key: "notifications.soundLowUrgency", dependsOn: "notifications.sound", label: "For low-urgency too", kind: "bool" },
                     { key: "notifications.soundFile", dependsOn: "notifications.sound", label: "Sound file", kind: "text", wide: true, placeholder: "/usr/share/sounds/…" }
@@ -179,6 +198,8 @@ const SIDEBAR = [
                 ] },
                 { title: "Notification Center", rows: [
                     { key: "notifications.historyLimit", label: "Keep", kind: "number", min: 10, max: 500, step: 10, suffix: " notifications" },
+                    { key: "notifications.historyMaxAgeHours", label: "Remove after", kind: "number", min: 0, max: 720, step: 24, scale: 24, suffix: " d", zeroLabel: "Never", keywords: "history age" },
+                    { key: "notifications.historyLowUrgency", label: "Keep low-urgency", kind: "bool", keywords: "history" },
                     { key: "notifications.games", label: "Games when empty", kind: "set", options: [
                         { value: "dino", label: "Dino" }, { value: "flappy", label: "Flappy" }
                     ] }

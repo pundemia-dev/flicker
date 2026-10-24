@@ -19,7 +19,8 @@ Scope {
     Bluetooth { id: bluetoothService }
     Battery { id: batteryService }
     Brightness { id: brightnessService }
-    Notifications { id: notificationsService }
+    // privacy / recorder: screen sharing = DND by itself + hidden toast text.
+    Notifications { id: notificationsService; privacy: privacyService; recorder: recorderService }
     Privacy { id: privacyService; audio: audioService }
     // Event indicators (one at a time in the bar) + their sources.
     Events { id: eventsService }
@@ -174,7 +175,7 @@ Scope {
     }
 
     // Settings window (an ordinary app window; IPC `settings`).
-    SettingsScope { id: settingsScope; theme: themeService; wallpaper: wallpaperService; vpn: vpnService; audio: audioService; audioDevices: audioDevicesService; audioPolicy: audioPolicyService }
+    SettingsScope { id: settingsScope; theme: themeService; wallpaper: wallpaperService; vpn: vpnService; audio: audioService; audioDevices: audioDevicesService; audioPolicy: audioPolicyService; notifications: notificationsService }
 
     OsdWatcher {
         registry: islandRegistry

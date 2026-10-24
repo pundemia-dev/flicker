@@ -1,4 +1,5 @@
 import QtQuick
+import Quickshell
 import Quickshell.Services.Notifications
 
 // One history entry (pShell Notif pattern): a live mirror of the tracked
@@ -13,6 +14,13 @@ QtObject {
     // Icon/image resolver from the service (fallback chain, see
     // Notifications.resolveIcons) — re-run whenever the source changes.
     property var resolve: null
+    // The Notifications service (mute, code detection) and what this
+    // arrival may do (Notifications.policyFor; durationMs read by toastMs).
+    property var service: null
+    property var policy: ({})
+    // Islands still showing / holding its toast (a transient entry is
+    // released at 0, Notifications.toastClosed).
+    property int toastViews: 0
     signal closed
 
     property string appName: ""
@@ -31,6 +39,11 @@ QtObject {
     property string replyPlaceholder: ""
     // desktop-entry hint (app id without ".desktop"), for focusing / launching.
     property string desktopEntry: ""
+    // The sender's own expire timeout in ms (0 = none / never; used with
+    // notifications.appTimeout).
+    property int appTimeoutMs: 0
+    // One-time code found in the text ("Copy 123456" button), else "".
+    property string code: ""
     // Arrival time; bumped on in-place replacement (it is a fresh message).
     property double time: Date.now()
 
@@ -52,6 +65,20 @@ QtObject {
         entry.canReply = n.hasInlineReply;
         entry.replyPlaceholder = n.inlineReplyPlaceholder ?? "";
         entry.desktopEntry = n.desktopEntry ?? "";
+        // Milliseconds as sent (verified: notify-send -t 7000 = 7000);
+        // D-Bus -1 (server default) < 0.
+        entry.appTimeoutMs = n.expireTimeout > 0 ? Math.round(n.expireTimeout) : 0;
+        entry.code = entry.service ? entry.service.codeOf(n.summary ?? "", n.body ?? "") : "";
+    }
+
+    // Silences the sender's app (Notifications.mute): "hour" | "today" | "always".
+    function mute(span: string): void {
+        entry.service?.mute(entry, span);
+    }
+
+    function copyCode(): void {
+        if (entry.code !== "")
+            Quickshell.execDetached(["wl-copy", "--", entry.code]);
     }
 
     // Closes the server-side notification (sender gets NotificationClosed).
@@ -104,6 +131,7 @@ QtObject {
         function onAppIconChanged(): void { entry.sync(); }
         function onImageChanged(): void { entry.sync(); }
         function onUrgencyChanged(): void { entry.sync(); }
+        function onExpireTimeoutChanged(): void { entry.sync(); }
         function onActionsChanged(): void { entry.sync(); }
         function onHasInlineReplyChanged(): void { entry.sync(); }
         function onInlineReplyPlaceholderChanged(): void { entry.sync(); }

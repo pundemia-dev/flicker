@@ -239,6 +239,28 @@ PanelWindow {
     property double flowShownAt: 0
     // Dequeued card waiting out the collapse-to-bar gap before showing.
     property var pendingFlow: null
+    // Entry of the flow card on screen (read from the active payload).
+    readonly property var flowEntry: root.state.activeModule === "notifications" && (root.state.activePayload?.mode ?? "") === "flow"
+        ? (root.state.activePayload?.notification ?? null) : null
+    // Toasts this island took (shown, queued, pending) and is not done
+    // with: each is handed back exactly once (toastDone), so the service
+    // releases an entry kept out of the history only after EVERY island is
+    // done with it (Notifications.toastClosed counts them).
+    property var toasting: []
+    function toastDone(entry: var): void {
+        if (!entry || !root.toasting.includes(entry))
+            return;
+        root.toasting = root.toasting.filter(e => e !== entry);
+        root.notifications.toastClosed(entry);
+    }
+    // The flow card going (closed, replaced by another card or module).
+    property var lastFlowEntry: null
+    onFlowEntryChanged: {
+        const old = root.lastFlowEntry;
+        root.lastFlowEntry = root.flowEntry;
+        if (old && old !== root.flowEntry)
+            root.toastDone(old);
+    }
     // Minimal-hold reveal (press the active zone to peek at the bar).
     property bool temporaryRevealFromMinimal: false
     property bool holdRevealing: false
@@ -445,8 +467,14 @@ PanelWindow {
         state.setMinimal();
         startupTimer.start();
         root.registry.register(root);
+        root.notifications.viewers += 1;
     }
-    Component.onDestruction: root.registry.unregister(root)
+    Component.onDestruction: {
+        root.registry.unregister(root);
+        root.notifications.viewers -= 1;
+        for (const e of [...root.toasting])
+            root.toastDone(e);
+    }
 
     // Caffeine mode: an idle inhibitor on this surface (services/Caffeine).
     IdleInhibitor {
@@ -696,11 +724,17 @@ PanelWindow {
             flowAutoClose.stop();
     }
 
-    // (Re)arms the flow auto-close: 5s when nothing else waits, 3s when the
-    // queue has more behind the current card.
+    // (Re)arms the flow auto-close (Notifications.toastMs: by urgency /
+    // rule / the sender's timeout, shorter with more queued behind the
+    // card); an until-dismissed card (0) arms nothing.
     function armFlowTimer(): void {
         root.flowShownAt = Date.now();
-        flowAutoClose.interval = root.notificationQueue.size > 0 ? root.config.notifications.flowShowQueuedMs : root.config.notifications.flowShowMs;
+        const ms = root.notifications.toastMs(root.flowEntry, root.notificationQueue.size > 0);
+        if (ms <= 0) {
+            flowAutoClose.stop();
+            return;
+        }
+        flowAutoClose.interval = ms;
         flowAutoClose.restart();
     }
 
@@ -711,10 +745,13 @@ PanelWindow {
             return;
         if ((root.state.activePayload?.mode ?? "") !== "flow")
             return;
-        // Being answered / its buttons open: the newcomer waits its turn.
+        // Being answered / its buttons open, or until dismissed: the
+        // newcomer waits its turn.
         if (moduleHost.holdOpen)
             return;
-        const target = root.config.notifications.flowShowQueuedMs;
+        const target = root.notifications.toastMs(root.flowEntry, true);
+        if (target <= 0)
+            return;
         const elapsed = Date.now() - root.flowShownAt;
         if (elapsed >= target)
             root.closeModule();
@@ -1165,8 +1202,15 @@ PanelWindow {
         }
     }
 
+    // Ticker time: the entry's toast time, at least one full pass; 0 =
+    // until dismissed: it keeps looping until the island is hovered or
+    // fullscreen ends (tickerTimer).
+    property int tickerMs: 0
     function showTicker(notif: var): void {
+        if (tickerNotif && tickerNotif !== notif)
+            root.toastDone(tickerNotif);
         tickerNotif = notif;
+        tickerMs = root.notifications.toastMs(notif, false);
         tickerVisible = true;
         tickerTimer.restart();
     }
@@ -1176,6 +1220,7 @@ PanelWindow {
         // Sender closed / expired / trimmed: never show it later, and take
         // the card down if it is the one on screen right now.
         function onNotificationClosed(notif) {
+            root.toasting = root.toasting.filter(e => e !== notif);
             root.notificationQueue.remove(notif);
             if (root.pendingFlow === notif)
                 root.pendingFlow = null;
@@ -1183,10 +1228,10 @@ PanelWindow {
                 && root.state.activePayload?.notification === notif)
                 root.closeModule();
         }
+        // Only toasts arrive here (the service applied DND, rules and
+        // onlyUrgentToast).
         function onNotificationReceived(notif) {
-            const urgency = notif?.urgency ?? 1;
-            if (root.config.notifications.onlyUrgentToast && urgency < 1)
-                return;
+            root.toasting = [...root.toasting, notif];
             if (root.moduleOpen) {
                 root.notificationQueue.enqueue(notif);
                 root.shortenFlow();
@@ -1203,9 +1248,14 @@ PanelWindow {
     Timer {
         id: tickerTimer
         // At least one full pass of a scrolling text (NotificationTicker.showMs).
-        interval: tickerItem.showMs
+        interval: Math.max(tickerItem.showMs, root.tickerMs)
         onTriggered: {
+            if (root.tickerMs <= 0 && root.fsActive && !islandHover.hovered) {
+                tickerTimer.restart();
+                return;
+            }
             root.tickerVisible = false;
+            root.toastDone(root.tickerNotif);
             // The ticker itself counts as interaction: restart the idle timer.
             if (root.state.currentState === root.state.minimal)
                 minimalIdle.restart();
@@ -1854,6 +1904,7 @@ PanelWindow {
                 opacity: root.shownTicker && root.tickerVisible ? 1 : 0
                 Behavior on opacity { NumberAnimation { duration: root.timingCfg.fadeInMs } }
                 notif: root.tickerNotif
+                redacted: root.notifications.redact
                 cfg: root.config.notifications
                 theme: root.theme
                 iconSize: root.indicatorCfg.musicCoverDiameter ?? 24
@@ -1975,8 +2026,14 @@ PanelWindow {
                         app: n?.appName ?? "",
                         icon: n?.appIcon ?? "",
                         image: (n?.image ?? "").length > 0,
-                        summary: n?.summary ?? ""
+                        summary: n?.summary ?? "",
+                        timeoutMs: n?.appTimeoutMs ?? 0,
+                        code: n?.code ?? ""
                     })),
+                transients: (root.notifications.transients ?? []).length,
+                notifViewers: root.notifications.viewers,
+                notifQuiet: root.notifications.quiet,
+                notifRedact: root.notifications.redact,
                 mic: {
                     active: root.audio.micActive,
                     app: root.audio.micAppName,
