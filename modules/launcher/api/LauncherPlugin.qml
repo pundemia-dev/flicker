@@ -22,6 +22,8 @@ Item {
     // originX/originY: bar centre on that screen, normalized 0..1,
     // haptics: services/Haptics, wallpaper: services/Wallpaper }.
     property var host: null
+    // The launcher's calc/Calculator (shared: rates, history).
+    property var calculator: null
 
     property bool isActive: false
 

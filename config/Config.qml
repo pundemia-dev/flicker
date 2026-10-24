@@ -1578,6 +1578,20 @@ Singleton {
                             historyLimit: 100,
                             autoPaste: false,
                             pasteCommand: "wtype -M ctrl v -m ctrl",
+                    // Inline calculator (calc/CalcEngine.js): a result card over
+                    // the apps while the query is a calculation, "=" forces
+                    // it, "!calc" = with history. Rates (USD base, er-api
+                    // format) fetched on demand, cached ratesMaxAgeHours.
+                    // angle "deg" | "rad" for sin/cos/tan.
+                    calc: ({
+                            enabled: true,
+                            currencies: ["RUB", "USD", "EUR"],
+                            angle: "deg",
+                            historyLimit: 50,
+                            cardScale: 1.7,
+                            ratesUrl: "https://open.er-api.com/v6/latest/USD",
+                            ratesMaxAgeHours: 12
+                        }),
                             cacheDir: "",
                             // Feed cliphist (services/ClipboardWatch): "auto" =
                             // own wl-paste watchers unless the compositor runs

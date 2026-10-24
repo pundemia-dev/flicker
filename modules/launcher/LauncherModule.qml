@@ -70,6 +70,17 @@ Item {
     onPayloadChanged: applyPayload()
 
     Connections {
+        target: manager.calculator
+        function onRequestClose(): void {
+            root.closeRequested();
+        }
+        function onRequestInput(text: string): void {
+            input.setText(text);
+            manager.processInput(text);
+        }
+    }
+
+    Connections {
         target: manager.activePlugin
         function onRequestClose(closeLauncher: bool): void {
             if (closeLauncher)

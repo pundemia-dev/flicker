@@ -3,6 +3,7 @@ import "plugins/apps"
 import "plugins/clipboard"
 import "plugins/wallpapers"
 import "plugins/prompter"
+import "plugins/calc"
 
 // Launcher plugins (pShell PluginRegistry semantics without folder
 // scanning: Quickshell's scanner misses imports of dynamically loaded
@@ -19,7 +20,8 @@ QtObject {
         AppsManifest {},
         ClipboardManifest {},
         WallpapersManifest {},
-        PrompterManifest {}
+        PrompterManifest {},
+        CalcManifest {}
     ]
 
     readonly property var active: {

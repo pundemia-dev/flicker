@@ -355,7 +355,8 @@ const SIDEBAR = [
                 { rows: [
                     { key: "launcher.disabled", label: "Plugins", kind: "set", invert: true, options: [
                         { value: "apps", label: "Apps" }, { value: "clipboard", label: "Clipboard" },
-                        { value: "wallpapers", label: "Wallpapers" }, { value: "prompter", label: "Teleprompter" }
+                        { value: "wallpapers", label: "Wallpapers" }, { value: "prompter", label: "Teleprompter" },
+                        { value: "calc", label: "Calculator" }
                     ] },
                     { key: "launcher.maxShown", label: "Results shown", kind: "number", min: 3, max: 12, step: 1 },
                     { key: "launcher.magicSymbol", label: "Plugin prefix", kind: "text" },
@@ -385,6 +386,14 @@ const SIDEBAR = [
             id: "dashboard", title: "Dashboard", glyph: "", tint: "qsIndigo",
             groups: [
                 { title: "Weather", rows: [
+                ] },
+                { title: "Calculator", footer: "Type 2^10, 15% of 200, 5 usd to rub, 90 min or days until 31.12 in the search; = forces it. Enter copies, Alt+Enter pastes.", rows: [
+                    { key: "launcher.calc.enabled", label: "Calculate while typing", kind: "bool" },
+                    { key: "launcher.calc.currencies", dependsOn: "launcher.calc.enabled", label: "Currencies", kind: "text", array: true, keywords: "rub usd eur exchange rates" },
+                    { key: "launcher.calc.angle", dependsOn: "launcher.calc.enabled", label: "Angles", kind: "choice", segments: true, options: [
+                        { value: "deg", label: "Degrees" }, { value: "rad", label: "Radians" }
+                    ] },
+                    { key: "launcher.calc.historyLimit", label: "History", kind: "number", min: 0, max: 500, step: 10, suffix: " items" }
                     { key: "dashboard.weatherLocation", label: "Location", kind: "text" },
                     { key: "dashboard.useFahrenheit", label: "Units", kind: "choice", segments: true, options: [
                         { value: false, label: "°C" }, { value: true, label: "°F" }

@@ -57,7 +57,8 @@ for as long as a process runs.
 
 **Launcher**
 Apps, clipboard history, prompter files, and a wallpaper carousel with semantic search
-in any language. Plugin-based.
+in any language. A calculator right in the search: math, percentages, units, live
+currency rates, number bases and dates, in English or Russian (`5 usd в руб`). Plugin-based.
 
 **Quick Settings**
 iOS-style Control Center: tabbed grid of cards in different shapes, expandable Wi‑Fi /

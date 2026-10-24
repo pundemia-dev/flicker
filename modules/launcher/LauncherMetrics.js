@@ -9,8 +9,10 @@
 // Radius: cfg.radius (see radius()).
 
 // Row height of one list entry: entries with a background image (clipboard
-// images) are double height.
+// images) are double height, the calculator card calc.cardScale.
 function itemHeight(c, entry) {
+    if (entry && entry.calcCard)
+        return Math.round(c.itemHeight * ((c.calc && c.calc.cardScale) || 1.7));
     return entry && entry.backgroundImage ? c.itemHeight * 2 : c.itemHeight;
 }
 

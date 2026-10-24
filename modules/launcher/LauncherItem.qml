@@ -2,6 +2,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Widgets
 import "../../components"
+import "calc"
 import "LauncherMetrics.js" as Metrics
 
 // One list row (pShell UniversalDelegate port), entry format documented in
@@ -10,6 +11,9 @@ import "LauncherMetrics.js" as Metrics
 // (backgroundImage) are double height with the text over a bottom scrim.
 // `appear` 0..1 is driven by the list's add/remove transitions: the row
 // fades in out of a blur (ContentSwap look) and dissolves into one.
+// `entry.live` (an object with the same fields) is read instead of the
+// entry for the visible text, so a row can change in place (calculator);
+// `entry.calcCard` draws the calculator's result card.
 Item {
     id: root
     required property var modelData
@@ -20,6 +24,8 @@ Item {
     signal hovered
 
     readonly property var entry: root.modelData
+    readonly property var view: root.entry?.live ?? root.entry
+    readonly property bool isCard: !!root.entry?.calcCard
     readonly property bool hasImage: !!root.entry?.backgroundImage
     readonly property real rowRadius: root.cfg.itemRadius
 
@@ -140,8 +146,22 @@ Item {
             }
         }
 
+        Loader {
+            anchors.fill: parent
+            anchors.leftMargin: root.cfg.itemPadding * 1.5
+            anchors.rightMargin: root.cfg.itemPadding * 1.5
+            active: root.isCard
+            sourceComponent: CalcCard {
+                slot: root.view
+                theme: root.theme
+                cfg: root.cfg
+            }
+        }
+
         Item {
             id: content
+            visible: !root.isCard
+            opacity: root.view?.stale ? 0.45 : 1
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.bottom: parent.bottom
@@ -153,35 +173,35 @@ Item {
             Item {
                 id: leftBox
                 anchors.verticalCenter: parent.verticalCenter
-                readonly property bool used: !root.hasImage && (!!root.entry?.leftIcon || !!root.entry?.swatchColor)
+                readonly property bool used: !root.hasImage && (!!root.view?.leftIcon || !!root.view?.swatchColor)
                 width: used ? root.cfg.iconBox : 0
                 height: root.cfg.iconBox
 
                 Rectangle {
-                    visible: leftBox.used && !!root.entry?.swatchColor
+                    visible: leftBox.used && !!root.view?.swatchColor
                     anchors.centerIn: parent
                     width: parent.height * 0.8
                     height: width
                     radius: width * 0.3
-                    color: root.entry?.swatchColor ?? "transparent"
+                    color: root.view?.swatchColor ?? "transparent"
                     border.width: 1
                     border.color: "#33FFFFFF"
                 }
                 IconImage {
-                    visible: leftBox.used && !root.entry?.swatchColor && !!root.entry?.isLeftIconImage
+                    visible: leftBox.used && !root.view?.swatchColor && !!root.view?.isLeftIconImage
                     anchors.fill: parent
                     asynchronous: true
-                    source: visible ? Quickshell.iconPath(root.entry.leftIcon, "application-x-executable") : ""
+                    source: visible ? Quickshell.iconPath(root.view.leftIcon, "application-x-executable") : ""
                 }
                 Rectangle {
-                    visible: leftBox.used && !root.entry?.swatchColor && !root.entry?.isLeftIconImage
+                    visible: leftBox.used && !root.view?.swatchColor && !root.view?.isLeftIconImage
                     anchors.fill: parent
                     radius: height / 2
                     color: root.theme.qsDisc
 
                     Text {
                         anchors.centerIn: parent
-                        text: root.entry?.leftIcon ?? ""
+                        text: root.view?.leftIcon ?? ""
                         font.family: root.theme.iconFamily
                         font.pixelSize: root.cfg.iconSize
                         color: root.theme.islandFg
@@ -198,7 +218,7 @@ Item {
 
                 Text {
                     width: parent.width
-                    text: root.entry?.header ?? ""
+                    text: root.view?.header ?? ""
                     font.pixelSize: root.cfg.fontSize
                     font.weight: Font.DemiBold
                     color: root.theme.islandFg
@@ -207,7 +227,7 @@ Item {
                 Text {
                     width: parent.width
                     visible: text !== ""
-                    text: root.entry?.text ?? ""
+                    text: root.view?.text ?? ""
                     font.pixelSize: root.cfg.subFontSize
                     color: root.theme.cardDim
                     elide: Text.ElideRight
@@ -218,7 +238,7 @@ Item {
                 id: rightLabel
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
-                text: root.entry?.rightText ?? ""
+                text: root.view?.rightText ?? ""
                 font.pixelSize: root.cfg.subFontSize
                 color: root.theme.cardDim
             }

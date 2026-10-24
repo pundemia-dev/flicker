@@ -1,4 +1,5 @@
 import QtQuick
+import "calc"
 import "fuzzysort.js" as Fuzzy
 
 // Launcher state machine (pShell ModuleManager port).
@@ -7,6 +8,8 @@ import "fuzzysort.js" as Fuzzy
 //   active    — a plugin was picked: a pill in the search field holds it
 // Backspace on an empty field steps back (active needs a double press
 // within cfg.escapeMs; the pill turns red in between).
+// In the default state the calculator (calc/Calculator.qml) puts its result
+// card on top of the plugin's rows whenever the query is a calculation.
 Item {
     id: root
     required property var cfg
@@ -37,6 +40,10 @@ Item {
 
     property bool escapePending: false
 
+    readonly property Calculator calculator: Calculator {
+        cfg: root.cfg
+    }
+
     signal pluginActivated
 
     // Entries the list shows right now.
@@ -44,7 +51,11 @@ Item {
         if (root.currentState === root.stateSelecting)
             return root.selectingEntries;
         const m = root.activePlugin?.listModel;
-        return m?.values ?? m ?? [];
+        const list = m?.values ?? m ?? [];
+        const calc = root.currentState === root.stateDefault ? root.calculator.entries : [];
+        if (calc.length === 0)
+            return list;
+        return root.calculator.exclusive ? calc : calc.concat(list);
     }
     // Which list this is: a change swaps the whole list (blur-fade), a
     // change of entries under the same key animates row by row.
@@ -66,6 +77,7 @@ Item {
                 currentState = stateSelecting;
                 setActive(null, "");
             }
+            calculator.clear();
             updateSelecting(text.substring(magicSymbol.length).trim());
             return;
         }
@@ -73,10 +85,12 @@ Item {
             currentState = stateDefault;
             setActive(defaultManifest, "");
         }
+        calculator.update(text, false);
         activePlugin?.handleInput(text);
     }
 
     function activateManifest(manifest: var, initialQuery: string): void {
+        calculator.clear();
         currentState = stateActive;
         setActive(manifest, initialQuery);
         pluginActivated();
@@ -91,6 +105,7 @@ Item {
     }
 
     function resetToDefault(): void {
+        calculator.clear();
         currentState = stateDefault;
         setActive(defaultManifest, "");
     }
@@ -140,7 +155,7 @@ Item {
             return null;
         let inst = instances[manifest.pluginId];
         if (!inst) {
-            inst = manifest.content?.createObject(root, { theme: root.theme, cfg: root.cfg });
+            inst = manifest.content?.createObject(root, { theme: root.theme, cfg: root.cfg, calculator: root.calculator });
             if (!inst) {
                 console.warn("[Launcher] plugin", manifest.pluginId, "failed:", manifest.content?.errorString());
                 return null;

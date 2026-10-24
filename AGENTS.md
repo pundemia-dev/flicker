@@ -33,7 +33,7 @@ user's data) live outside the repo: `CLAUDE.local.md` (git-ignored) and `~/.clau
 - IPC: `quickshell -p $PWD ipc call <target> <fn>` (with a live instance running,
   address yours via `quickshell ipc --id <by-id dir> call ...`). `island` is ONE handler
   (`core/IslandIpc.qml`) routed via `core/IslandRegistry.qml` to the island on
-  `compositor.focusedOutput` — never put an IpcHandler in per-screen Island. Targets: `island` (launcher (toggle), launcherPlugin <id> (apps|clipboard|wallpapers, toggle), quicksettings, quicksettingsEdit/Page/Resize/Expand, quicksettingsPanel <cmd> <arg>, stashMenu <i>,
+  `compositor.focusedOutput` — never put an IpcHandler in per-screen Island. Targets: `island` (launcher (toggle), launcherPlugin <id> (apps|clipboard|wallpapers|prompter|calc, toggle), quicksettings, quicksettingsEdit/Page/Resize/Expand, quicksettingsPanel <cmd> <arg>, stashMenu <i>,
   notifications, stash (tray toggle), capture (again while open = next mode), captureMode(shot|record|color|
   window|ai|scan), captureScreen (= Enter in the active tool), captureCancel, session (session menu toggle), screenshot
   (instant, no overlay), record (toggle), recordPause, recordControls, dashboard, dashboardEdit, dashboardResize, dashboardMove, player, lyrics (player's lyrics panel toggle), updates (toggle), lock, close, minimal, island, osd, debugState,
@@ -768,6 +768,36 @@ user's data) live outside the repo: `CLAUDE.local.md` (git-ignored) and `~/.clau
   (`touchpadStep` angle units per card). Traps hit: Qt on Wayland reports the touchpad as a
   Mouse device (tell it apart by scroll phase / pixelDelta); `WheelHandler` sees only events
   along its `orientation` (default Vertical → pure horizontal swipes never arrived, only
+- Launcher calculator (`modules/launcher/calc/`, Oct 2026; user asked for "the coolest version"
+  after looking at other shells — caelestia / end-4 run `qalc` per keystroke, one text row).
+  Ours: own engine, no dependency (libqalculate not installed; sudo needs a password).
+  `CalcEngine.js` (pure, synchronous: tokenizer + precedence-climbing parser over quantities
+  `{v base units, d dimension exponents L M T K D A C, u display unit}`) + `CalcUnits.js`
+  (unit table, Russian stems take any case ending, currency aliases/symbols). Handles
+  arithmetic, implicit ×, `15% of 200`, `200 + 15%`, `x % y` = mod, `!`, functions (min/max
+  multi-arg need ", " — a bare "1,5" is a decimal), units incl. compound (`100 km / 2 h` →
+  km/h, `5 m * 3 m` → m²), juxtaposed same-dim sums (`1h 30min`, `5 ft 11 in`), conversion
+  `to|in|into|as|в|во|на|->` (rightmost first, several targets `to rub, eur`, `hex/bin/oct`,
+  `hms`), currencies, dates (`days until 31.12`, `до нового года`, `today + 2 weeks`, date −
+  date, `@unix`), `ans`. Trig in degrees by default (`calc.angle`). Plain typing needs a digit
+  (dates excepted) and not a bare number; `3d`/`4k`/`7z` (number glued to a one-letter word,
+  currency marks excepted) stay app searches. Unfinished input retried repaired (`2 +` → 2,
+  open parens closed) and shown dimmed. Qt's V4 regex has NO `\p{L}`/`u` support — letter
+  classes are explicit ranges (it silently matched nothing). Node harness: strip the
+  `.pragma`/`.import` lines and `new Function` the files.
+  `Calculator.qml` lives in `LauncherManager` (`calculator`, injected into plugins as
+  `LauncherPlugin.calculator`): fixed rows whose `live` CalcSlot changes in place
+  (LauncherItem reads `entry.live ?? entry`; `entry.calcCard` = the Raycast-style
+  `CalcCard`, height `calc.cardScale` × itemHeight in `LauncherMetrics.itemHeight`), so typing
+  never re-fades the card. Default state: card + plugin rows (`=` prefix = card only); a failed
+  edit of the last good expression (only math chars appended, or chars deleted) keeps the
+  last answer dimmed. Enter = `wl-copy`, Alt+Enter = copy + `clipboard.pasteCommand`; both
+  close and add to history (`statePath calc-history.json`). Plugin `calc` (`!calc`): card +
+  history (Enter copies, Alt+Enter recalls the expression, Shift+Delete forgets). Rates:
+  `CalcRates.qml`, `curl -4` open.er-api.com (USD base, RUB included; ECB/frankfurter has no
+  RUB), on demand, cached `calc-rates.json`, `ratesMaxAgeHours`; card caption shows the date.
+  Verified live: `2+2*3`, `5 usd to rub`, `5 usd` (+EUR row, rates date), plugin placeholder
+  and error card. NOT live-tested: history rows, Enter/Alt+Enter, Shift+Delete.
   diagonals) — a `MouseArea { acceptedButtons: Qt.NoButton; onWheel }` gets both axes;
   touchpad = phase/pixelDelta seen within `touchpadHoldMs` (slow finger motion rounds
   pixelDelta to 0) → x only, else wheel → y only; touchpads also interleave zero-delta events (must not reset an
