@@ -1215,8 +1215,8 @@ PanelWindow {
     }
 
     // Ticker time: the entry's toast time, at least one full pass; 0 =
-    // until dismissed: it keeps looping until the island is hovered or
-    // fullscreen ends (tickerTimer).
+    // until dismissed: it keeps looping until the island is hovered, with
+    // or without fullscreen (it ended after one pass outside it).
     property int tickerMs: 0
     function showTicker(notif: var): void {
         if (tickerNotif && tickerNotif !== notif)
@@ -1277,7 +1277,7 @@ PanelWindow {
         // At least one full pass of a scrolling text (NotificationTicker.showMs).
         interval: Math.max(tickerItem.showMs, root.tickerMs)
         onTriggered: {
-            if (root.tickerMs <= 0 && root.fsActive && !islandHover.hovered) {
+            if (root.tickerMs <= 0 && !islandHover.hovered) {
                 tickerTimer.restart();
                 return;
             }
@@ -1384,7 +1384,8 @@ PanelWindow {
         id: flowSwapGap
         interval: root.config.notifications.flowSwapGapMs
         onTriggered: {
-            const next = root.pendingFlow;
+            // The held card was closed / withdrawn meanwhile: the next one.
+            const next = root.pendingFlow ?? (root.notificationQueue.size > 0 ? root.notificationQueue.dequeue() : null);
             root.pendingFlow = null;
             if (next == null)
                 return;

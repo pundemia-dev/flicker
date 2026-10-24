@@ -44,8 +44,9 @@ QtObject {
     // The sender's own expire timeout in ms (0 = none / never; used with
     // notifications.appTimeout).
     property int appTimeoutMs: 0
-    // One-time code found in the text ("Copy 123456" button), else "".
-    property string code: ""
+    // One-time code found in the text ("Copy 123456" button), else "";
+    // follows the text and notifications.codeCopy.
+    readonly property string code: entry.service ? entry.service.codeOf(entry.summary, entry.body) : ""
     // Arrival time; bumped on in-place replacement (it is a fresh message).
     property double time: Date.now()
 
@@ -70,7 +71,6 @@ QtObject {
         // Milliseconds as sent (verified: notify-send -t 7000 = 7000);
         // D-Bus -1 (server default) < 0.
         entry.appTimeoutMs = n.expireTimeout > 0 ? Math.round(n.expireTimeout) : 0;
-        entry.code = entry.service ? entry.service.codeOf(n.summary ?? "", n.body ?? "") : "";
     }
 
     // Silences the sender's app (Notifications.mute): "hour" | "today" | "always".
@@ -123,20 +123,24 @@ QtObject {
     }
 
     Component.onCompleted: sync()
+    // One in-place update fires several change signals: one sync for all.
+    function syncSoon(): void {
+        Qt.callLater(entry.sync);
+    }
 
     property Connections conn: Connections {
         target: entry.notification
         function onClosed(): void { entry.closed(); }
-        function onSummaryChanged(): void { entry.sync(); entry.time = Date.now(); }
-        function onBodyChanged(): void { entry.sync(); entry.time = Date.now(); }
-        function onAppNameChanged(): void { entry.sync(); }
-        function onAppIconChanged(): void { entry.sync(); }
-        function onImageChanged(): void { entry.sync(); }
-        function onUrgencyChanged(): void { entry.sync(); }
-        function onExpireTimeoutChanged(): void { entry.sync(); }
-        function onActionsChanged(): void { entry.sync(); }
-        function onHasInlineReplyChanged(): void { entry.sync(); }
-        function onInlineReplyPlaceholderChanged(): void { entry.sync(); }
-        function onDesktopEntryChanged(): void { entry.sync(); }
+        function onSummaryChanged(): void { entry.syncSoon(); entry.time = Date.now(); }
+        function onBodyChanged(): void { entry.syncSoon(); entry.time = Date.now(); }
+        function onAppNameChanged(): void { entry.syncSoon(); }
+        function onAppIconChanged(): void { entry.syncSoon(); }
+        function onImageChanged(): void { entry.syncSoon(); }
+        function onUrgencyChanged(): void { entry.syncSoon(); }
+        function onExpireTimeoutChanged(): void { entry.syncSoon(); }
+        function onActionsChanged(): void { entry.syncSoon(); }
+        function onHasInlineReplyChanged(): void { entry.syncSoon(); }
+        function onInlineReplyPlaceholderChanged(): void { entry.syncSoon(); }
+        function onDesktopEntryChanged(): void { entry.syncSoon(); }
     }
 }

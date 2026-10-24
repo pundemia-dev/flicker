@@ -390,13 +390,21 @@ user's data) live outside the repo: `CLAUDE.local.md` (git-ignored) and `~/.clau
   notify-send -t). Dedupe = same app+summary+body replaces the older entry, silent within
   while the stored copy is on screen / queued (`toastViews > 0`) the NEW one is dismissed
   (never a critical one); later it replaces the copy. Rule regexes cached (`reCache`, reset on
-  config change, own-key lookup: "constructor" as a pattern once broke every arrival); Mute
-  reuses the app's own rule (same pattern, no other condition), moves it FIRST and withdraws
-  that app's queued toasts (`toastsWithdrawn`). Rule basics shared with settings:
+  config change, own-key lookup: "constructor" as a pattern once broke every arrival). Mute
+  writes its OWN rule (`mute: true`, reused on the next mute, deleted by sweep when its time is
+  up) applied ON TOP of the first matching ordinary rule — stamping `until` on the user's rule
+  deleted that rule with the mute; it withdraws that app's queued toasts on every output, the
+  muted one included (`toastsWithdrawn`). Rule basics shared with settings:
   `services/NotificationRules.js`. Drops the user never saw (repeat, no toast + no history) are
   `expire()`d, not dismissed (apps read Dismissed as handled). A rule / app timeout is never
   shortened by the queue; sweep skips entries still on screen; a card in use gets a fresh
-  `toastMs` when let go (`flowWaitsHold`); an until-dismissed ticker makes newcomers queue.
+  `toastMs` when let go (`flowWaitsHold`); an until-dismissed ticker loops until hovered (also
+  outside fullscreen) and makes newcomers queue. Sweep releases old entries even with
+  `toastViews > 0` (an island that never reports back), and dedupe ignores a view count older
+  than `transientMs`; a repeat that is not stored never releases a stored copy. A tapped
+  transient is dismissed, not expired. Code words are whole tokens (JS `\b` ignores Cyrillic:
+  "промокод" matched "код"); `entry.code` is a binding (follows `codeCopy`); in-place updates
+  sync once (`Qt.callLater`). flowSwapGap dequeues the next card when the held one went away.
   `entry.code` = the 4–8 digit number nearest a code word → "Copy" pill (wl-copy).
   TransitionLayer.launch turnaround: stop() may land the flying element (finish → el null);
   lifting null threw and aborted openModule — queued flow cards never opened (pre-existing,

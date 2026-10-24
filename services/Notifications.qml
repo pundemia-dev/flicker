@@ -141,10 +141,6 @@ Item {
 
     // ---- per-app rules (notifications.rules, see Config) ----
 
-    function ruleLive(rule: var, now: double): bool {
-        return Rules.live(rule, now);
-    }
-
     // Empty pattern = any; a bad regex never matches (settings shows it).
     // Compiled rule patterns (null = invalid), rebuilt with the config.
     property var reCache: ({})
@@ -163,12 +159,13 @@ Item {
     }
 
     // The first live rule matching (a rule without any condition matches
-    // nothing).
-    function ruleFor(notif: var): var {
+    // nothing); `mute` = among the rules Mute made (`mute: true`), else
+    // among the others. A mute applies on top of the app's own rule.
+    function ruleFor(notif: var, mute: bool): var {
         const now = Date.now();
         const urgency = ["low", "normal", "critical"][notif.urgency] ?? "normal";
         for (const rule of root.cfg.rules ?? []) {
-            if (!root.ruleLive(rule, now) || !(rule.app || rule.text || rule.urgency))
+            if (!Rules.live(rule, now) || (rule.mute === true) !== mute || !(rule.app || rule.text || rule.urgency))
                 continue;
             if (rule.urgency && rule.urgency !== urgency)
                 continue;
@@ -185,14 +182,15 @@ Item {
     function policyFor(notif: var): var {
         const c = root.cfg;
         const low = notif.urgency === NotificationUrgency.Low;
-        const rule = root.ruleFor(notif);
-        const allow = key => rule?.[key] !== false;
+        const rule = root.ruleFor(notif, false);
+        const muted = root.ruleFor(notif, true);
+        const allow = key => rule?.[key] !== false && muted?.[key] !== false;
         const p = {
             toast: !(low && (c.onlyUrgentToast ?? true)) && allow("toast"),
             sound: allow("sound"),
             history: !(low && !(c.historyLowUrgency ?? true)) && allow("history"),
             bypassDnd: rule?.bypassDnd === true || notif.urgency === NotificationUrgency.Critical && (c.dndAllowCritical ?? true),
-            durationMs: rule?.durationMs ?? 0
+            durationMs: rule?.durationMs || muted?.durationMs || 0
         };
         if (root.quiet && !p.bypassDnd) {
             p.toast = false;
@@ -217,8 +215,10 @@ Item {
         Config.set("notifications.rules", rules.map(r => r && !r.id ? Object.assign({ id: root.newRuleId() }, r) : r));
     }
 
-    // "Mute" on a notification (NotificationActions): a rule for its app,
-    // toast and sound off, until `span` ("hour" | "today" | "always") ends.
+    // "Mute" on a notification (NotificationActions): a rule of its own for
+    // the app (`mute: true`), toast and sound off, until `span` ("hour" |
+    // "today" | "always") ends; sweep deletes it then. The user's rules are
+    // never touched (a timed mute stamped on them deleted them with it).
     // Muting a muted app again only moves its end.
     function mute(entry: var, span: string): void {
         const name = entry?.appName ?? "";
@@ -229,17 +229,17 @@ Item {
         const until = span === "hour" ? now.getTime() + 3600000
             : span === "today" ? new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).getTime() : 0;
         const rules = (root.cfg.rules ?? []).map(r => Object.assign({}, r));
-        // The app's own rule (same app pattern, no other condition) is
-        // reused whatever the user changed in it since.
-        // It goes first: an earlier rule matching the app would win.
-        const at = rules.findIndex(r => r.app === app && !r.text && !r.urgency);
-        const rule = at >= 0 ? rules.splice(at, 1)[0] : { id: root.newRuleId(), name: name, app: app };
+        // Its earlier mute (same app pattern, no other condition) is reused
+        // whatever the user changed in it since.
+        const at = rules.findIndex(r => r.mute === true && r.app === app && !r.text && !r.urgency);
+        const rule = at >= 0 ? rules.splice(at, 1)[0] : { id: root.newRuleId(), name: name, app: app, mute: true };
         Object.assign(rule, { enabled: true, toast: false, sound: false, until: until });
         rules.unshift(rule);
         Config.set("notifications.rules", rules);
-        // Its toasts still waiting in the islands' queues go too (the
-        // muted one itself closes with its panel).
-        const waiting = [...root.history, ...root.transients].filter(e => e !== entry && e.appName === name && e.toastViews > 0);
+        // Its toasts still waiting in the islands' queues go too, the muted
+        // one included (queued on another output; where it is on screen it
+        // closes with its panel).
+        const waiting = [...root.history, ...root.transients].filter(e => e.appName === name && e.toastViews > 0);
         if (waiting.length > 0)
             root.toastsWithdrawn(waiting);
     }
@@ -294,15 +294,18 @@ Item {
 
     // One-time code in a login / 2FA message ("Copy 123456"): of the 4–8
     // digit numbers (or 123-456), the one nearest a code-ish word ("Order
-    // 98765 shipped. Your code is 4321" = 4321).
+    // 98765 shipped. Your code is 4321" = 4321). Whole words only (JS \b
+    // ignores Cyrillic: "промокод" / "кодекс" counted as "код").
+    readonly property var codeWordRe: /^(code|otp|pin|passcode|password|verification|2fa|код|кода|коду|кодом|коды|кодов|парол\S*|подтвержд\S*|одноразов\S*)$/i
     function codeOf(summary: string, body: string): string {
         if (!(root.cfg.codeCopy ?? true))
             return "";
         const text = `${summary} ${body}`.replace(/<[^>]*>/g, " ");
         const words = [];
-        const wordRe = /\b(code|otp|pin|passcode|password|verification|2fa)\b|код|парол|подтвержд|одноразов/gi;
-        for (let m = wordRe.exec(text); m; m = wordRe.exec(text))
-            words.push({ from: m.index, to: m.index + m[0].length });
+        const tokenRe = /[0-9a-zа-яё_]+/gi;
+        for (let m = tokenRe.exec(text); m; m = tokenRe.exec(text))
+            if (root.codeWordRe.test(m[0]))
+                words.push({ from: m.index, to: m.index + m[0].length });
         if (words.length === 0)
             return "";
         let best = "";
@@ -320,7 +323,8 @@ Item {
         return best.replace(/[- ]/g, "");
     }
 
-    // Same app + title + text as an entry already in the history.
+    // Same app + title + text as an entry already in the history (or a
+    // transient one).
     function duplicateOf(notif: var): var {
         if (!(root.cfg.dedupe ?? true))
             return null;
@@ -329,7 +333,8 @@ Item {
 
     // Housekeeping once a minute while there is any: expired timed rules
     // leave the config, history past historyMaxAgeHours and forgotten
-    // transients are released.
+    // transients are released — even with toastViews left above 0 (an
+    // island that never reported back must not keep them forever).
     readonly property bool timedRules: (root.cfg.rules ?? []).some(r => (r?.until ?? 0) > 0)
     Timer {
         interval: 60000
@@ -343,10 +348,9 @@ Item {
         const kept = rules.filter(r => !Rules.expired(r, now));
         if (kept.length !== rules.length)
             Config.set("notifications.rules", kept);
-        // Never one still on screen / queued (toastViews > 0).
         const hours = root.cfg.historyMaxAgeHours ?? 0;
-        const old = hours > 0 ? root.history.filter(e => e.toastViews <= 0 && now - e.time > hours * 3600000) : [];
-        const stale = root.transients.filter(e => e.toastViews <= 0 && now - e.time > root.transientMs);
+        const old = hours > 0 ? root.history.filter(e => now - e.time > hours * 3600000) : [];
+        const stale = root.transients.filter(e => now - e.time > root.transientMs);
         for (const e of [...old, ...stale])
             e.release();
     }
@@ -371,9 +375,9 @@ Item {
             else
                 activator.launch(names);
         }
-        // Opened = read: out of the history (non-resident senders already
-        // closed it by invoking).
-        if (root.history.includes(entry))
+        // Opened = read: out of the history / transients, closed as
+        // Dismissed (non-resident senders already closed it by invoking).
+        if (root.history.includes(entry) || root.transients.includes(entry))
             entry.dismiss();
     }
 
@@ -400,9 +404,11 @@ Item {
             }
             // A repeat while the copy we have is still on screen / queued
             // is merged into it (dropped); a critical one always comes
-            // through. Later repeats replace the copy (below).
+            // through. Later repeats replace the copy (below). A view count
+            // older than transientMs is stale (an island never reported
+            // back): repeats come through again.
             const dup = root.duplicateOf(notif);
-            if (dup && dup.toastViews > 0 && notif.urgency !== NotificationUrgency.Critical) {
+            if (dup && dup.toastViews > 0 && Date.now() - dup.time < root.transientMs && notif.urgency !== NotificationUrgency.Critical) {
                 // Closed as expired: the user never saw or touched it.
                 notif.expire();
                 return;
@@ -433,8 +439,9 @@ Item {
                 toastViews: screens.length
             });
             entry.closed.connect(() => root.forget(entry));
-            // A later repeat replaces the older copy (closed -> forget).
-            if (dup)
+            // A later repeat replaces the older copy (closed -> forget); a
+            // repeat that is not stored never takes a stored copy away.
+            if (dup && (policy.history || root.transients.includes(dup)))
                 dup.release();
             if (!policy.history) {
                 root.transients = [...root.transients, entry];

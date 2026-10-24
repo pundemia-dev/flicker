@@ -26,10 +26,6 @@ function field(rule, key) {
     return rule?.[key] ?? DEFAULTS[key];
 }
 
-function expired(rule, now) {
-    return Rules.expired(rule, now);
-}
-
 function isEmpty(rule) {
     return !`${rule?.app ?? ""}`.trim() && !`${rule?.text ?? ""}`.trim() && !rule?.urgency;
 }
@@ -129,7 +125,7 @@ function rulesGroup(group, rules, tr) {
         kind: "page",
         label: summary(r, tr),
         detail: ruleError(r, tr) ? tr("Invalid") : effect(r, tr),
-        muted: r.enabled === false || expired(r, now),
+        muted: r.enabled === false || Rules.expired(r, now),
         page: rulePage({ index: i, id: r.id, list: LIST })
     }));
     rows.push({ kind: "action", label: "Add rule", action: "notifRuleAdd" });
