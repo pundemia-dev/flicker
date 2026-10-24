@@ -11,18 +11,20 @@ buttons, 16 px gaps, Stretch, an "esc" button prepended when the bar is
     down <id> <x> <w>    id = "<layer>:<index>", x = centre, w = width,
                          both fractions of the bar length (0..1)
     up <id>
-    reset                device lost: everything is released
+    reset                device lost or tiny-dfr reloaded its config:
+                         everything is released
 
 Key codes never leave this process. The config (/etc/tiny-dfr/config.toml
-over /usr/share/tiny-dfr/config.toml) is re-read when its mtime changes, so a
-layout switch (dfr-switcher cp) is picked up on the next press. The device
+over /usr/share/tiny-dfr/config.toml) is polled for mtime changes, so a layout
+switch (dfr-switcher cp) is picked up right away; tiny-dfr drops its touches
+on that reload, so whatever is held then is released ("reset"). The device
 is never grabbed: the compositor still gets every key.
 
 Access: scripts/touchbar/udev.rules (uaccess). Without it, or without
 tiny-dfr running, the script waits and re-checks every RESCAN_S seconds
 (the hint is logged once to stderr).
 """
-import errno, glob, os, re, select, struct, sys, time, tomllib
+import errno, fcntl, glob, os, re, select, struct, sys, time, tomllib
 
 DEVICE_NAME = "Dynamic Function Row Virtual Input Device"
 BASE_CFG = "/usr/share/tiny-dfr/config.toml"
@@ -33,7 +35,11 @@ PIXEL_SHIFT_WIDTH_PX = 22
 ESC_MIN_WIDTH = 2170
 DEFAULT_WIDTH = 2008
 RESCAN_S = 5
-EV_KEY = 1
+STALE_POLL_S = 0.5
+EV_SYN, EV_KEY = 0, 1
+SYN_REPORT, SYN_DROPPED = 0, 3
+KEY_BYTES = 0x2FF // 8 + 1  # KEY_MAX
+EVIOCGKEY = 2 << 30 | KEY_BYTES << 16 | ord("E") << 8 | 0x18
 EVENT = struct.Struct("llHHi")
 
 # input-linux Key names (tiny-dfr Action) whose KEY_ constant differs by more
@@ -138,8 +144,6 @@ class Layout:
                     (f"{li}:{bi}", (left + bw / 2) / width, bw / width, len(action) == 1))
 
     def find(self, code):
-        if self.stale():
-            self.load()
         hits = self.buttons.get(code)
         if not hits:
             return None
@@ -163,34 +167,82 @@ def out(line):
     sys.stdout.flush()
 
 
+def held_keys(fd):
+    buf = bytearray(KEY_BYTES)
+    fcntl.ioctl(fd, EVIOCGKEY, buf)
+    return {c for c in range(KEY_BYTES * 8) if buf[c >> 3] >> (c & 7) & 1}
+
+
 def run(dev, layout):
     fd = os.open(dev, os.O_RDONLY)
     log(f"reading {dev}")
     held = {}  # id -> set of codes down
+    owner = {}  # code -> id it went down on: the up goes there whatever the layout is by then
+
+    def press(code, hit):
+        bid, x, w, _ = hit
+        codes = held.setdefault(bid, set())
+        if not codes:
+            out(f"down {bid} {x:.5f} {w:.5f}")
+        codes.add(code)
+        owner[code] = bid
+
+    def release(code):
+        bid = owner.pop(code)
+        codes = held[bid]
+        codes.discard(code)
+        if not codes:
+            out(f"up {bid}")
+
+    dropped = False
     try:
         while True:
-            select.select([fd], [], [])
+            ready, _, _ = select.select([fd], [], [], STALE_POLL_S)
+            # tiny-dfr reloads its config on change and forgets the touches
+            # it had: a finger on a button then never gets its key up (the
+            # dfr-switcher layout switch). Nothing held can be trusted.
+            if layout.stale():
+                if owner:
+                    out("reset")
+                    held.clear()
+                    owner.clear()
+                layout.load()
+            if not ready:
+                continue
             data = os.read(fd, EVENT.size * 64)
             for off in range(0, len(data) - EVENT.size + 1, EVENT.size):
                 _, _, typ, code, value = EVENT.unpack_from(data, off)
-                if typ != EV_KEY or value == 2:
+                # Kernel buffer overflow: events up to the next report are
+                # lost, the real key state is read back after it.
+                if typ == EV_SYN:
+                    if code == SYN_DROPPED:
+                        dropped = True
+                    elif code == SYN_REPORT and dropped:
+                        dropped = False
+                        down = held_keys(fd)
+                        for c in [c for c in owner if c not in down]:
+                            release(c)
+                    continue
+                if dropped or typ != EV_KEY or value == 2:
+                    continue
+                if value == 0 and code in owner:
+                    release(code)
                     continue
                 hit = layout.find(code)
                 if hit is None:
                     continue
-                bid, x, w, _ = hit
-                codes = held.setdefault(bid, set())
                 if value == 1:
-                    if not codes:
-                        out(f"down {bid} {x:.5f} {w:.5f}")
-                    codes.add(code)
-                elif code in codes:
-                    codes.discard(code)
-                    if not codes:
-                        out(f"up {bid}")
+                    if code not in owner:
+                        press(code, hit)
+                else:
+                    # An up with no down: the key tiny-dfr left stuck after a
+                    # reload — its next press only sends the up. The finger
+                    # did tap it, so show the tap.
+                    press(code, hit)
+                    release(code)
     finally:
         os.close(fd)
-        if any(held.values()):
+        if owner:
             out("reset")
 
 
