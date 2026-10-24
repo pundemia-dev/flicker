@@ -34,7 +34,7 @@ QtObject {
     // BlueZ may still power the adapter right after it appears; settle first.
     property Timer restore: Timer {
         interval: 1500
-        running: !!root.adapter && root.pending && root.saved !== null && (Config.data.persist?.bluetooth ?? true)
+        running: !!root.adapter && root.pending && root.saved !== null
         onTriggered: {
             root.pending = false;
             if (root.adapter && root.adapter.enabled !== root.saved)

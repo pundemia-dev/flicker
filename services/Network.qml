@@ -488,7 +488,12 @@ QtObject {
         }
     }
 
+    // Reads the file itself: Airplane calls this from its onCompleted, which
+    // may run before radioState's onLoaded.
     function restoreRadio(): void {
+        const s = radioState.read();
+        if (typeof s.wifi === "boolean")
+            root.savedRadio = s.wifi;
         if (root.savedRadio === null || !(Config.data.persist?.wifi ?? true))
             return;
         root.applyRadio(root.savedRadio);

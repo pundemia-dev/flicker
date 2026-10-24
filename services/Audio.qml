@@ -195,9 +195,16 @@ Scope {
         return root.sinkReady && !!root.sink.name
             && (Date.now() > root.restoreUntil || root.restoredSinks.includes(root.sink.name));
     }
+    // The level is taken now, per sink: a default-sink switch inside the
+    // debounce must not save the new sink's level (or nothing) instead.
+    property var pendingVolumes: ({})
     function queueVolumeSave(): void {
-        if (root.canSaveVolume())
-            volumeSave.restart();
+        if (!root.canSaveVolume())
+            return;
+        const next = Object.assign({}, root.pendingVolumes);
+        next[root.sink.name] = { volume: root.volume, muted: root.muted };
+        root.pendingVolumes = next;
+        volumeSave.restart();
     }
     function restoreVolume(): void {
         if (!root.sinkReady || Date.now() > root.restoreUntil)
@@ -221,10 +228,8 @@ Scope {
         id: volumeSave
         interval: 1000
         onTriggered: {
-            if (!root.canSaveVolume())
-                return;
-            const next = Object.assign({}, root.savedVolumes);
-            next[root.sink.name] = { volume: root.volume, muted: root.muted };
+            const next = Object.assign({}, root.savedVolumes, root.pendingVolumes);
+            root.pendingVolumes = {};
             root.savedVolumes = next;
             volumeFile.write({ sinks: next });
         }

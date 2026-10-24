@@ -133,7 +133,16 @@ Scope {
         }
     }
 
+    // Read here, not only in onLoaded: whether the child's load lands
+    // before this onCompleted is not guaranteed.
+    function load(): void {
+        const s = stateFile.read();
+        root.savedOn = s.on === true;
+        root.before = Array.isArray(s.types)
+            ? { types: s.types, wifi: s.wifi ?? true, bt: s.bt ?? true, dnd: s.dnd ?? false } : null;
+    }
     Component.onCompleted: {
+        root.load();
         if (!bootMarker.claim())
             return;
         if (root.savedOn && (Config.data.persist?.airplane ?? true)) {
@@ -147,7 +156,7 @@ Scope {
                 root.write();
             }
             root.network?.restoreRadio();
-            if (root.bluetooth)
+            if (root.bluetooth && (Config.data.persist?.bluetooth ?? true))
                 root.bluetooth.pending = true;
         }
     }
@@ -156,14 +165,18 @@ Scope {
         name: "radios"
     }
 
+    // State bookkeeping runs from the first op-2 change (an exit during
+    // startupQuietMs must still be saved and restore the radios); DND and the
+    // event wait for `arm`. A hardware kill switch alone is no saved mode:
+    // `savedOn` needs every device soft-blocked.
     onActiveChanged: {
-        if (!arm.armed || !root.available || root.lastOp !== 2)
+        if (!root.available || root.lastOp !== 2)
             return;
-        root.savedOn = root.active;
+        root.savedOn = root.active && root.list.every(d => d.soft);
         if (root.active) {
             root.exiting = false;
             root.restoredTypes = [];
-            if ((root.cfg.dnd ?? false) && root.notifications && !root.notifications.doNotDisturb) {
+            if (arm.armed && (root.cfg.dnd ?? false) && root.notifications && !root.notifications.doNotDisturb) {
                 root.notifications.doNotDisturb = true;
                 root.before = Object.assign({}, root.before ?? {}, { dnd: true });
             }
@@ -177,6 +190,8 @@ Scope {
             root.settleExit();
         }
         root.write();
+        if (!arm.armed)
+            return;
         root.events.cancel(root.active ? "airplane:off" : "airplane:on");
         if (!(Config.data.events.airplane ?? true))
             return;
@@ -236,11 +251,6 @@ Scope {
     StateFile {
         id: stateFile
         name: "airplane.json"
-        onLoaded: {
-            const s = stateFile.read();
-            root.savedOn = s.on === true;
-            if (Array.isArray(s.types))
-                root.before = { types: s.types, wifi: s.wifi ?? true, bt: s.bt ?? true, dnd: s.dnd ?? false };
-        }
+        onLoaded: root.load()
     }
 }
