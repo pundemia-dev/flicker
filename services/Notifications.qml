@@ -3,6 +3,7 @@ import Quickshell
 import Quickshell.Io
 import Quickshell.Services.Notifications
 import "../config"
+import "NotificationRules.js" as Rules
 
 Item {
     id: root
@@ -11,6 +12,9 @@ Item {
     // An entry left the history (sender closed it, it expired, or it was
     // trimmed): drop it from queues/views — the object is freed after destroyDelay.
     signal notificationClosed(var notif)
+    // Toasts taken back before they show (their app was just muted):
+    // islands drop them from their queues.
+    signal toastsWithdrawn(var entries)
     property var history: []
     // Shown but not stored (low urgency with historyLowUrgency off, a rule's
     // history off): released once every target island is done with its
@@ -138,20 +142,17 @@ Item {
     // ---- per-app rules (notifications.rules, see Config) ----
 
     function ruleLive(rule: var, now: double): bool {
-        return !!rule && rule.enabled !== false && !((rule.until ?? 0) > 0 && rule.until <= now);
+        return Rules.live(rule, now);
     }
 
     // Empty pattern = any; a bad regex never matches (settings shows it).
     // Compiled rule patterns (null = invalid), rebuilt with the config.
     property var reCache: ({})
+    // Own keys only: `in` also saw Object.prototype ("constructor" as a
+    // pattern returned a function and every arrival threw).
     function compiled(pattern: string): var {
-        if (!(pattern in root.reCache)) {
-            try {
-                root.reCache[pattern] = new RegExp(pattern, "i");
-            } catch (e) {
-                root.reCache[pattern] = null;
-            }
-        }
+        if (!Object.prototype.hasOwnProperty.call(root.reCache, pattern))
+            root.reCache[pattern] = Rules.compile(pattern);
         return root.reCache[pattern];
     }
     function matches(pattern: string, values: var): bool {
@@ -230,32 +231,35 @@ Item {
         const rules = (root.cfg.rules ?? []).map(r => Object.assign({}, r));
         // The app's own rule (same app pattern, no other condition) is
         // reused whatever the user changed in it since.
-        const hit = rules.find(r => r.app === app && !r.text && !r.urgency);
-        if (hit) {
-            hit.toast = false;
-            hit.sound = false;
-            hit.until = until;
-            hit.enabled = true;
-        } else {
-            rules.unshift({ id: root.newRuleId(), name: name, enabled: true, app: app, toast: false, sound: false, until: until });
-        }
+        // It goes first: an earlier rule matching the app would win.
+        const at = rules.findIndex(r => r.app === app && !r.text && !r.urgency);
+        const rule = at >= 0 ? rules.splice(at, 1)[0] : { id: root.newRuleId(), name: name, app: app };
+        Object.assign(rule, { enabled: true, toast: false, sound: false, until: until });
+        rules.unshift(rule);
         Config.set("notifications.rules", rules);
+        // Its toasts still waiting in the islands' queues go too (the
+        // muted one itself closes with its panel).
+        const waiting = [...root.history, ...root.transients].filter(e => e !== entry && e.appName === name && e.toastViews > 0);
+        if (waiting.length > 0)
+            root.toastsWithdrawn(waiting);
     }
 
     // Toast lifetime (ms) of an entry; 0 = until dismissed. `queued` = more
     // wait behind it (shorter, but never for an until-dismissed one).
+    // A rule's time or the sender's own (appTimeout) is kept as asked;
+    // only the urgency defaults shorten while more are queued.
     function toastMs(entry: var, queued: bool): int {
         const c = root.cfg;
         let ms = entry?.policy?.durationMs ?? 0;
         if (ms <= 0 && (c.appTimeout ?? false))
             ms = entry?.appTimeoutMs ?? 0;
-        if (ms <= 0) {
-            const u = entry?.urgency ?? NotificationUrgency.Normal;
-            ms = u === NotificationUrgency.Critical ? (c.flowShowCriticalMs ?? 10000)
-                : u === NotificationUrgency.Low ? (c.flowShowLowMs ?? 3000) : (c.flowShowMs ?? 5000);
-            if (ms <= 0)
-                return 0;
-        }
+        if (ms > 0)
+            return ms;
+        const u = entry?.urgency ?? NotificationUrgency.Normal;
+        ms = u === NotificationUrgency.Critical ? (c.flowShowCriticalMs ?? 10000)
+            : u === NotificationUrgency.Low ? (c.flowShowLowMs ?? 3000) : (c.flowShowMs ?? 5000);
+        if (ms <= 0)
+            return 0;
         return queued ? Math.min(ms, c.flowShowQueuedMs ?? 3000) : ms;
     }
 
@@ -320,7 +324,7 @@ Item {
     function duplicateOf(notif: var): var {
         if (!(root.cfg.dedupe ?? true))
             return null;
-        return root.history.find(e => e.appName === notif.appName && e.summary === notif.summary && e.body === notif.body) ?? null;
+        return [...root.history, ...root.transients].find(e => e.appName === notif.appName && e.summary === notif.summary && e.body === notif.body) ?? null;
     }
 
     // Housekeeping once a minute while there is any: expired timed rules
@@ -336,12 +340,13 @@ Item {
     function sweep(): void {
         const now = Date.now();
         const rules = root.cfg.rules ?? [];
-        const kept = rules.filter(r => !((r?.until ?? 0) > 0 && r.until <= now));
+        const kept = rules.filter(r => !Rules.expired(r, now));
         if (kept.length !== rules.length)
             Config.set("notifications.rules", kept);
+        // Never one still on screen / queued (toastViews > 0).
         const hours = root.cfg.historyMaxAgeHours ?? 0;
-        const old = hours > 0 ? root.history.filter(e => now - e.time > hours * 3600000) : [];
-        const stale = root.transients.filter(e => now - e.time > root.transientMs);
+        const old = hours > 0 ? root.history.filter(e => e.toastViews <= 0 && now - e.time > hours * 3600000) : [];
+        const stale = root.transients.filter(e => e.toastViews <= 0 && now - e.time > root.transientMs);
         for (const e of [...old, ...stale])
             e.release();
     }
@@ -398,7 +403,8 @@ Item {
             // through. Later repeats replace the copy (below).
             const dup = root.duplicateOf(notif);
             if (dup && dup.toastViews > 0 && notif.urgency !== NotificationUrgency.Critical) {
-                notif.dismiss();
+                // Closed as expired: the user never saw or touched it.
+                notif.expire();
                 return;
             }
             const policy = root.policyFor(notif);
@@ -406,9 +412,9 @@ Item {
             const screens = policy.toast ? root.toastScreens() : [];
             if (screens.length === 0)
                 policy.toast = false;
-            // Nowhere to go (no toast, not stored): dropped like suppress.
+            // Nowhere to go (no toast, not stored): closed as expired.
             if (!policy.toast && !policy.history) {
-                notif.dismiss();
+                notif.expire();
                 return;
             }
             // Keep the server-side object alive: image-data pictures are
@@ -427,6 +433,9 @@ Item {
                 toastViews: screens.length
             });
             entry.closed.connect(() => root.forget(entry));
+            // A later repeat replaces the older copy (closed -> forget).
+            if (dup)
+                dup.release();
             if (!policy.history) {
                 root.transients = [...root.transients, entry];
                 if (policy.sound)
@@ -434,9 +443,7 @@ Item {
                 root.notificationReceived(entry);
                 return;
             }
-            // A later repeat replaces the older copy (closed -> forget).
-            if (dup)
-                dup.release();
+
             // Newest first, capped (feeds the Notification Center history).
             // Entries past the cap are expired server-side: the sender gets
             // NotificationClosed and the object is freed (was a leak).

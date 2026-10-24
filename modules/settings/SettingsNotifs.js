@@ -1,4 +1,5 @@
 .pragma library
+.import "../../services/NotificationRules.js" as Rules
 
 // Notifications section helpers: the per-app rule list (Config
 // `notifications.rules`, matched by Notifications.ruleFor) as generated
@@ -26,7 +27,7 @@ function field(rule, key) {
 }
 
 function expired(rule, now) {
-    return (rule?.until ?? 0) > 0 && rule.until <= now;
+    return Rules.expired(rule, now);
 }
 
 function isEmpty(rule) {
@@ -39,11 +40,8 @@ function ruleError(rule, tr) {
         const v = `${rule?.[key] ?? ""}`;
         if (v === "")
             continue;
-        try {
-            new RegExp(v, "i");
-        } catch (e) {
+        if (!Rules.compile(v))
             return tr("%1: bad regular expression").arg(tr(name));
-        }
     }
     return "";
 }

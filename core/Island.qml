@@ -253,11 +253,25 @@ PanelWindow {
         root.toasting = root.toasting.filter(e => e !== entry);
         root.notifications.toastClosed(entry);
     }
+    // flowAutoClose fired while the card was in use: re-armed with the
+    // card's own time (Notifications.toastMs) when it is let go.
+    property bool flowWaitsHold: false
+    Connections {
+        target: moduleHost
+        function onHoldOpenChanged() {
+            if (moduleHost.holdOpen || !root.flowWaitsHold)
+                return;
+            root.flowWaitsHold = false;
+            if (root.flowEntry)
+                root.armFlowTimer();
+        }
+    }
     // The flow card going (closed, replaced by another card or module).
     property var lastFlowEntry: null
     onFlowEntryChanged: {
         const old = root.lastFlowEntry;
         root.lastFlowEntry = root.flowEntry;
+        root.flowWaitsHold = false;
         if (old && old !== root.flowEntry)
             root.toastDone(old);
     }
@@ -1217,6 +1231,17 @@ PanelWindow {
         target: root.notifications
         // Sender closed / expired / trimmed: never show it later, and take
         // the card down if it is the one on screen right now.
+        // Muted meanwhile: out of the queue (the one on screen stays).
+        function onToastsWithdrawn(entries) {
+            for (const e of entries) {
+                if (!root.toasting.includes(e) || e === root.flowEntry || e === root.tickerNotif && root.tickerVisible)
+                    continue;
+                root.notificationQueue.remove(e);
+                if (root.pendingFlow === e)
+                    root.pendingFlow = null;
+                root.toastDone(e);
+            }
+        }
         function onNotificationClosed(notif) {
             root.toasting = root.toasting.filter(e => e !== notif);
             root.notificationQueue.remove(notif);
@@ -1233,7 +1258,8 @@ PanelWindow {
             if (!(notif?.toastScreens ?? []).includes(root.screen?.name ?? ""))
                 return;
             root.toasting = [...root.toasting, notif];
-            if (root.moduleOpen) {
+            // An until-dismissed ticker is not replaced: the newcomer waits.
+            if (root.moduleOpen || root.tickerVisible && root.tickerMs <= 0) {
                 root.notificationQueue.enqueue(notif);
                 root.shortenFlow();
                 return;
@@ -1260,6 +1286,14 @@ PanelWindow {
             // The ticker itself counts as interaction: restart the idle timer.
             if (root.state.currentState === root.state.minimal)
                 minimalIdle.restart();
+            // Queued behind an until-dismissed ticker: next one now.
+            if (!root.moduleOpen && root.pendingFlow == null && root.notificationQueue.size > 0) {
+                const next = root.notificationQueue.dequeue();
+                if (root.state.currentState === root.state.minimal || root.fsActive)
+                    root.showTicker(next);
+                else
+                    root.openModule("notifications", root.flowPayload(next));
+            }
         }
     }
 
@@ -1334,10 +1368,10 @@ PanelWindow {
         onTriggered: {
             if (root.state.activeModule !== "notifications" || (root.state.activePayload?.mode ?? "") !== "flow")
                 return;
-            // In use (pressed, buttons open, replying): check again later.
+            // In use (pressed, buttons open, replying): a fresh budget
+            // once it is let go (flowHoldEnded).
             if (moduleHost.holdOpen) {
-                flowAutoClose.interval = root.config.notifications.flowShowQueuedMs;
-                flowAutoClose.restart();
+                root.flowWaitsHold = true;
                 return;
             }
             root.closeModule();

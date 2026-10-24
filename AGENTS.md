@@ -390,7 +390,13 @@ user's data) live outside the repo: `CLAUDE.local.md` (git-ignored) and `~/.clau
   notify-send -t). Dedupe = same app+summary+body replaces the older entry, silent within
   while the stored copy is on screen / queued (`toastViews > 0`) the NEW one is dismissed
   (never a critical one); later it replaces the copy. Rule regexes cached (`reCache`, reset on
-  config change); Mute reuses the app's own rule (same pattern, no other condition).
+  config change, own-key lookup: "constructor" as a pattern once broke every arrival); Mute
+  reuses the app's own rule (same pattern, no other condition), moves it FIRST and withdraws
+  that app's queued toasts (`toastsWithdrawn`). Rule basics shared with settings:
+  `services/NotificationRules.js`. Drops the user never saw (repeat, no toast + no history) are
+  `expire()`d, not dismissed (apps read Dismissed as handled). A rule / app timeout is never
+  shortened by the queue; sweep skips entries still on screen; a card in use gets a fresh
+  `toastMs` when let go (`flowWaitsHold`); an until-dismissed ticker makes newcomers queue.
   `entry.code` = the 4–8 digit number nearest a code word → "Copy" pill (wl-copy).
   TransitionLayer.launch turnaround: stop() may land the flying element (finish → el null);
   lifting null threw and aborted openModule — queued flow cards never opened (pre-existing,
