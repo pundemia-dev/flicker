@@ -24,10 +24,13 @@ QtObject {
     function toggle(): void {
         if (!adapter)
             return;
-        adapter.enabled = !adapter.enabled;
-        root.saved = adapter.enabled;
+        // The requested state, not a readback: a refused write (rfkill) would
+        // save it inverted.
+        const next = !adapter.enabled;
+        adapter.enabled = next;
+        root.saved = next;
         root.pending = false;
-        stateFile.setText(JSON.stringify({ version: 1, bt: root.saved }));
+        stateFile.setText(JSON.stringify({ version: 1, bt: next }));
     }
 
     // BlueZ may still power the adapter right after it appears; settle first.
@@ -41,13 +44,16 @@ QtObject {
         }
     }
 
-    // bluetooth.autoOffMin: powered, nothing connected and no scan (the
-    // panel discovers while open) for that long = adapter off. Not saved:
+    // bluetooth.autoOffMin: powered, nothing connected, connecting or
+    // pairing and no scan (the panel discovers while open) for that long =
+    // adapter off. Not saved:
     // the next boot still follows the last tap.
     readonly property int autoOffMin: Config.data.bluetooth?.autoOffMin ?? 0
+    readonly property bool busy: (root.adapter?.discovering ?? false)
+        || (root.adapter?.devices.values ?? []).some(d => d.state !== BluetoothDeviceState.Disconnected || d.pairing)
     property Timer autoOff: Timer {
         interval: Math.max(1, root.autoOffMin) * 60000
-        running: root.autoOffMin > 0 && root.powered && root.connectedDevices.length === 0 && !(root.adapter?.discovering ?? false)
+        running: root.autoOffMin > 0 && root.powered && !root.busy
         onTriggered: {
             console.info("[bluetooth] nothing connected for", root.autoOffMin, "min, powering off");
             if (root.adapter)

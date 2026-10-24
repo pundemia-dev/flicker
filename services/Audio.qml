@@ -54,7 +54,10 @@ Scope {
     function quiet(): void {
         root.osdQuietUntil = Date.now() + Config.data.osd.quietMs;
     }
-    onSinkChanged: root.quiet()
+    onSinkChanged: {
+        root.quiet();
+        Qt.callLater(root.restoreVolume);
+    }
     onSourceChanged: root.quiet()
 
     // Hard cap (audio.maxVolume): changes from outside the shell (wpctl in
@@ -170,35 +173,60 @@ Scope {
 
     // Output volume + mute per sink (node name) persist in
     // statePath("volume.json") (any change, 1 s debounce) and are re-applied
-    // to the default sink once per shell start: WirePlumber's own route
-    // state did not keep the T2 speakers' level. Later device switches are
-    // WirePlumber's (a BT headset may have changed its level elsewhere).
+    // once per login (marker in $XDG_RUNTIME_DIR: a hot reload inside the
+    // debounce would restore a stale level): every sink that is the default
+    // within restoreWindowMs of start gets its level once (WirePlumber may
+    // expose a dummy / HDMI sink before the speakers). WirePlumber's own
+    // route state did not keep the T2 speakers' level. Later device switches
+    // are WirePlumber's (a BT headset may have changed its level elsewhere).
     property var savedVolumes: ({})
-    property bool volumeRestored: false
+    readonly property int restoreWindowMs: 20000
+    property real restoreUntil: 0
+    property var restoredSinks: []
     readonly property bool sinkReady: !!(sink?.ready && sink?.audio)
     onSinkReadyChanged: Qt.callLater(root.restoreVolume)
-    Component.onCompleted: Qt.callLater(root.restoreVolume)
+    Component.onCompleted: {
+        if (volumeMarker.text() === "") {
+            volumeMarker.setText("1");
+            root.restoreUntil = Date.now() + root.restoreWindowMs;
+        }
+        Qt.callLater(root.restoreVolume);
+    }
     onMutedChanged: root.queueVolumeSave()
+    // Not before the sink got its saved level (it would overwrite it).
+    function canSaveVolume(): bool {
+        return root.sinkReady && !!root.sink.name
+            && (Date.now() > root.restoreUntil || root.restoredSinks.includes(root.sink.name));
+    }
     function queueVolumeSave(): void {
-        if (root.volumeRestored && root.sinkReady)
+        if (root.canSaveVolume())
             volumeSave.restart();
     }
     function restoreVolume(): void {
-        if (root.volumeRestored || !root.sinkReady)
+        if (!root.sinkReady || Date.now() > root.restoreUntil)
             return;
-        root.volumeRestored = true;
-        const v = root.savedVolumes[root.sink.name ?? ""];
+        const name = root.sink.name ?? "";
+        if (root.restoredSinks.includes(name))
+            return;
+        root.restoredSinks = [...root.restoredSinks, name];
+        const v = root.savedVolumes[name];
         if (!v || typeof v.volume !== "number" || !(Config.data.persist?.volume ?? true))
             return;
         root.quiet();
         root.sink.audio.volume = Math.max(0, Math.min(root.maxVolume, v.volume));
         root.sink.audio.muted = !!v.muted;
     }
+    FileView {
+        id: volumeMarker
+        path: `${Quickshell.env("XDG_RUNTIME_DIR") || "/tmp"}/flicker-volume-restored`
+        blockLoading: true
+        printErrors: false
+    }
     Timer {
         id: volumeSave
         interval: 1000
         onTriggered: {
-            if (!root.sinkReady || !root.sink.name)
+            if (!root.canSaveVolume())
                 return;
             const next = Object.assign({}, root.savedVolumes);
             next[root.sink.name] = { volume: root.volume, muted: root.muted };

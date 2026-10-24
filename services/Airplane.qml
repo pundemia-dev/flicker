@@ -11,11 +11,17 @@ import "../config"
 // that were unblocked get unblocked, and the Bluetooth adapter goes back
 // to its own power state (BlueZ powers it on after an unblock otherwise).
 // That snapshot persists in statePath("airplane.json") and is dropped once
-// the mode is off; without one (the block came from elsewhere) "off"
-// unblocks everything and the radios follow their own last switch state
-// (Network `savedRadio` / Bluetooth `saved`). Wi‑Fi is switched back on in NM after ANY
-// exit (Fn key, rfkill elsewhere too): an rfkill unblock alone may leave
-// NM's radio off.
+// nothing the mode blocked is soft-blocked any more; without one (the block came from
+// elsewhere) "off" unblocks everything and the radios follow their own
+// last switch state (Network `savedRadio` / Bluetooth `saved`). Wi‑Fi is
+// switched back on in NM after ANY exit (Fn key, rfkill elsewhere too): an
+// rfkill unblock alone may leave NM's radio off. A partial exit (only
+// Bluetooth unblocked) restores just the unblocked radios; the rest follow
+// when they are unblocked (`exiting`).
+// Only state changes of present devices count as the mode switching
+// (rfkill op 2): devices vanishing at shutdown or re-listed after a
+// `rfkill event` restart can leave every remaining one blocked for a
+// moment, which is no Airplane Mode (no save, event or restore).
 // The mode itself survives a reboot (rfkill state does not:
 // systemd-rfkill is masked here): `on` in the same file, re-blocked on
 // start before Network / Bluetooth re-apply their switches (they don't
@@ -44,6 +50,11 @@ Scope {
     property var before: null
     // Airplane Mode was on when last seen (persisted).
     property bool savedOn: false
+    // rfkill op of the event that last changed `devices` (0 add, 1 del, 2 change).
+    property int lastOp: 0
+    // Left the mode, some radios not restored yet (`restoredTypes` = done).
+    property bool exiting: false
+    property var restoredTypes: []
 
     readonly property var typeNames: ["all", "wlan", "bluetooth", "uwb", "wimax", "wwan", "gps", "fm", "nfc"]
 
@@ -78,13 +89,36 @@ Scope {
             return types.includes(type) || types.includes("all") ? snapshotValue : null;
         return last ?? null;
     }
-    function restoreRadios(): void {
-        const wifi = root.wanted("wlan", root.network?.savedRadio ?? true, root.before?.wifi ?? true);
-        if (wifi !== null)
-            Quickshell.execDetached(["nmcli", "radio", "wifi", wifi ? "on" : "off"]);
-        btRestore.target = root.wanted("bluetooth", root.bluetooth?.saved, root.before?.bt ?? true);
-        if (btRestore.target !== null)
-            btRestore.restart();
+    function unblocked(type: string): bool {
+        const code = root.typeNames.indexOf(type);
+        return root.list.some(d => d.type === code && !d.soft && !d.hard);
+    }
+    // Restores each radio once it is unblocked; ends the exit (and drops
+    // the snapshot) when nothing the mode blocked is soft-blocked.
+    function settleExit(): void {
+        if (!root.exiting || root.active)
+            return;
+        if (!root.restoredTypes.includes("wlan") && root.unblocked("wlan")) {
+            root.restoredTypes = [...root.restoredTypes, "wlan"];
+            const wifi = root.wanted("wlan", root.network?.savedRadio ?? true, root.before?.wifi ?? true);
+            if (wifi !== null)
+                root.network?.applyRadio(wifi);
+        }
+        if (!root.restoredTypes.includes("bluetooth") && root.unblocked("bluetooth")) {
+            root.restoredTypes = [...root.restoredTypes, "bluetooth"];
+            btRestore.target = root.wanted("bluetooth", root.bluetooth?.saved, root.before?.bt ?? true);
+            if (btRestore.target !== null)
+                btRestore.restart();
+        }
+        // Types that were off before the mode stay blocked: not waited for.
+        const types = root.before?.types;
+        const waited = d => !types || types.includes("all") || types.includes(root.typeNames[d.type]);
+        if (root.list.every(d => !d.soft || !waited(d))) {
+            root.exiting = false;
+            root.restoredTypes = [];
+            root.before = null;
+            root.write();
+        }
     }
 
     // The adapter reports its power only once BlueZ has seen the unblock.
@@ -106,6 +140,13 @@ Scope {
         if (root.savedOn && (Config.data.persist?.airplane ?? true)) {
             Quickshell.execDetached(["rfkill", "block", "all"]);
         } else {
+            // Not re-applied: forget it, or turning persist.airplane back
+            // on later would block everything at the next login.
+            if (root.savedOn) {
+                root.savedOn = false;
+                root.before = null;
+                root.write();
+            }
             root.network?.restoreRadio();
             if (root.bluetooth)
                 root.bluetooth.pending = true;
@@ -119,10 +160,12 @@ Scope {
     }
 
     onActiveChanged: {
-        if (!arm.armed || !root.available)
+        if (!arm.armed || !root.available || root.lastOp !== 2)
             return;
         root.savedOn = root.active;
         if (root.active) {
+            root.exiting = false;
+            root.restoredTypes = [];
             if ((root.cfg.dnd ?? false) && root.notifications && !root.notifications.doNotDisturb) {
                 root.notifications.doNotDisturb = true;
                 root.before = Object.assign({}, root.before ?? {}, { dnd: true });
@@ -130,8 +173,11 @@ Scope {
         } else {
             if (root.before?.dnd && root.notifications)
                 root.notifications.doNotDisturb = false;
-            root.restoreRadios();
-            root.before = null;
+            if (root.before)
+                root.before = Object.assign({}, root.before, { dnd: false });
+            root.exiting = true;
+            root.restoredTypes = [];
+            root.settleExit();
         }
         root.write();
         root.events.cancel(root.active ? "airplane:off" : "airplane:on");
@@ -170,7 +216,10 @@ Scope {
                     delete next[m[1]];
                 else
                     next[m[1]] = { type: +m[2], soft: m[4] === "1", hard: m[5] === "1" };
+                root.lastOp = +m[3];
                 root.devices = next;
+                if (root.lastOp === 2)
+                    root.settleExit();
             }
         }
         onExited: code => {

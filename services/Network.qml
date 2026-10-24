@@ -394,9 +394,15 @@ QtObject {
     }
 
     function setWifiEnabled(enabled: bool): void {
-        wifiEnabled = enabled;
         root.savedRadio = enabled;
         radioState.setText(JSON.stringify({ version: 1, wifi: enabled }));
+        root.applyRadio(enabled);
+    }
+
+    // Switches the radio without saving it as the user's choice (Airplane,
+    // the start-up restore).
+    function applyRadio(enabled: bool): void {
+        wifiEnabled = enabled;
         if (!enabled)
             root.networks = [];
         Quickshell.execDetached(["nmcli", "radio", "wifi", enabled ? "on" : "off"]);
@@ -491,8 +497,7 @@ QtObject {
     function restoreRadio(): void {
         if (root.savedRadio === null || !(Config.data.persist?.wifi ?? true))
             return;
-        Quickshell.execDetached(["nmcli", "radio", "wifi", root.savedRadio ? "on" : "off"]);
-        refreshTimer.restart();
+        root.applyRadio(root.savedRadio);
     }
 
     Component.onCompleted: root.refresh()

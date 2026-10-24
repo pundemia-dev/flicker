@@ -505,12 +505,18 @@ user's data) live outside the repo: `CLAUDE.local.md` (git-ignored) and `~/.clau
   `bluetooth.json`, saved only on taps in the card/panel), Airplane Mode (`on` in `airplane.json`;
   systemd-rfkill is masked here), Caffeine, brightness (systemd-backlight keeps nothing for
   gmux_backlight), default-sink volume+mute (`volume.json`, per node name, re-applied to the
-  start-up sink only). Radios are re-applied once per login, orchestrated by Airplane (marker
-  `$XDG_RUNTIME_DIR/flicker-radios-restored`; a hot reload would otherwise undo nmcli changes);
-  Airplane on at start = re-blocked, the switches are skipped. Any Airplane exit (Fn key / rfkill
-  elsewhere too) switches NM's Wi‑Fi back on (snapshot, else the saved switch) and drops the
-  snapshot. `bluetooth.autoOffMin` (10, 0 = never): adapter off after that long with nothing
-  connected and no discovery; not saved as the switch state. Re-applying each one on start is gated by
+  sinks that are default in the first 20 s, each once: a dummy / HDMI sink may come first).
+  Radios, volume and brightness are re-applied once per login (markers
+  `$XDG_RUNTIME_DIR/flicker-{radios,volume,brightness}-restored`; a hot reload would undo nmcli
+  changes / restore a level saved before the debounce); brightness only to the device it was
+  saved for. Radios are orchestrated by Airplane: Airplane on at start = re-blocked, the switches
+  are skipped; persist.airplane off = the saved `on` is forgotten. Only rfkill op 2 (state
+  change) counts as the mode switching — devices removed at shutdown / re-listed after a watcher
+  restart can leave all remaining ones blocked. Any exit (Fn key / rfkill elsewhere too)
+  restores each radio once it is unblocked (Wi‑Fi through Network.applyRadio: snapshot, else the
+  saved switch; partial exit = only those), the snapshot goes once nothing the mode blocked is
+  soft-blocked. `bluetooth.autoOffMin` (10, 0 = never): adapter off after that long with no
+  device connected / connecting / pairing and no discovery; not saved as the switch state. Re-applying each one on start is gated by
   `persist.{wifi,bluetooth,airplane,caffeine,volume,brightness}` (all true; the state is saved
   regardless) — settings: Quick Settings → Keep after reboot, Sound, Volume & Brightness.
   Debug IPC `quicksettingsExpand <id>` ("" folds back). Verified via that IPC + grim frames

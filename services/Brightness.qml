@@ -8,8 +8,10 @@ import "../config"
 // the sysfs `brightness` file (noctalia approach): writes through the VFS
 // raise IN_MODIFY even on sysfs (verified Oct 2026, gmux_backlight).
 // The level persists (statePath("brightness.json"), any change, 2 s
-// debounce) and is re-applied on start: systemd-backlight keeps no state
-// for gmux_backlight here. Never restored below restoreMin.
+// debounce) and is re-applied once per login (marker in $XDG_RUNTIME_DIR:
+// a hot reload inside the debounce would restore a stale level), only to
+// the device it was saved for: systemd-backlight keeps no state for
+// gmux_backlight here. Never restored below restoreMin.
 QtObject {
     id: root
 
@@ -57,7 +59,11 @@ QtObject {
                 root.maxRaw = m;
                 root.brightness = c / m;
                 root.initialized = true;
-                if (typeof root.saved === "number" && (Config.data.persist?.brightness ?? true)) {
+                const first = restoreMarker.text() === "";
+                if (first)
+                    restoreMarker.setText("1");
+                if (first && typeof root.saved === "number" && root.savedDevice === root.device
+                        && (Config.data.persist?.brightness ?? true)) {
                     root.quiet();
                     root.setBrightness(Math.max(root.restoreMin, root.saved));
                 }
@@ -83,13 +89,20 @@ QtObject {
     }
 
     property var saved: null
+    property string savedDevice: ""
     onBrightnessChanged: if (root.initialized) saveTimer.restart()
     property Timer saveTimer: Timer {
         interval: 2000
         onTriggered: {
             root.saved = root.brightness;
+            root.savedDevice = root.device;
             stateFile.setText(JSON.stringify({ version: 1, device: root.device, level: root.brightness }));
         }
+    }
+    property FileView restoreMarker: FileView {
+        path: `${Quickshell.env("XDG_RUNTIME_DIR") || "/tmp"}/flicker-brightness-restored`
+        blockLoading: true
+        printErrors: false
     }
     property FileView stateFile: FileView {
         path: Quickshell.statePath("brightness.json")
@@ -97,9 +110,11 @@ QtObject {
         printErrors: false
         onLoaded: {
             try {
-                const level = JSON.parse(stateFile.text()).level;
-                if (typeof level === "number")
-                    root.saved = level;
+                const s = JSON.parse(stateFile.text());
+                if (typeof s.level === "number") {
+                    root.saved = s.level;
+                    root.savedDevice = s.device ?? "";
+                }
             } catch (e) {
                 console.warn("Brightness: bad state file, ignoring:", e);
             }
