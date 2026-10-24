@@ -395,7 +395,7 @@ QtObject {
 
     function setWifiEnabled(enabled: bool): void {
         root.savedRadio = enabled;
-        radioState.setText(JSON.stringify({ version: 1, wifi: enabled }));
+        radioState.write({ wifi: enabled });
         root.applyRadio(enabled);
     }
 
@@ -479,18 +479,12 @@ QtObject {
     // once per login (restoreRadio), unless it restores Airplane Mode itself. Only taps
     // here are saved: Airplane Mode and nmcli from elsewhere leave it alone.
     property var savedRadio: null
-    property FileView radioState: FileView {
-        path: Quickshell.statePath("wifi.json")
-        blockLoading: true
-        printErrors: false
+    property StateFile radioState: StateFile {
+        name: "wifi.json"
         onLoaded: {
-            try {
-                const s = JSON.parse(radioState.text());
-                if (typeof s.wifi === "boolean")
-                    root.savedRadio = s.wifi;
-            } catch (e) {
-                console.warn("Network: bad state file, ignoring:", e);
-            }
+            const s = radioState.read();
+            if (typeof s.wifi === "boolean")
+                root.savedRadio = s.wifi;
         }
     }
 

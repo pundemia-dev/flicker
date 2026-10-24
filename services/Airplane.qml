@@ -79,7 +79,7 @@ Scope {
         root.write();
     }
     function write(): void {
-        stateFile.setText(JSON.stringify(Object.assign({ version: 1, on: root.savedOn }, root.before ?? {})));
+        stateFile.write(Object.assign({ on: root.savedOn }, root.before ?? {}));
     }
 
     // After an exit: what each radio goes back to (null = leave it).
@@ -134,9 +134,8 @@ Scope {
     }
 
     Component.onCompleted: {
-        if (bootMarker.text() !== "")
+        if (!bootMarker.claim())
             return;
-        bootMarker.setText("1");
         if (root.savedOn && (Config.data.persist?.airplane ?? true)) {
             Quickshell.execDetached(["rfkill", "block", "all"]);
         } else {
@@ -152,11 +151,9 @@ Scope {
                 root.bluetooth.pending = true;
         }
     }
-    FileView {
+    LoginOnce {
         id: bootMarker
-        path: `${Quickshell.env("XDG_RUNTIME_DIR") || "/tmp"}/flicker-radios-restored`
-        blockLoading: true
-        printErrors: false
+        name: "radios"
     }
 
     onActiveChanged: {
@@ -236,20 +233,14 @@ Scope {
         onTriggered: watch.running = true
     }
 
-    FileView {
+    StateFile {
         id: stateFile
-        path: Quickshell.statePath("airplane.json")
-        blockLoading: true
-        printErrors: false
+        name: "airplane.json"
         onLoaded: {
-            try {
-                const s = JSON.parse(stateFile.text());
-                root.savedOn = s.on ?? false;
-                if (s.types)
-                    root.before = { types: s.types, wifi: s.wifi ?? true, bt: s.bt ?? true, dnd: s.dnd ?? false };
-            } catch (e) {
-                console.warn("Airplane: bad state file, ignoring:", e);
-            }
+            const s = stateFile.read();
+            root.savedOn = s.on === true;
+            if (Array.isArray(s.types))
+                root.before = { types: s.types, wifi: s.wifi ?? true, bt: s.bt ?? true, dnd: s.dnd ?? false };
         }
     }
 }

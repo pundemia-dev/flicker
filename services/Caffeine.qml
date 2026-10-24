@@ -1,6 +1,4 @@
 import QtQuick
-import Quickshell
-import Quickshell.Io
 import "../config"
 
 // Caffeine mode: keeps the session awake (no idle dim / lock / suspend).
@@ -22,7 +20,7 @@ QtObject {
         if (on === root.active)
             return;
         root.active = on;
-        stateFile.setText(JSON.stringify({ version: 1, active: on }));
+        stateFile.write({ active: on });
         root.events.cancel(on ? "caffeine:off" : "caffeine:on");
         if (!(Config.data.events.caffeine ?? true))
             return;
@@ -36,18 +34,11 @@ QtObject {
         });
     }
 
-    property FileView stateFile: FileView {
-        path: Quickshell.statePath("caffeine.json")
-        blockLoading: true
-        printErrors: false
+    property StateFile stateFile: StateFile {
+        name: "caffeine.json"
         onLoaded: {
-            if (!(Config.data.persist?.caffeine ?? true))
-                return;
-            try {
-                root.active = JSON.parse(stateFile.text()).active === true;
-            } catch (e) {
-                console.warn("Caffeine: bad state file, ignoring:", e);
-            }
+            if (Config.data.persist?.caffeine ?? true)
+                root.active = stateFile.read().active === true;
         }
     }
 }

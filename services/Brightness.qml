@@ -59,10 +59,7 @@ QtObject {
                 root.maxRaw = m;
                 root.brightness = c / m;
                 root.initialized = true;
-                const first = restoreMarker.text() === "";
-                if (first)
-                    restoreMarker.setText("1");
-                if (first && typeof root.saved === "number" && root.savedDevice === root.device
+                if (restoreMarker.claim() && typeof root.saved === "number" && root.savedDevice === root.device
                         && (Config.data.persist?.brightness ?? true)) {
                     root.quiet();
                     root.setBrightness(Math.max(root.restoreMin, root.saved));
@@ -96,27 +93,19 @@ QtObject {
         onTriggered: {
             root.saved = root.brightness;
             root.savedDevice = root.device;
-            stateFile.setText(JSON.stringify({ version: 1, device: root.device, level: root.brightness }));
+            stateFile.write({ device: root.device, level: root.brightness });
         }
     }
-    property FileView restoreMarker: FileView {
-        path: `${Quickshell.env("XDG_RUNTIME_DIR") || "/tmp"}/flicker-brightness-restored`
-        blockLoading: true
-        printErrors: false
+    property LoginOnce restoreMarker: LoginOnce {
+        name: "brightness"
     }
-    property FileView stateFile: FileView {
-        path: Quickshell.statePath("brightness.json")
-        blockLoading: true
-        printErrors: false
+    property StateFile stateFile: StateFile {
+        name: "brightness.json"
         onLoaded: {
-            try {
-                const s = JSON.parse(stateFile.text());
-                if (typeof s.level === "number") {
-                    root.saved = s.level;
-                    root.savedDevice = s.device ?? "";
-                }
-            } catch (e) {
-                console.warn("Brightness: bad state file, ignoring:", e);
+            const s = stateFile.read();
+            if (typeof s.level === "number") {
+                root.saved = s.level;
+                root.savedDevice = s.device ?? "";
             }
         }
     }

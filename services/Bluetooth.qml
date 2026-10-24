@@ -1,6 +1,4 @@
 import QtQuick
-import Quickshell
-import Quickshell.Io
 import Quickshell.Bluetooth
 import "../config"
 
@@ -30,7 +28,7 @@ QtObject {
         adapter.enabled = next;
         root.saved = next;
         root.pending = false;
-        stateFile.setText(JSON.stringify({ version: 1, bt: next }));
+        stateFile.write({ bt: next });
     }
 
     // BlueZ may still power the adapter right after it appears; settle first.
@@ -61,18 +59,12 @@ QtObject {
         }
     }
 
-    property FileView stateFile: FileView {
-        path: Quickshell.statePath("bluetooth.json")
-        blockLoading: true
-        printErrors: false
+    property StateFile stateFile: StateFile {
+        name: "bluetooth.json"
         onLoaded: {
-            try {
-                const s = JSON.parse(stateFile.text());
-                if (typeof s.bt === "boolean")
-                    root.saved = s.bt;
-            } catch (e) {
-                console.warn("Bluetooth: bad state file, ignoring:", e);
-            }
+            const s = stateFile.read();
+            if (typeof s.bt === "boolean")
+                root.saved = s.bt;
         }
     }
 }

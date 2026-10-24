@@ -1,6 +1,5 @@
 import QtQuick
 import Quickshell
-import Quickshell.Io
 import Quickshell.Services.Pipewire
 import "../config"
 
@@ -186,10 +185,8 @@ Scope {
     readonly property bool sinkReady: !!(sink?.ready && sink?.audio)
     onSinkReadyChanged: Qt.callLater(root.restoreVolume)
     Component.onCompleted: {
-        if (volumeMarker.text() === "") {
-            volumeMarker.setText("1");
+        if (volumeMarker.claim())
             root.restoreUntil = Date.now() + root.restoreWindowMs;
-        }
         Qt.callLater(root.restoreVolume);
     }
     onMutedChanged: root.queueVolumeSave()
@@ -216,11 +213,9 @@ Scope {
         root.sink.audio.volume = Math.max(0, Math.min(root.maxVolume, v.volume));
         root.sink.audio.muted = !!v.muted;
     }
-    FileView {
+    LoginOnce {
         id: volumeMarker
-        path: `${Quickshell.env("XDG_RUNTIME_DIR") || "/tmp"}/flicker-volume-restored`
-        blockLoading: true
-        printErrors: false
+        name: "volume"
     }
     Timer {
         id: volumeSave
@@ -231,20 +226,15 @@ Scope {
             const next = Object.assign({}, root.savedVolumes);
             next[root.sink.name] = { volume: root.volume, muted: root.muted };
             root.savedVolumes = next;
-            volumeFile.setText(JSON.stringify({ version: 1, sinks: next }));
+            volumeFile.write({ sinks: next });
         }
     }
-    FileView {
+    StateFile {
         id: volumeFile
-        path: Quickshell.statePath("volume.json")
-        blockLoading: true
-        printErrors: false
+        name: "volume.json"
         onLoaded: {
-            try {
-                root.savedVolumes = JSON.parse(volumeFile.text()).sinks ?? {};
-            } catch (e) {
-                console.warn("Audio: bad volume state file, ignoring:", e);
-            }
+            const sinks = volumeFile.read().sinks;
+            root.savedVolumes = sinks && typeof sinks === "object" ? sinks : {};
         }
     }
 

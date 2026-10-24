@@ -519,6 +519,8 @@ user's data) live outside the repo: `CLAUDE.local.md` (git-ignored) and `~/.clau
   device connected / connecting / pairing and no discovery; not saved as the switch state. Re-applying each one on start is gated by
   `persist.{wifi,bluetooth,airplane,caffeine,volume,brightness}` (all true; the state is saved
   regardless) — settings: Quick Settings → Keep after reboot, Sound, Volume & Brightness.
+  Shared helpers: `services/StateFile` (statePath JSON, read() = {} on missing/bad, write(obj)
+  adds `version`) and `services/LoginOnce` (claim() = first time this login).
   Debug IPC `quicksettingsExpand <id>` ("" folds back). Verified via that IPC + grim frames
   (both ways, both panels; BT discovery found nearby devices). NOT tested: the real long press,
   BT connect / pair taps.
