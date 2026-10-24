@@ -177,6 +177,17 @@ function powUnit(u, n) {
     return Units.units[sym] || { sym: sym, f: Math.pow(u.f, n), d: d };
 }
 
+// m/s^2 = m/s²: a power after a compound unit belongs to its denominator.
+function powLast(u, n) {
+    const slash = u.sym.lastIndexOf("/");
+    if (slash > 0) {
+        const num = Units.lookup(u.sym.slice(0, slash)), den = Units.lookup(u.sym.slice(slash + 1));
+        if (num && den && !num.currency && !den.currency)
+            return composeUnit(num, powUnit(den, n), -1);
+    }
+    return powUnit(u, n);
+}
+
 // ---------------------------------------------------------------- parser
 
 const functions = {
@@ -317,7 +328,8 @@ Parser.prototype.multiplicative = function () {
             op = (this.next(), "mod");
         else if (p.t === "word" && ofWords[p.v.toLowerCase()] && a.pct)
             op = (this.next(), "*");
-        else if (this.startsValue())
+        else if (this.startsValue() && !(p.t === "num" && !a.u))
+            // "2 pi", "2(3)", "1 h 30 min" — but "5 10" is no product.
             op = "juxt";
         if (!op)
             return a;
@@ -397,8 +409,8 @@ Parser.prototype.postfix = function () {
             continue;
         }
         if (p.t === "word" && !q.u && !q.pct) {
-            const w = p.v.toLowerCase();
-            const sc = scales[w] !== undefined ? scales[w] : scales[p.v];
+            // "k" = thousand, but "K" = kelvin: one letter matches exactly.
+            const sc = scales[p.v] !== undefined ? scales[p.v] : (p.v.length > 1 ? scales[p.v.toLowerCase()] : undefined);
             if (sc && isScalar(q) && !this.isOp("(", 1)) {
                 this.next();
                 q = scalar(q.v * sc);
@@ -432,12 +444,12 @@ Parser.prototype.unitExpr = function () {
             return u;
         if (p.t === "op" && (p.v === "²" || p.v === "³")) {
             this.next();
-            u = powUnit(u, p.v === "²" ? 2 : 3);
+            u = powLast(u, p.v === "²" ? 2 : 3);
             continue;
         }
         if (p.t === "op" && p.v === "^" && this.peek(1).t === "num" && !this.peek(1).space) {
             this.next();
-            u = powUnit(u, this.next().v);
+            u = powLast(u, this.next().v);
             continue;
         }
         if (p.t === "op" && (p.v === "/" || p.v === "*") && !this.peek(1).space) {
@@ -722,7 +734,7 @@ function fraction(x) {
 const dimCaption = {
     "L1": "Length", "M1": "Mass", "T1": "Time", "K1": "Temperature", "L2": "Area", "L3": "Capacity",
     "L1 T-1": "Speed", "D1": "Data size", "D1 T-1": "Data rate", "T-1": "Frequency",
-    "L2 M1 T-2": "Energy", "L2 M1 T-3": "Power", "L-1 M1 T-2": "Pressure", "A1": "Angle", "C1": "Currency"
+    "L1 T-2": "Acceleration", "L1 M1 T-2": "Force", "L2 M1 T-2": "Energy", "L2 M1 T-3": "Power", "L-1 M1 T-2": "Pressure", "A1": "Angle", "C1": "Currency"
 };
 
 const currencyNames = {
@@ -799,6 +811,10 @@ function autoResults(q, ctx, hasBase) {
         if (!isScalar(q))
             return [Object.assign(quantityResult(q, baseUnitFor(q), ctx))];
         const f = formatNumber(q.v, ctx);
+        if (q.pct) {
+            const p = formatNumber(q.v * 100, ctx);
+            return [{ text: p.text + "%", copy: p.copy + "%", caption: tr("Result"), icon: glyph.math }];
+        }
         const frac = (f.copy.split(".")[1] || "").length >= 3 ? fraction(q.v) : "";
         const out = [{ text: f.text, copy: f.copy, caption: frac ? "= " + frac : tr("Result"), icon: glyph.math }];
         if (hasBase && Number.isInteger(q.v) && Math.abs(q.v) < 2 ** 53)
@@ -821,7 +837,7 @@ function autoResults(q, ctx, hasBase) {
     // Mixed units only ("1 h 30 min"; a lone "3 d" says nothing new).
     const human = Math.abs(q.v) >= 60 && key === "T1" ? humanizeTime(q.v, ctx) : "";
     if (human.indexOf(" ") > 0)
-        out.push({ text: human, copy: human, caption: tr("Duration"), icon: glyph.time });
+        out.push({ text: human, copy: human.replace(/\u2009/g, " "), caption: tr("Duration"), icon: glyph.time });
     if (key === "D1")
         for (const du of dataUnits(q.v))
             if (du.sym !== u.sym && !out.some(r => r.unitSym === du.sym))
@@ -940,6 +956,8 @@ function convert(text, ctx) {
         // "5 in cm": a scalar with a word that is also a unit — not a split.
         if (isScalar(q) && targets.some(t => t.unit))
             continue;
+        if (!isFinite(q.v))
+            throw new Error(q.u && q.u.currency ? "No rate for “" + q.u.sym + "”" : "Not a number");
         const results = [];
         for (const t of targets) {
             if (t.base !== undefined) {
@@ -950,7 +968,7 @@ function convert(text, ctx) {
                 if (Units.dimKey(q.d) !== "T1")
                     throw new Error("Incompatible units");
                 const h = humanizeTime(q.v, ctx);
-                results.push({ text: h, copy: h, caption: ctx.tr("Duration"), icon: glyph.time });
+                results.push({ text: h, copy: h.replace(/\u2009/g, " "), caption: ctx.tr("Duration"), icon: glyph.time });
             } else {
                 if (Units.dimKey(q.d) !== Units.dimKey(t.unit.d))
                     throw new Error("Incompatible units");

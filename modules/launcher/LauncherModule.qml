@@ -74,10 +74,6 @@ Item {
         function onRequestClose(): void {
             root.closeRequested();
         }
-        function onRequestInput(text: string): void {
-            input.setText(text);
-            manager.processInput(text);
-        }
     }
 
     Connections {

@@ -31,8 +31,6 @@ Item {
     signal requestClose
     // One of the calculator's own rows became the current one.
     signal cardSelected
-    // Put an expression back into the search field (history recall).
-    signal requestInput(string text)
 
     property string query: ""
     property bool forced: false
@@ -57,6 +55,8 @@ Item {
         property string expr: ""
         property string exprCaption: ""
         property bool stale: false
+        // An older answer kept while the expression is mid-edit.
+        property bool held: false
         property bool error: false
         property bool placeholder: false
         property string copy: ""
@@ -87,11 +87,13 @@ Item {
     }
 
     function context(): var {
-        const ans = parseFloat(root.history[0]?.copy ?? "");
+        // `ans` = the last copied plain number ("1 h 30 min" is none).
+        const last = root.history[0]?.copy ?? "";
+        const ans = /^-?\d+(\.\d+)?(e[+-]?\d+)?$/i.test(last) ? parseFloat(last) : NaN;
         return {
             forced: root.forced,
             rates: rates.rates,
-            currencies: root.calcCfg.currencies ?? ["RUB", "USD", "EUR"],
+            currencies: (root.calcCfg.currencies ?? ["RUB", "USD", "EUR"]).map(c => String(c).trim().toUpperCase()),
             angle: root.calcCfg.angle ?? "deg",
             lang: I18n.lang,
             ans: isFinite(ans) ? ans : undefined,
@@ -131,13 +133,15 @@ Item {
             return;
         }
         // Mid-edit of the same expression ("100 / 0" on the way to
-        // "100 / 0.5", a deleted digit): keep the last answer, dimmed. Words
-        // typed after it ("7 days to die") are a search, not math.
-        const related = root.lastOk && /\d/.test(q)
+        // "100 / 0.5", a deleted digit): keep the last answer, dimmed and
+        // not copyable (it is not the answer to what is typed). Words typed
+        // after it ("7 days to die") are a search, a bare number is no
+        // expression any more.
+        const related = root.lastOk && /\d/.test(q) && /[^\d\s.,]/.test(q)
             && ((q.startsWith(root.lastOkQuery) && /^[\d\s.,+\-−*\/×÷^()%!=]*$/.test(q.slice(root.lastOkQuery.length)))
                 || root.lastOkQuery.startsWith(q));
         if (related && !r?.loading) {
-            root.show(Object.assign({}, root.lastOk, { partial: true, expr: r?.expr ?? root.lastOk.expr }), r?.ok === false ? r.error : "");
+            root.show(Object.assign({}, root.lastOk, { partial: true, held: true, expr: r?.expr ?? q }), r?.ok === false ? r.error : "");
             return;
         }
         root.lastOk = null;
@@ -155,6 +159,7 @@ Item {
         s0.expr = r.expr ?? "";
         s0.exprCaption = r.exprCaption ?? "";
         s0.stale = !!r.partial;
+        s0.held = !!r.held;
         s0.placeholder = !!r.empty;
         s0.error = !r.ok && !r.empty;
         if (r.ok && results.length > 0) {
@@ -176,6 +181,7 @@ Item {
             s.leftIcon = x.icon;
             s.copy = x.copy;
             s.stale = !!r.partial;
+            s.held = !!r.held;
         }
         if (root.entries.length !== n)
             root.entries = root.slotEntries.slice(0, n);
@@ -183,7 +189,7 @@ Item {
 
     function take(i: int, paste: bool): void {
         const s = root.slots[i];
-        if (!s || !s.copy)
+        if (!s || !s.copy || s.held)
             return;
         root.remember(root.slots[0].expr, s.header, s.copy);
         root.copyText(s.copy, paste);
