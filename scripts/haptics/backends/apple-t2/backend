@@ -2,7 +2,7 @@
 """apple-t2: Force Touch actuator of T2 MacBooks (Intel, 2018-2020) over hidraw.
 
 Actuator = interface 3 of "Apple Internal Keyboard / Trackpad" (USB through the
-T2 bridge, apple-bce). Output report 0x53 plays a waveform; the interface has no
+T2 bridge: apple-bce, or t2bce since Linux 7.2). Output report 0x53 plays a waveform; the interface has no
 interrupt-OUT endpoint, so a plain write() goes out as an EP0 SET_REPORT and must
 be the exact packet length:
 
@@ -58,7 +58,8 @@ def scan():
             desc = open(f"{d}/report_descriptor", "rb").read()
         except OSError:
             continue
-        if ("HID_ID=0003:000005AC:" in ue and "bce-vhci" in ue and "/input3\n" in ue
+        # HID_PHYS: usb-bce-vhci-N (apple-bce) or usb-t2bce_vhci-N (t2bce, Linux 7.2+).
+        if ("HID_ID=0003:000005AC:" in ue and ("bce-vhci" in ue or "bce_vhci" in ue) and "/input3\n" in ue
                 and has_actuator_report(desc)):
             found.append("/dev/" + d.split("/")[4])
     return found
