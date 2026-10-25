@@ -1028,7 +1028,7 @@ Singleton {
                     // pin exists; afterwards the saved value comes back, or
                     // this (WirePlumber's own default) if none is. Turned off
                     // btHoldSettleMs before the profile switch:
-                    // TEMP WORKAROUND (WirePlumber 0.5.18 crashes when both
+                    // HACK (WirePlumber 0.5.18 crashes when both
                     // happen at once; see services/AudioBtModes.qml).
                     btAutoswitchDefault: true,
                     btHoldSettleMs: 800,
@@ -1984,7 +1984,7 @@ Singleton {
             // least fingerprintIdleWaitMs (fprintd exits idle, a jammed verify
             // goes). A verify across a sleep jams fprintd (fprintd#216; the
             // fprintd-resume-reset unit restarts it — fingerprintIdleWaitMs and
-            // fingerprintWakeGraceMs are a TEMP WORKAROUND for it, see
+            // fingerprintWakeGraceMs are a HACK for it, see
             // modules/lock/PamFingerprint.qml): no round from the
             // session menu's Sleep until the wake (at most
             // fingerprintSleepHoldMs), a new one fingerprintResumeDelayMs

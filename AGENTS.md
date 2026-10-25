@@ -1513,8 +1513,8 @@ user's data) live outside the repo: `CLAUDE.local.md` (git-ignored) and `~/.clau
 
 ## Temporary workarounds for upstream bugs
 
-Marked `TEMP WORKAROUND (<bug>)` in the code, each with what to undo and when —
-`grep -rn "TEMP WORKAROUND"`. As of Oct 26 2026:
+Marked `HACK (<bug>)` in the code (see Conventions → code markers), each with what to undo
+and when — `grep -rn "HACK ("`. As of Oct 26 2026:
 - Quickshell 0.3.2 WlSessionLock unlock never notifies → `modules/lock/LockScope.qml`.
 - fprintd#216 (verify across sleep jams fprintd, fix MR !259) → `modules/lock/PamFingerprint.qml`,
   `scripts/lock/fprintd-resume-reset.service`, `lock.fingerprintIdleWaitMs / WakeGraceMs`.
@@ -1696,6 +1696,16 @@ exemption for Touch ID.
 
 ## Conventions (from flicker.md)
 
+- Code markers (user rule, Oct 2026), always in the form `MARKER (<what>): …`, so
+  `grep -rn "HACK\|FIXME\|TODO"` finds them all:
+  - `HACK` — a deliberate workaround for a bug that is NOT ours (Quickshell, fprintd,
+    WirePlumber, the kernel…). Name the bug (version / issue / MR) and say what to undo and
+    when it can go. Listed in "Temporary workarounds for upstream bugs" below.
+  - `FIXME` — something in OUR code that is known to be wrong or fragile and needs fixing
+    (a bug, a race, a wrong assumption). Say what goes wrong and when.
+  - `TODO` — planned work that is missing on purpose (a feature, a setting, a follow-up),
+    not a bug. Say what is missing.
+  When the reason is gone, remove the marker together with the code it explains.
 - One file = one responsibility; ~200 lines is the split signal.
 - No hardcoded sizes/thresholds — Config/Theme only.
 - Every surface that sits on the translucent (frost) backdrop gets `components/InnerShadow`

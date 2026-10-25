@@ -14,7 +14,7 @@ import Quickshell.Io
 // setting, so while ANY pin exists it is set false at runtime (never saved);
 // with the last pin gone the user's value (saved by Settings → Sound in
 // wireplumber's sm-settings, else `audio.btAutoswitchDefault`) comes back.
-// TEMP WORKAROUND (WirePlumber 0.5.18 crash, report draft in
+// HACK (WirePlumber 0.5.18 crash, report draft in
 // temp/upstream-reports/03-…): turning the setting OFF races
 // autoswitch-bluetooth-profile.lua (it nils its tables while queued profile
 // events still use them → core dump, seen live), so it is only ever turned
@@ -35,7 +35,7 @@ Scope {
     // "AA:BB:…" → "music" | "calls"
     property var pins: ({})
     property bool loaded: false
-    // TEMP WORKAROUND (WirePlumber 0.5.18 crash, see the header): any pin, not
+    // HACK (WirePlumber 0.5.18 crash, see the header): any pin, not
     // "a pinned headset is connected" — that would flip the setting at a connect.
     readonly property bool holding: Object.keys(root.pins).length > 0
     function pinOf(address: string): string {
@@ -118,7 +118,7 @@ Scope {
         if (wasHolding && !root.holding)
             root.applyHold();
     }
-    // TEMP WORKAROUND (WirePlumber 0.5.18 crash): the profile switch waits
+    // HACK (WirePlumber 0.5.18 crash): the profile switch waits
     // btHoldSettleMs after the setting went off.
     Timer {
         id: deferred

@@ -1,7 +1,7 @@
 # Install: sudo install -m644 scripts/lock/fprintd-resume-reset.service /etc/systemd/system/
 #          sudo systemctl daemon-reload && sudo systemctl enable fprintd-resume-reset.service
 # Why: modules/lock/PamFingerprint.qml (fprintd#216: a verify across a sleep jams fprintd).
-# TEMP WORKAROUND (fprintd#216, fixed by fprintd MR !259): remove this unit
+# HACK (fprintd#216, fixed by fprintd MR !259): remove this unit
 # (`systemctl disable`, delete from /etc/systemd/system) once an fprintd
 # release (> 1.94.5) contains !259 and a lid sleep with the lock up leaves
 # the finger working without it.

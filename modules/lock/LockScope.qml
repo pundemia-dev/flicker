@@ -16,7 +16,7 @@ import "../../config"
 Scope {
     id: root
 
-    // TEMP WORKAROUND (Quickshell 0.3.2, WlSessionLock unlock never notifies).
+    // HACK (Quickshell 0.3.2, WlSessionLock unlock never notifies).
     // Remove when a Quickshell release has `wasLocked` in
     // WlSessionLock::unlock(): make `locked` an alias of sessionLock.locked
     // again, drop _locked / syncLocked() and the syncLocked() calls below, and
@@ -154,7 +154,7 @@ Scope {
             root.syncLocked();
         }
 
-        // TEMP WORKAROUND (Quickshell 0.3.2 unlock notify, see `locked`).
+        // HACK (Quickshell 0.3.2 unlock notify, see `locked`).
         // Lock: lockStateChanged fires. Unlock (ours, or the compositor
         // finishing the lock): only secureStateChanged, emitted while
         // isLocked() is still true — re-read on the next tick.
