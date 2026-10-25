@@ -229,24 +229,34 @@ Scope {
 
     // ---- actions ----
 
-    // A switch that only creates its node later (card profile / port): make
-    // that node the default once it shows up (within a few seconds).
-    property var pending: null
+    // Switches that only create their node later (card profile / port): make
+    // that node the default once it shows up (within a few seconds). One per
+    // direction; `skip` = the node being replaced (a Bluetooth profile switch
+    // keeps the row, and its old node must not count as the new one).
+    property var pending: []
     Timer {
         id: pendingTimeout
         interval: 5000
-        onTriggered: root.pending = null
+        onTriggered: root.pending = []
+    }
+    function addPending(p: var): void {
+        root.pending = root.pending.filter(q => q.sink !== p.sink).concat([p]);
+        pendingTimeout.restart();
     }
     function claimPending(): void {
-        const p = root.pending;
-        if (!p)
+        if (root.pending.length === 0)
             return;
-        const rows = p.sink ? root.outputs : root.inputs;
-        const hit = rows.find(r => r.nodeId >= 0 && (p.card ? r.bt?.card === p.card : r.kind === p.kind));
-        if (!hit)
-            return;
-        root.pending = null;
-        root.makeDefault(hit.nodeId, p.sink);
+        const left = [];
+        for (const p of root.pending) {
+            const rows = p.sink ? root.outputs : root.inputs;
+            const hit = rows.find(r => r.nodeId >= 0 && r.nodeId !== (p.skip ?? -1) && (p.card ? r.bt?.card === p.card : r.kind === p.kind));
+            if (hit)
+                root.makeDefault(hit.nodeId, p.sink);
+            else
+                left.push(p);
+        }
+        if (left.length !== root.pending.length)
+            root.pending = left;
     }
 
     function makeDefault(nodeId: int, sink: bool): void {
@@ -270,9 +280,8 @@ Scope {
             const kind = sink ? "sink" : "source";
             root.run(["sh", "-c", `pactl set-${kind}-port "$1" "$2" && pactl set-default-${kind} "$1"`, "sh", a.target, a.port]);
         } else if (a.type === "profile") {
-            root.pending = { sink: sink, card: row.bt ? a.card : "", kind: row.kind };
-            pendingTimeout.restart();
-            root.run(["pactl", "set-card-profile", a.card, a.profile]);
+            root.addPending({ sink: sink, card: row.bt ? a.card : "", kind: row.kind });
+            root.setProfile(a.card, a.profile);
         }
     }
 
@@ -283,8 +292,36 @@ Scope {
     function profiles(card: string): var {
         return AudioGraph.profiles(root.pulse.cards, card);
     }
+    // A Bluetooth profile switch re-creates the headset's nodes. The output
+    // stays on the headset across the gap (pending, the replaced node
+    // skipped), Calls also takes its microphone, and AudioPolicy reads the
+    // gap as neither a lost nor a new device: `switching` card → { until,
+    // calls } for `switchingMs`.
+    property var switching: ({})
     function setProfile(card: string, profile: string): void {
+        if (card.startsWith("bluez_")) {
+            const calls = AudioGraph.isCall(profile);
+            const out = root.currentOutput;
+            if (out?.bt?.card === card)
+                root.addPending({ sink: true, card: card, kind: "", skip: out.nodeId });
+            if (calls)
+                root.addPending({ sink: false, card: card, kind: "", skip: root.currentInput?.bt?.card === card ? root.currentInput.nodeId : -1 });
+            const s = Object.assign({}, root.switching);
+            s[card] = { until: Date.now() + (root.cfg?.switchingMs ?? 5000), calls: calls };
+            root.switching = s;
+        }
         root.run(["pactl", "set-card-profile", card, profile]);
+    }
+    function isSwitching(row: var, sink: bool): bool {
+        const s = row?.bt ? root.switching[row.bt.card] : null;
+        return !!s && s.until > Date.now() && (sink || s.calls);
+    }
+
+    // Music / Calls pinned per headset (the panel's lock), see AudioBtModes.
+    readonly property var btPins: btPinsItem
+    AudioBtModes {
+        id: btPinsItem
+        devices: root
     }
     function latencyMs(card: string, port: string): int {
         return AudioGraph.latencyMs(root.pulse.cards, card, port);

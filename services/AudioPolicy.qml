@@ -64,9 +64,11 @@ Scope {
     }
 
     // Appeared or got plugged in. A Bluetooth headset's "switch to calls"
-    // microphone row is an offer, not a device.
+    // microphone row is an offer, not a device; one coming back from its own
+    // profile switch is not new either (AudioDevices.pending claims it).
     function fresh(now: var, before: var): var {
-        return now.filter(r => r.available && r.sub !== "callMode" && !before.some(p => p.key === r.key && p.available));
+        return now.filter(r => r.available && r.sub !== "callMode" && !root.devices.isSwitching(r, true)
+            && !before.some(p => p.key === r.key && p.available));
     }
     function revert(before: var, sink: bool): void {
         const was = before.find(p => p.isDefault && p.nodeId >= 0);
@@ -80,8 +82,10 @@ Scope {
         const outs = root.devices.outputs, ins = root.devices.inputs;
         const newOut = root.fresh(outs, root.prevOutputs);
         const newIn = root.fresh(ins, root.prevInputs);
-        const lostOut = root.prevOutputs.some(p => p.isDefault && !outs.some(r => r.key === p.key));
-        const lostIn = root.prevInputs.some(p => p.isDefault && !ins.some(r => r.key === p.key));
+        // A headset mid profile switch is only away for a moment (its
+        // microphone really goes when it switches back to music).
+        const lostOut = root.prevOutputs.some(p => p.isDefault && !outs.some(r => r.key === p.key) && !root.devices.isSwitching(p, true));
+        const lostIn = root.prevInputs.some(p => p.isDefault && !ins.some(r => r.key === p.key) && !root.devices.isSwitching(p, false));
         const mode = root.cfg.autoSwitch ?? "always";
         if (newOut.length > 0 || newIn.length > 0) {
             if (mode === "always") {
@@ -151,6 +155,12 @@ Scope {
                 continue;
             }
             const addr = `${c.properties?.["api.bluez5.address"] ?? ""}`.toUpperCase();
+            // A pinned Calls stays (AudioBtModes).
+            if (root.devices.btPins.pinOf(addr) !== "") {
+                delete had[c.name];
+                delete idle[c.name];
+                continue;
+            }
             const mic = nodes.find(n => n.cls === "Audio/Source" && `${n.address}`.toUpperCase() === addr);
             const recording = !!mic && groups.some(g => {
                 if (g.src !== mic.id)
@@ -350,6 +360,10 @@ Scope {
                         id = "";
                     }
                 }
+                // Held off by a pinned headset: settings show the user's value.
+                const pins = root.devices.btPins;
+                if (pins.holding && root.wp[pins.wpKey] !== undefined)
+                    out[pins.wpKey] = root.wp[pins.wpKey];
                 root.wp = out;
             }
         }
@@ -363,7 +377,11 @@ Scope {
     }
     Process {
         id: wpSet
-        onExited: root.refreshWp()
+        onExited: {
+            // --save also set the runtime value: a pinned headset holds it off again.
+            root.devices.btPins.reassert();
+            root.refreshWp();
+        }
     }
 
     // ---- per-app outputs WirePlumber remembers ----

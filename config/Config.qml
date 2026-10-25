@@ -1020,6 +1020,17 @@ Singleton {
                     // app recording from it stopped this long ago.
                     btReturnToMusic: true,
                     btReturnDelayMs: 5000,
+                    // Music / Calls re-creates the headset's nodes: for this
+                    // long it stays the default and is neither lost nor new.
+                    switchingMs: 5000,
+                    // A pinned (locked) Music / Calls holds WirePlumber's
+                    // bluetooth.autoswitch-to-headset-profile off while any
+                    // pin exists; afterwards the saved value comes back, or
+                    // this (WirePlumber's own default) if none is. Turned off
+                    // btHoldSettleMs before the profile switch (WirePlumber
+                    // 0.5.18 crashes when both happen at once).
+                    btAutoswitchDefault: true,
+                    btHoldSettleMs: 800,
                     // Volume cap while a headphone-like output is in use
                     // (0 = maxVolume).
                     maxVolumeHeadphones: 0,
@@ -1401,7 +1412,8 @@ Singleton {
                     }),
                     // List panels of expanded cards (panels/WifiPanel,
                     // BluetoothPanel): side padding, header and row heights,
-                    // title / row text sizes, glyph size, password field.
+                    // title / row text sizes, glyph size, password field,
+                    // gap between a pill's icon and its label.
                     listPanel: ({
                         padding: 18,
                         headerHeight: 54,
@@ -1409,7 +1421,8 @@ Singleton {
                         titleSize: 17,
                         textSize: 14,
                         glyphSize: 20,
-                        fieldHeight: 34
+                        fieldHeight: 34,
+                        pillGlyphGap: 5
                     })
                 })
             // Seek bar (modules/player/SeekBar: player module + QS media

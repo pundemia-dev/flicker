@@ -20,6 +20,8 @@ Item {
     readonly property bool current: root.row?.isDefault ?? false
     readonly property bool usable: root.row?.available ?? false
     readonly property var modes: root.current && root.row?.bt?.card ? root.panel.model.btModes(root.row.bt.card) : null
+    // Pinned Music / Calls (lock on the pill); "" = Auto (services/AudioBtModes).
+    readonly property string pin: root.row?.bt ? (root.panel.model.btPins?.pinOf(root.row.bt.address) ?? "") : ""
 
     readonly property var btDevice: {
         const a = (root.row?.bt?.address ?? "").toUpperCase();
@@ -171,8 +173,9 @@ Item {
             theme: root.theme
             frost: root.panel.frost
             text: I18n.tr("Music")
+            glyph: root.pin === "music" ? "" : ""
             checked: root.modes?.active === "music"
-            onClicked: if (root.modes && !checked) root.panel.model.setProfile(root.row.bt.card, root.modes.music)
+            onClicked: if (root.modes) root.panel.model.btPins.tap(root.row.bt.card, root.row.bt.address, "music")
         }
         PanelPill {
             height: parent.height
@@ -180,8 +183,9 @@ Item {
             theme: root.theme
             frost: root.panel.frost
             text: I18n.tr("Calls")
+            glyph: root.pin === "calls" ? "" : ""
             checked: root.modes?.active === "calls"
-            onClicked: if (root.modes && !checked) root.panel.model.setProfile(root.row.bt.card, root.modes.calls)
+            onClicked: if (root.modes) root.panel.model.btPins.tap(root.row.bt.card, root.row.bt.address, "calls")
         }
     }
 }

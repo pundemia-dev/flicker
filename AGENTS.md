@@ -586,8 +586,26 @@ user's data) live outside the repo: `CLAUDE.local.md` (git-ignored) and `~/.clau
   `resolved: false` = endpoint not found yet (links not read at start-up): never learned. Row
   node = default if in the group, else the shallowest filter. Card ports no node covers (pactl
   JSON, ALSA only): plugged → switch port / profile, unplugged Headphones / Headset → dimmed. A
-  profile switch makes the new node default when it appears (`pending`, 5 s). BT: Music / Calls
-  pills; a headset in A2DP shows as an input row that switches to calls (`sub: "callMode"`).
+  profile switch makes the new node default when it appears (`pending`, one per direction, 5 s).
+  BT: Music / Calls pills; a headset in A2DP shows as an input row that switches to calls
+  (`sub: "callMode"`). A BT profile switch RE-CREATES the headset's nodes (same node.name, new
+  id): `setProfile` keeps it the default output (pending with `skip` = the replaced node, else
+  claimPending grabs the old node before it goes), Calls also takes its mic, and `switching`
+  (card → until, `audio.switchingMs`) makes AudioPolicy.review read the gap as neither lost
+  (followPriority used to jump to the speakers) nor new. Pills (Oct 2026, user): tap = PIN that
+  mode (lock glyph on the pill, `services/AudioBtModes`, per address in
+  statePath("audio-bt-modes.json")), tap the pinned one = Auto again. WHY: WirePlumber's own
+  autoswitch (`bluetooth.autoswitch-to-headset-profile`, autoswitch-bluetooth-profile.lua)
+  re-arms its 2 s A2DP restore whenever ANY capture stream leaves the headset mic (Flicker's
+  own mic meter included) — it undid a manual Calls within seconds. It is ONE global setting,
+  so while ANY pin exists it is set false at RUNTIME only; with the last pin gone the saved
+  value (wireplumber/sm-settings) or `audio.btAutoswitchDefault` comes back; Settings → Sound
+  shows the user's value meanwhile. Turning it OFF next to a profile switch CRASHED
+  WirePlumber 0.5.18 (seen live: autoswitch-bluetooth-profile.lua nils its tables while queued
+  device-params events still index them → core dump, every node gone for a restart): it is
+  only turned off from a tap, `btHoldSettleMs` before the switch, never at a connect (hence
+  "any pin", not "pinned headset connected"); ON is safe any time. A pinned headset is
+  re-forced into its mode on connect / when anyone else switches it; btReturnToMusic skips it.
   Mixer: `Stream/Output/Audio` without a link group, `pactl move-sink-input <object.serial>`
   (pipewire-pulse indexes sink inputs by SERIAL). Mic level = `PwNodePeakMonitor` (node
   "quickshell"). `Audio.isShellCapture` drops "quickshell" and every `flicker_*` node.
