@@ -1027,8 +1027,9 @@ Singleton {
                     // bluetooth.autoswitch-to-headset-profile off while any
                     // pin exists; afterwards the saved value comes back, or
                     // this (WirePlumber's own default) if none is. Turned off
-                    // btHoldSettleMs before the profile switch (WirePlumber
-                    // 0.5.18 crashes when both happen at once).
+                    // btHoldSettleMs before the profile switch:
+                    // TEMP WORKAROUND (WirePlumber 0.5.18 crashes when both
+                    // happen at once; see services/AudioBtModes.qml).
                     btAutoswitchDefault: true,
                     btHoldSettleMs: 800,
                     // Volume cap while a headphone-like output is in use
@@ -1982,7 +1983,9 @@ Singleton {
             // timeout (listen again); from the 3rd quick fault the pause is at
             // least fingerprintIdleWaitMs (fprintd exits idle, a jammed verify
             // goes). A verify across a sleep jams fprintd (fprintd#216; the
-            // fprintd-resume-reset unit restarts it): no round from the
+            // fprintd-resume-reset unit restarts it — fingerprintIdleWaitMs and
+            // fingerprintWakeGraceMs are a TEMP WORKAROUND for it, see
+            // modules/lock/PamFingerprint.qml): no round from the
             // session menu's Sleep until the wake (at most
             // fingerprintSleepHoldMs), a new one fingerprintResumeDelayMs
             // after it, quick retries for fingerprintWakeGraceMs.

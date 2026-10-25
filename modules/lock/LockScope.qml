@@ -16,7 +16,34 @@ import "../../config"
 Scope {
     id: root
 
-    readonly property alias locked: sessionLock.locked
+    // TEMP WORKAROUND (Quickshell 0.3.2, WlSessionLock unlock never notifies).
+    // Remove when a Quickshell release has `wasLocked` in
+    // WlSessionLock::unlock(): make `locked` an alias of sessionLock.locked
+    // again, drop _locked / syncLocked() and the syncLocked() calls below, and
+    // move the grab cleanup back into sessionLock's onLockedChanged.
+    // NOT an alias: Quickshell 0.3.2 never emits lockStateChanged on UNLOCK
+    // (WlSessionLock::unlock() tests isLocked() after manager->unlock(), always
+    // false; fixed upstream with `wasLocked`). Bindings on it (Island /
+    // Corners `visible`) stayed false until a reload — the island vanished
+    // after every unlock. The READ is always fresh: syncLocked() copies it on
+    // every hint (lock: lockedChanged; unlock: secureChanged, finishUnlock,
+    // the fallback).
+    readonly property bool locked: root._locked
+    property bool _locked: false
+
+    function syncLocked(): void {
+        const now = sessionLock.locked;
+        if (root._locked === now)
+            return;
+        root._locked = now;
+        if (!now) {
+            // The grabs show screen contents: gone as soon as the lock is.
+            Quickshell.execDetached(["bash", "-c", `rm -f ${root.shq(root.shotDir)}/grab-*`]);
+            root.wallpaper?.clock?.lockEnded();
+        }
+    }
+    // Hot reload while locked: pick the real state up.
+    Component.onCompleted: Qt.callLater(root.syncLocked)
     readonly property var cfg: Config.data.lock ?? ({})
     readonly property string shotDir: `${Quickshell.env("XDG_RUNTIME_DIR") || "/tmp"}/flicker/lock`
     // Grab of this lock (one stamp per lock); "" = locked without a grab.
@@ -124,13 +151,15 @@ Scope {
         function finishUnlock(): void {
             unlockFallback.stop();
             locked = false;
+            root.syncLocked();
         }
 
-        // The grabs show screen contents: gone as soon as the lock is.
-        onLockedChanged: if (!locked) {
-            Quickshell.execDetached(["bash", "-c", `rm -f ${root.shq(root.shotDir)}/grab-*`]);
-            root.wallpaper?.clock?.lockEnded();
-        }
+        // TEMP WORKAROUND (Quickshell 0.3.2 unlock notify, see `locked`).
+        // Lock: lockStateChanged fires. Unlock (ours, or the compositor
+        // finishing the lock): only secureStateChanged, emitted while
+        // isLocked() is still true — re-read on the next tick.
+        onLockedChanged: root.syncLocked()
+        onSecureChanged: Qt.callLater(root.syncLocked)
 
         // WlSessionLock instantiates this per screen itself (no Variants:
         // its modelData broke creation and aborted the lock -> black screen).
@@ -149,7 +178,10 @@ Scope {
     Timer {
         id: unlockFallback
         interval: root.cfg.unlockFallbackMs ?? 4000
-        onTriggered: sessionLock.locked = false
+        onTriggered: {
+            sessionLock.locked = false;
+            root.syncLocked();
+        }
     }
 
     IpcHandler {

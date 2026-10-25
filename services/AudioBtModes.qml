@@ -14,11 +14,15 @@ import Quickshell.Io
 // setting, so while ANY pin exists it is set false at runtime (never saved);
 // with the last pin gone the user's value (saved by Settings → Sound in
 // wireplumber's sm-settings, else `audio.btAutoswitchDefault`) comes back.
-// Turning it OFF races WirePlumber 0.5.18 (autoswitch-bluetooth-profile.lua
-// nils its tables while queued profile events still use them → crash, seen
-// live): it is only ever turned off from a tap, `btHoldSettleMs` BEFORE the
-// profile switch — never next to a connect or a switch. Owned by
-// AudioDevices (`btPins`).
+// TEMP WORKAROUND (WirePlumber 0.5.18 crash, report draft in
+// temp/upstream-reports/03-…): turning the setting OFF races
+// autoswitch-bluetooth-profile.lua (it nils its tables while queued profile
+// events still use them → core dump, seen live), so it is only ever turned
+// off from a tap, `btHoldSettleMs` BEFORE the profile switch (the `deferred`
+// timer), and held while ANY pin exists — never next to a connect or a
+// switch. Remove when a WirePlumber release keeps those tables (or nil-guards
+// them): switch directly in setMode(), and hold only while a pinned headset
+// is connected. Owned by AudioDevices (`btPins`).
 Scope {
     id: root
 
@@ -31,6 +35,8 @@ Scope {
     // "AA:BB:…" → "music" | "calls"
     property var pins: ({})
     property bool loaded: false
+    // TEMP WORKAROUND (WirePlumber 0.5.18 crash, see the header): any pin, not
+    // "a pinned headset is connected" — that would flip the setting at a connect.
     readonly property bool holding: Object.keys(root.pins).length > 0
     function pinOf(address: string): string {
         return root.pins[`${address}`.toUpperCase()] ?? "";
@@ -112,6 +118,8 @@ Scope {
         if (wasHolding && !root.holding)
             root.applyHold();
     }
+    // TEMP WORKAROUND (WirePlumber 0.5.18 crash): the profile switch waits
+    // btHoldSettleMs after the setting went off.
     Timer {
         id: deferred
         property string card: ""

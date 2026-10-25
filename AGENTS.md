@@ -1511,6 +1511,18 @@ user's data) live outside the repo: `CLAUDE.local.md` (git-ignored) and `~/.clau
   elapsed time, hotspot = the clock (spec: same mechanics as recording); the last label is held
   while the plate flies away.
 
+## Temporary workarounds for upstream bugs
+
+Marked `TEMP WORKAROUND (<bug>)` in the code, each with what to undo and when —
+`grep -rn "TEMP WORKAROUND"`. As of Oct 26 2026:
+- Quickshell 0.3.2 WlSessionLock unlock never notifies → `modules/lock/LockScope.qml`.
+- fprintd#216 (verify across sleep jams fprintd, fix MR !259) → `modules/lock/PamFingerprint.qml`,
+  `scripts/lock/fprintd-resume-reset.service`, `lock.fingerprintIdleWaitMs / WakeGraceMs`.
+- t2-touchid reports misses as "retry scan" → `modules/lock/PamFingerprint.qml` (onPamMessage).
+- WirePlumber 0.5.18 autoswitch-off crash → `services/AudioBtModes.qml`, `audio.btHoldSettleMs`.
+Outside the repo (machine): `fbcon=map:1` (Linux 7.2 + force_igd), the sing-box `t2_ncm`
+exemption for Touch ID.
+
 ## Quickshell 0.3.1 / QML gotchas (hit before, verified)
 
 - Hot reload does NOT pick up a change to a `.pragma library` JS file (e.g.
@@ -1518,6 +1530,14 @@ user's data) live outside the repo: `CLAUDE.local.md` (git-ignored) and `~/.clau
   old code keeps running (Oct 2026: an AudioGraph fix verified correct under node, still
   absent live after reloads). Restart the shell (`qs kill -c flicker`, start it again) to
   test a JS-library change.
+- Quickshell 0.3.2 `WlSessionLock.locked` does NOT notify on UNLOCK: `unlock()` emits
+  `lockStateChanged` only `if (isLocked())`, tested after `manager->unlock()` — never true
+  (src/wayland/session_lock.cpp; fixed upstream with `wasLocked`). Every binding on it stayed
+  `false` → the island (`visible: !lock.locked`) and Corners were gone after EVERY unlock until
+  a reload (seen Oct 26, right after the 0.3.1 → 0.3.2 upgrade; the lock's grab files were never
+  deleted either). `LockScope.locked` is therefore its own copy, re-synced on lockedChanged /
+  secureChanged (+ callLater: still locked while that fires) / finishUnlock / the fallback.
+  Drop the workaround once a Quickshell release has the fix.
 - A JS object handed to a delegate through a `model: [...]` array comes back as a NEW object
   on every read: never keep it and compare by `===`. Settings' tap-again confirm did
   (`armed === row`) and every confirm (Forget device, Forget all…) re-armed forever with the

@@ -7,6 +7,10 @@ import "../../config"
 // Fingerprint half of the lock's PAM auth (Pam.qml owns the password half): its
 // own PamContext (assets/pam.d/flicker-fprint, pam_fprintd only) listens next
 // to the password one for as long as the lock is up. Match = `matched`.
+// TEMP WORKAROUND (t2-touchid 0.1.0.r784: a wrong finger is a "retry scan",
+// never verify-no-match). Remove when the bridge reports no-match: count
+// misses from PamResult.Failed/MaxTries instead of parsing pam_fprintd's
+// messages (onPamMessage) and drop `roundMissed`.
 // A miss rarely ends the PAM round: the T2 bridge (t2-touchid) reports it as
 // "retry scan", so pam_fprintd only says "…again" and keeps listening. Every
 // such message (or a "failed to match" one) = `failed` (the skin shakes like
@@ -16,6 +20,12 @@ import "../../config"
 // password login). A round that ended after a miss or after listening for a
 // while (its timeout) starts again after `fingerprintRetryMs`.
 //
+// TEMP WORKAROUND (fprintd#216, fixed by fprintd MR !259). Remove when an
+// fprintd release (> 1.94.5) contains !259 and a lid sleep with the lock up
+// no longer jams it without scripts/lock/fprintd-resume-reset.service: drop
+// the wake grace (`wokeAt`, fingerprintWakeGraceMs) and the idle wait
+// (fingerprintIdleWaitMs) in onCompleted, and the unit. expectSleep() /
+// the PrepareForSleep pause may stay (cheap), but are no longer required.
 // A verify running when the system sleeps JAMS fprintd (fprintd#216, fix in
 // fprintd MR !259, not merged as of Oct 2026): on PrepareForSleep fprintd
 // suspends the device mid-verify ("Cannot run while suspended"), can then
@@ -224,6 +234,7 @@ Scope {
         onResponseRequiredChanged: if (responseRequired)
             abort()
 
+        // TEMP WORKAROUND (t2-touchid retry-scan misses, see the header).
         // pam_fprintd's own strings (English or translated): "…again" after a
         // retry scan, "Failed to match fingerprint" after a no-match. The
         // first prompt ("Place your finger…") matches neither.
@@ -248,6 +259,7 @@ Scope {
             // back off, and from the 3rd in a row give fprintd time to exit
             // idle (drops a jammed verify).
             root.errors++;
+            // TEMP WORKAROUND (fprintd#216, see the header): wake grace + idle wait.
             if (Date.now() - root.wokeAt < (root.cfg.fingerprintWakeGraceMs ?? 10000))
                 return root.again(base);
             let wait = Math.min(base * Math.pow(2, root.errors - 1), root.cfg.fingerprintBackoffMaxMs ?? 15000);
