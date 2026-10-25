@@ -1,0 +1,7 @@
+#%PAM-1.0
+# Fingerprint half of the lock (modules/lock/PamFingerprint.qml); the password
+# goes through `flicker`. One try per round (a miss shakes the field, then the
+# lock starts a new round); a round listens `timeout` seconds and is restarted
+# after it. No reader / no fprintd = an error at once, the lock stops asking.
+
+auth    required    pam_fprintd.so      max-tries=1 timeout=300

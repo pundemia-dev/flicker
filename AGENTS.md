@@ -273,6 +273,19 @@ user's data) live outside the repo: `CLAUDE.local.md` (git-ignored) and `~/.clau
   and pam_faillock (1.5.x+ has its own) → `nodelay` on every line of assets/pam.d/flicker
   (measured 1.9 s → 4 ms with a PamContext for user `nobody` — Quickshell refuses unknown users,
   and `nobody` never touches the real user's faillock tally).
+  Fingerprint (Oct 2026, T2 Touch ID via t2-touchid → fprintd): `PamFingerprint` = a second
+  PamContext (`assets/pam.d/flicker-fprint`, pam_fprintd `max-tries=1 timeout=300`) listening
+  next to the password one while `secure`; match → `beginUnlock()` (password context aborted).
+  Misses do NOT end the PAM round: t2-touchid reports a no-match as "retry scan", so
+  pam_fprintd only sends "…again" and keeps listening (seen live: 5 misses, zero feedback).
+  So a miss = a `pamMessage` matching again/failed-to-match → Pam `state = "fingerprint"` +
+  the wrong-password flash; `fingerprintMaxFails` (3) misses abort the round, password only
+  until the next lock. Kept < 5 on purpose: the T2 SEP disables Touch ID after 5 misses in a
+  row (event 0xe3ff800a in the bridge log, then only "nothing recognised, arming again")
+  until a macOS PASSWORD login — a Linux password never reaches the SEP. A PAM error sooner
+  than `fingerprintTimeoutMinMs` = no reader → stops (machines without fprintd unchanged);
+  later = round timeout → listens again. Toggle `lock.fingerprint`. Verified live in a real
+  lock (Oct 25): match unlocks, a wrong finger shakes the field.
   Keyboard pill on the lock (`LockKeyboardPill`, user): the session lock hides KeyboardOverlay,
   so the skin draws the same `KeyboardPill` `keyboard.lockGap` under the password field's CARET
   (`LockField.caretX` = just past the last dot, `caretGap`; centre while empty — it follows the

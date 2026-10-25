@@ -2,9 +2,11 @@ import QtQuick
 import Quickshell
 import Quickshell.Services.Pam
 
-// PAM auth logic for the lock screen (simplified port of pShell Pam.qml —
-// keyboard context only, no fprint). Skins read state/buffer and call
-// handleKey(); lock is duck-typed: needs secure, unlock signal, beginUnlock().
+// PAM auth logic for the lock screen (simplified port of pShell Pam.qml):
+// the password context here, the fingerprint one in PamFingerprint (runs
+// alongside; a miss = state "fingerprint" + the same flash as a wrong
+// password). Skins read state/buffer and call handleKey(); lock is
+// duck-typed: needs secure, unlock signal, beginUnlock().
 Scope {
     id: root
 
@@ -54,8 +56,10 @@ Scope {
         }
 
         onCompleted: res => {
-            if (res === PamResult.Success)
+            if (res === PamResult.Success) {
+                fingerprint.stop();
                 return root.lock.beginUnlock();
+            }
 
             if (res === PamResult.Error)
                 root.state = "error";
@@ -64,6 +68,26 @@ Scope {
             else if (res === PamResult.Failed)
                 root.state = "fail";
 
+            root.flashMsg();
+            stateReset.restart();
+        }
+    }
+
+    PamFingerprint {
+        id: fingerprint
+        lock: root.lock
+
+        onMatched: {
+            fingerprint.stop();
+            if (passwd.active)
+                passwd.abort();
+            root.buffer = "";
+            root.lock.beginUnlock();
+        }
+        onFailed: {
+            if (root.state === "max")
+                return;
+            root.state = "fingerprint";
             root.flashMsg();
             stateReset.restart();
         }
@@ -83,7 +107,13 @@ Scope {
                 root.buffer = "";
                 root.state = "";
                 root.lockMessage = "";
+                fingerprint.begin();
+            } else {
+                fingerprint.stop();
             }
+        }
+        function onUnlock(): void {
+            fingerprint.stop();
         }
     }
 }

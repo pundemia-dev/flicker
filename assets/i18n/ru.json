@@ -1029,5 +1029,7 @@
   "Degrees": "Градусы",
   "Radians": "Радианы",
   "History": "История",
-  "Type 2^10, 15% of 200, 5 usd to rub, 90 min or days until 31.12 in the search; = forces it. Enter copies, Alt+Enter pastes.": "Пишите в поиске 2^10, 15% от 200, 5 usd в руб, 90 мин или дней до 31.12; = включает принудительно. Enter копирует, Alt+Enter вставляет."
+  "Type 2^10, 15% of 200, 5 usd to rub, 90 min or days until 31.12 in the search; = forces it. Enter copies, Alt+Enter pastes.": "Пишите в поиске 2^10, 15% от 200, 5 usd в руб, 90 мин или дней до 31.12; = включает принудительно. Enter копирует, Alt+Enter вставляет.",
+  "Fingerprint not recognized": "Отпечаток не распознан",
+  "Unlock with fingerprint": "Разблокировка отпечатком"
 }

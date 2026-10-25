@@ -559,6 +559,7 @@ const SIDEBAR = [
             groups: [
                 { title: "Lock screen", rows: [
                     { key: "lock.dissolve", label: "Dissolve windows", kind: "bool" },
+                    { key: "lock.fingerprint", label: "Unlock with fingerprint", kind: "bool" },
                     { key: "lock.avatar", label: "Avatar", kind: "text" }
                 ] },
                 { title: "Session menu", rows: [

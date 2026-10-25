@@ -1957,6 +1957,14 @@ Singleton {
             // flies out clockDelayMs after the dissolve starts, on
             // clockStiffness/Damping; back into the bar on unlock.
             // fieldFallbackWidth = start width when no island was mapped.
+            // fingerprint: unlock with a finger too (PamFingerprint,
+            // assets/pam.d/flicker-fprint) — a miss shakes the field, a round
+            // that ends restarts after fingerprintRetryMs, fingerprintMaxFails
+            // misses in a row = password only until the next lock (keep it
+            // < 5: the T2 SEP turns Touch ID off after 5 until a macOS
+            // password login); a PAM error sooner than
+            // fingerprintTimeoutMinMs = no reader (stop), later = the round's
+            // timeout (listen again).
             property var lock: ({
                     dissolve: true,
                     grabTimeoutMs: 400,
@@ -2018,7 +2026,11 @@ Singleton {
                     clockDelayMs: 0,
                     clockStiffness: 3,
                     clockDamping: 0.45,
-                    caretGap: 4
+                    caretGap: 4,
+                    fingerprint: true,
+                    fingerprintRetryMs: 1200,
+                    fingerprintMaxFails: 3,
+                    fingerprintTimeoutMinMs: 10000
                 })
             // Session menu (services/Session, modules/session). actions =
             // buttons in order (lock logout suspend hibernate reboot

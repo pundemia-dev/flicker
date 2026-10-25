@@ -148,6 +148,8 @@ Item {
                 text: {
                     if (root.pam.state === "fail")
                         return I18n.tr("Incorrect password");
+                    if (root.pam.state === "fingerprint")
+                        return I18n.tr("Fingerprint not recognized");
                     if (root.pam.state === "error")
                         return I18n.tr("Authentication error");
                     if (root.pam.state === "max")
