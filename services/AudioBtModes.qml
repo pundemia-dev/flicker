@@ -3,7 +3,8 @@ import Quickshell
 import Quickshell.Io
 
 // Bluetooth headset modes pinned in the QS audio panel (Music / Calls pills,
-// the pinned one with a lock): per headset address, kept in
+// the pinned one with a lock) or on the headset's page in Settings → Sound
+// (Mode: Auto / Music / Calls): per headset address, kept in
 // statePath("audio-bt-modes.json"). No pin = Auto: WirePlumber switches to
 // calls while an app records from the headset's mic and back after it
 // (AudioPolicy.btReturnToMusic too). A pinned headset is held in its mode:
@@ -60,34 +61,54 @@ Scope {
         file.setText(JSON.stringify(next, null, 2));
     }
 
-    // A tap on a mode pill: pin that mode (switching to it) — or, on the
-    // pinned one, back to Auto (a pinned Calls goes back to music).
+    // "auto" | "music" | "calls" of a headset (Settings → Sound device page).
+    function modeOf(address: string): string {
+        return root.pinOf(address) || "auto";
+    }
+    function cardOf(address: string): var {
+        const a = `${address}`.toUpperCase();
+        return (root.devices.pulse.cards ?? []).find(c => (c.name ?? "").startsWith("bluez_") && root.addressOf(c) === a) ?? null;
+    }
+
+    // A tap on a mode pill (QS panel): pin that mode — or, on the pinned
+    // one, back to Auto.
     function tap(card: string, address: string, mode: string): void {
-        const m = root.devices.btModes(card);
-        if (!m || !root.loaded)
+        root.setMode(address, root.pinOf(address) === mode ? "auto" : mode);
+    }
+
+    // Pin a mode / back to Auto, also for a headset that is not connected
+    // (it takes the mode when it connects). A connected one switches to it;
+    // Auto out of a pinned Calls goes back to music.
+    function setMode(address: string, mode: string): void {
+        if (!root.loaded)
             return;
         const a = `${address}`.toUpperCase();
+        const prev = root.modeOf(a);
+        if (a === "" || prev === mode)
+            return;
         const next = Object.assign({}, root.pins);
-        const unpin = next[a] === mode;
-        if (unpin)
+        if (mode === "auto")
             delete next[a];
         else
             next[a] = mode;
-        const want = unpin ? (mode === "calls" && m.active === "calls" ? m.music : "") : (m.active !== mode ? (mode === "music" ? m.music : m.calls) : "");
+        const c = root.cardOf(a);
+        const m = c ? root.devices.btModes(c.name) : null;
+        const want = !m ? "" : mode === "auto" ? (prev === "calls" && m.active === "calls" ? m.music : "")
+            : (m.active !== mode ? (mode === "music" ? m.music : m.calls) : "");
         const wasHolding = root.holding;
         root.setPins(next);
         if (!wasHolding && root.holding) {
             // Off first, the switch once WirePlumber dropped its hooks.
             root.applyHold();
             if (want) {
-                deferred.card = card;
+                deferred.card = c.name;
                 deferred.profile = want;
                 deferred.restart();
             }
             return;
         }
         if (want)
-            root.devices.setProfile(card, want);
+            root.devices.setProfile(c.name, want);
         if (wasHolding && !root.holding)
             root.applyHold();
     }

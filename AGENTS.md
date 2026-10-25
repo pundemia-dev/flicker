@@ -588,7 +588,11 @@ user's data) live outside the repo: `CLAUDE.local.md` (git-ignored) and `~/.clau
   JSON, ALSA only): plugged → switch port / profile, unplugged Headphones / Headset → dimmed. A
   profile switch makes the new node default when it appears (`pending`, one per direction, 5 s).
   BT: Music / Calls pills; a headset in A2DP shows as an input row that switches to calls
-  (`sub: "callMode"`). A BT profile switch RE-CREATES the headset's nodes (same node.name, new
+  (`sub: "callMode"`) — only when it has no mic node: with WirePlumber's autoswitch on, A2DP
+  has one (the `bluez_input.<ADDR>` LOOPBACK; recording from it switches to calls). That
+  loopback has NO `api.bluez5.address`: the snapshot takes it from the node name
+  (`AudioGraph.btAddressOf`), else the mic was a second device keyed by its node name and
+  btReturnToMusic never found the headset mic. A BT profile switch RE-CREATES the headset's nodes (same node.name, new
   id): `setProfile` keeps it the default output (pending with `skip` = the replaced node, else
   claimPending grabs the old node before it goes), Calls also takes its mic, and `switching`
   (card → until, `audio.switchingMs`) makes AudioPolicy.review read the gap as neither lost
@@ -1491,6 +1495,16 @@ user's data) live outside the repo: `CLAUDE.local.md` (git-ignored) and `~/.clau
   while the plate flies away.
 
 ## Quickshell 0.3.1 / QML gotchas (hit before, verified)
+
+- Hot reload does NOT pick up a change to a `.pragma library` JS file (e.g.
+  `services/AudioGraph.js`), not even when a QML file is touched to force the reload: the
+  old code keeps running (Oct 2026: an AudioGraph fix verified correct under node, still
+  absent live after reloads). Restart the shell (`qs kill -c flicker`, start it again) to
+  test a JS-library change.
+- A JS object handed to a delegate through a `model: [...]` array comes back as a NEW object
+  on every read: never keep it and compare by `===`. Settings' tap-again confirm did
+  (`armed === row`) and every confirm (Forget device, Forget all…) re-armed forever with the
+  label never changing; it now keys rows (`SettingsWindow.actKey`).
 
 - NEVER name an injected property the same as the `id` you pass it from at the
   call site. `Island { theme: theme }` inside `Shell.qml` is a self-reference:

@@ -283,7 +283,7 @@ const SIDEBAR = [
                     { store: "wp", key: "node.stream.restore-target", label: "Remember each app's output", kind: "bool", keywords: "route stream" },
                     { key: "persist.volume", label: "Keep volume after reboot", kind: "bool", keywords: "remember restore" }
                 ] },
-                { title: "Bluetooth", rows: [
+                { title: "Bluetooth", footer: "While any headset has Music or Calls pinned (its page above, or the lock in Quick Settings), call mode on recording is paused for every headset.", rows: [
                     { store: "wp", key: "bluetooth.autoswitch-to-headset-profile", label: "Call mode when an app records", kind: "bool", keywords: "headset hfp profile microphone" },
                     { key: "audio.btReturnToMusic", label: "Back to music after a call", kind: "bool", keywords: "a2dp profile" },
                     { key: "audio.btReturnDelayMs", dependsOn: "audio.btReturnToMusic", label: "After", kind: "number", min: 1000, max: 60000, step: 1000, scale: S, suffix: " s" },

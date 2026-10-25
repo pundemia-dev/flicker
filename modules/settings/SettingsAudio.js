@@ -86,13 +86,22 @@ function deviceGroups(ref, devices, policy, tr) {
         groups.push({ footer: "The same device with or without the signal processing (DSP, equalizer, noise suppression) in front of it.", rows: [
             dev("variant", { label: "Processing", kind: "choice", optionsFrom: "audioVariants" })
         ] });
+    // Bluetooth headset (also while away): its Music / Calls pin, the same
+    // as the lock on the QS audio panel's pills (services/AudioBtModes).
+    const bt = `${ref.key}`.startsWith("bt/");
+    if (bt)
+        groups.push({ footer: "Auto: music, and calls while an app records from the headset's microphone. Music or Calls stay put, also after reconnecting.", rows: [
+            dev("btMode", { label: "Mode", kind: "choice", segments: true, keywords: "music calls headset hfp a2dp profile pin", options: [
+                { value: "auto", label: "Auto" }, { value: "music", label: "Music" }, { value: "calls", label: "Calls" }
+            ] })
+        ] });
     const profileRows = [];
     if (r && r.card)
-        profileRows.push(dev("profile", { label: r.bt ? "Profile and codec" : "Profile", kind: "choice", optionsFrom: "audioProfiles" }));
+        profileRows.push(dev("profile", { label: bt ? "Codec" : "Profile", kind: "choice", optionsFrom: "audioProfiles" }));
     if (r && r.card && r.port)
         profileRows.push(dev("latency", { label: "Latency offset", kind: "number", min: -500, max: 500, step: 10, suffix: " ms" }));
     if (profileRows.length > 0)
-        groups.push({ footer: r?.bt ? "Music profiles differ by codec; call profiles carry the microphone. A latency offset lines the sound up with video." : "A latency offset lines the sound up with video.", rows: profileRows });
+        groups.push({ footer: bt && !r.port ? "Codecs of the current mode." : bt ? "Codecs of the current mode. A latency offset lines the sound up with video." : "A latency offset lines the sound up with video.", rows: profileRows });
     if (ref.sink && r && r.nodeId >= 0) {
         groups.push({ footer: "Kept for this device while it is in use. Negative = left.", rows: [
             dev("balance", { label: "Balance", kind: "number", slider: true, min: -1, max: 1, step: 0.05, scale: 0.01, suffix: " %" }),

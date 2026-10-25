@@ -66,7 +66,10 @@ Scope {
                 bus: p["device.bus"] ?? "",
                 icon: p["device.icon_name"] ?? p["device.icon-name"] ?? "",
                 form: p["device.form-factor"] ?? p["device.form_factor"] ?? "",
-                address: p["api.bluez5.address"] ?? "",
+                // WirePlumber's headset-mic loopback (bluez_input.<ADDR>) has
+                // no api.bluez5.address: take it from the name, or the mic is
+                // a second device keyed by its node name.
+                address: p["api.bluez5.address"] ?? AudioGraph.btAddressOf(n.name ?? ""),
                 props: p
             };
         });
@@ -291,6 +294,13 @@ Scope {
     }
     function profiles(card: string): var {
         return AudioGraph.profiles(root.pulse.cards, card);
+    }
+    // A Bluetooth card's profiles of its current mode only (the codec choice;
+    // the mode itself is the pin, AudioBtModes).
+    function codecs(card: string): var {
+        const p = root.profiles(card);
+        const call = AudioGraph.isCall(p.active);
+        return { options: p.options.filter(o => call ? AudioGraph.isCall(o.value) : AudioGraph.isA2dp(o.value)), active: p.active };
     }
     // A Bluetooth profile switch re-creates the headset's nodes. The output
     // stays on the headset across the gap (pending, the replaced node

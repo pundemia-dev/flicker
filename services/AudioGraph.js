@@ -29,6 +29,14 @@ function isBt(n) {
     return n.api === "bluez5" || (n.name ?? "").startsWith("bluez_");
 }
 
+// "AA:BB:CC:DD:EE:FF" out of a bluez_* node name (":" or "_" separated), "".
+function btAddressOf(name) {
+    if (!`${name}`.startsWith("bluez_"))
+        return "";
+    const m = /([0-9a-f]{2}[:_]){5}[0-9a-f]{2}/i.exec(`${name}`);
+    return m ? m[0].replace(/_/g, ":").toUpperCase() : "";
+}
+
 function isHdmi(n) {
     return /hdmi|displayport/i.test(`${n.name ?? ""} ${n.desc ?? ""}`);
 }
@@ -249,8 +257,10 @@ function devices(nodes, groups, pulse, defaultId, sink, cfg, order, showHidden) 
             });
         }
     }
-    // A Bluetooth headset in music mode has no microphone node: offer it
-    // (the tap switches the card to its call profile).
+    // A Bluetooth headset in music mode without a microphone node: offer it
+    // (the tap switches the card to its call profile). With WirePlumber's
+    // autoswitch on it HAS one (its loopback, recording from it switches to
+    // calls) — that row is the headset's microphone, no offer next to it.
     if (!sink) {
         for (const c of pulse.cards ?? []) {
             if (!(c.name ?? "").startsWith("bluez_") || !isA2dp(c.active_profile))
@@ -259,6 +269,8 @@ function devices(nodes, groups, pulse, defaultId, sink, cfg, order, showHidden) 
             if (!call)
                 continue;
             const address = `${c.properties?.["api.bluez5.address"] ?? ""}`.toUpperCase();
+            if (rows.some(r => r.key === `bt/${address}`))
+                continue;
             rows.push({
                 key: `bt/${address}`,
                 nodeId: -1,

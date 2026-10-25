@@ -85,6 +85,8 @@ FloatingWindow {
             return (cfg.hideDevices ?? []).includes(row.ref.key);
         case "profile":
             return r?.card ? root.audioDevices.profiles(r.card).active : "";
+        case "btMode":
+            return root.audioDevices.btPins.modeOf(`${row.ref.key}`.slice(3));
         case "latency":
             return r?.card && r?.port ? root.audioDevices.latencyMs(r.card, r.port) : 0;
         case "balance":
@@ -121,6 +123,9 @@ FloatingWindow {
         case "profile":
             if (r?.card)
                 root.audioDevices.setProfile(r.card, value);
+            break;
+        case "btMode":
+            root.audioDevices.btPins.setMode(`${key}`.slice(3), value);
             break;
         case "latency":
             if (r?.card && r?.port)
@@ -227,7 +232,9 @@ FloatingWindow {
             return (root.vpn?.profiles ?? []).map(p => ({ value: p.tag, label: p.tag }));
         if (row.optionsFrom === "audioProfiles") {
             const r = root.devEntry(row.ref)?.row;
-            return r?.card ? root.audioDevices.profiles(r.card).options : [];
+            if (!r?.card)
+                return [];
+            return `${row.ref.key}`.startsWith("bt/") ? root.audioDevices.codecs(r.card).options : root.audioDevices.profiles(r.card).options;
         }
         if (row.optionsFrom === "displayModes")
             return root.displays?.modeOptions(row.ref.name) ?? [];
@@ -287,7 +294,7 @@ FloatingWindow {
     // Action row label: "…ing" while its operation runs, the confirm text
     // after a first tap.
     function labelOf(row: var): string {
-        if (row === root.armed)
+        if (root.armed !== "" && root.armed === root.actKey(row))
             return row.confirm;
         const v = root.vpn;
         switch (row.action) {
@@ -387,11 +394,17 @@ FloatingWindow {
     // ---- action rows ----
 
     // Action row waiting for its confirming second tap (`confirm`).
-    property var armed: null
+    // By key, not by object: a row read back from the model is a NEW JS
+    // object every time, so `armed === row` never held and every confirm
+    // re-armed forever (the label never changed either).
+    property string armed: ""
+    function actKey(row: var): string {
+        return `${row?.action ?? ""}|${JSON.stringify(row?.ref ?? null)}|${row?.route ?? ""}|${row?.label ?? ""}`;
+    }
     Timer {
         id: disarm
         interval: 3000
-        onTriggered: root.armed = null
+        onTriggered: root.armed = ""
     }
     // Last routing action run (which row says "…ing").
     property string lastAction: ""
@@ -471,12 +484,12 @@ FloatingWindow {
     }
 
     function act(row: var): void {
-        if (row.confirm && root.armed !== row) {
-            root.armed = row;
+        if (row.confirm && root.armed !== root.actKey(row)) {
+            root.armed = root.actKey(row);
             disarm.restart();
             return;
         }
-        root.armed = null;
+        root.armed = "";
         // The rule list the row works on (ref.list; Add rule: the VPN's).
         const path = row.ref?.list ?? "vpn.routing.rules";
         const list = (Config.get(path) ?? []).slice();

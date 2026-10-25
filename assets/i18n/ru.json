@@ -1031,5 +1031,11 @@
   "History": "История",
   "Type 2^10, 15% of 200, 5 usd to rub, 90 min or days until 31.12 in the search; = forces it. Enter copies, Alt+Enter pastes.": "Пишите в поиске 2^10, 15% от 200, 5 usd в руб, 90 мин или дней до 31.12; = включает принудительно. Enter копирует, Alt+Enter вставляет.",
   "Fingerprint not recognized": "Отпечаток не распознан",
-  "Unlock with fingerprint": "Разблокировка отпечатком"
+  "Unlock with fingerprint": "Разблокировка отпечатком",
+  "Mode": "Режим",
+  "Codec": "Кодек",
+  "Codecs of the current mode.": "Кодеки текущего режима.",
+  "Codecs of the current mode. A latency offset lines the sound up with video.": "Кодеки текущего режима. Сдвиг задержки выравнивает звук с видео.",
+  "Auto: music, and calls while an app records from the headset's microphone. Music or Calls stay put, also after reconnecting.": "Авто: музыка, а пока приложение пишет с микрофона наушников — звонки. «Музыка» и «Звонки» держатся, в том числе после переподключения.",
+  "While any headset has Music or Calls pinned (its page above, or the lock in Quick Settings), call mode on recording is paused for every headset.": "Пока у каких-либо наушников закреплены «Музыка» или «Звонки» (на их странице выше или замком в быстрых настройках), режим звонка при записи приостановлен для всех наушников."
 }
