@@ -1975,9 +1975,17 @@ Singleton {
             // that ends restarts after fingerprintRetryMs, fingerprintMaxFails
             // misses in a row = password only until the next lock (keep it
             // < 5: the T2 SEP turns Touch ID off after 5 until a macOS
-            // password login); a PAM error sooner than
-            // fingerprintTimeoutMinMs = no reader (stop), later = the round's
-            // timeout (listen again).
+            // password login); a round ending sooner than
+            // fingerprintTimeoutMinMs without a miss = a fault (fprintd busy /
+            // re-activated, or no reader): retried with a doubling pause up to
+            // fingerprintBackoffMaxMs while the lock is up; later = the round's
+            // timeout (listen again); from the 3rd quick fault the pause is at
+            // least fingerprintIdleWaitMs (fprintd exits idle, a jammed verify
+            // goes). A verify across a sleep jams fprintd (fprintd#216; the
+            // fprintd-resume-reset unit restarts it): no round from the
+            // session menu's Sleep until the wake (at most
+            // fingerprintSleepHoldMs), a new one fingerprintResumeDelayMs
+            // after it, quick retries for fingerprintWakeGraceMs.
             property var lock: ({
                     dissolve: true,
                     grabTimeoutMs: 400,
@@ -2043,7 +2051,12 @@ Singleton {
                     fingerprint: true,
                     fingerprintRetryMs: 1200,
                     fingerprintMaxFails: 3,
-                    fingerprintTimeoutMinMs: 10000
+                    fingerprintTimeoutMinMs: 10000,
+                    fingerprintBackoffMaxMs: 15000,
+                    fingerprintIdleWaitMs: 32000,
+                    fingerprintResumeDelayMs: 1500,
+                    fingerprintWakeGraceMs: 10000,
+                    fingerprintSleepHoldMs: 60000
                 })
             // Session menu (services/Session, modules/session). actions =
             // buttons in order (lock logout suspend hibernate reboot

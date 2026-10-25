@@ -282,9 +282,26 @@ user's data) live outside the repo: `CLAUDE.local.md` (git-ignored) and `~/.clau
   the wrong-password flash; `fingerprintMaxFails` (3) misses abort the round, password only
   until the next lock. Kept < 5 on purpose: the T2 SEP disables Touch ID after 5 misses in a
   row (event 0xe3ff800a in the bridge log, then only "nothing recognised, arming again")
-  until a macOS PASSWORD login — a Linux password never reaches the SEP. A PAM error sooner
-  than `fingerprintTimeoutMinMs` = no reader → stops (machines without fprintd unchanged);
-  later = round timeout → listens again. Toggle `lock.fingerprint`. Verified live in a real
+  until a macOS PASSWORD login — a Linux password never reaches the SEP. A round ending
+  sooner than `fingerprintTimeoutMinMs` WITHOUT a miss = a fault, retried with a doubling
+  pause (≤ `fingerprintBackoffMaxMs`) for as long as the lock is up — never given up (not a
+  miss, the SEP doesn't count it; no reader = one ~85 ms PAM try per 15 s). Later = round
+  timeout → listens again. SLEEP (seen live, Oct 26) = an UPSTREAM bug, fprintd#216 (fix =
+  fprintd MR !259, not merged): a verify running at PrepareForSleep is suspended by fprintd
+  mid-op ("Cannot run while suspended"), the close is refused ("still busy"), fprintd thinks
+  the device is free while libfprint keeps it open, and every later Claim fails "already been
+  opened" (our ~85 ms PAM errors) until the fprintd PROCESS goes (idle exit after 30 s without
+  clients — our retries kept it alive); meanwhile the bridge's SCANs queue up in libfprint.
+  The lock CANNOT prevent it: fprintd acts on the same PrepareForSleep (aborting on it is too
+  late, tried), logind sleeps ~50 ms after a lid close (a 1 s lid poll, tried, never won).
+  System fix: `scripts/lock/fprintd-resume-reset.service` (oneshot `systemctl try-restart
+  fprintd` After=suspend.target, install notes inside; installed on the dev box). Lock side:
+  no round from `LockScope.expectSleep()` (Session's Sleep, before activate) until the wake /
+  `fingerprintSleepHoldMs`; a round aborted on PrepareForSleep(true) (`dbus-monitor` —
+  `gdbus monitor` buffered through the pipe); `begin()` reads logind's PreparingForSleep
+  first; after PrepareForSleep(false) quick retries for `fingerprintWakeGraceMs` (the first
+  round can still hit the old fprintd mid-restart). Without the unit: from the 3rd quick
+  fault in a row the pause is ≥ `fingerprintIdleWaitMs` so fprintd can exit (~32 s wait). Toggle `lock.fingerprint`. Verified live in a real
   lock (Oct 25): match unlocks, a wrong finger shakes the field.
   Keyboard pill on the lock (`LockKeyboardPill`, user): the session lock hides KeyboardOverlay,
   so the skin draws the same `KeyboardPill` `keyboard.lockGap` under the password field's CARET

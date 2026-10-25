@@ -1,0 +1,14 @@
+# Install: sudo install -m644 scripts/lock/fprintd-resume-reset.service /etc/systemd/system/
+#          sudo systemctl daemon-reload && sudo systemctl enable fprintd-resume-reset.service
+# Why: modules/lock/PamFingerprint.qml (fprintd#216: a verify across a sleep jams fprintd).
+[Unit]
+Description=Restart fprintd after resume (clears a verify interrupted by suspend, fprintd#216)
+After=suspend.target hibernate.target hybrid-sleep.target suspend-then-hibernate.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/systemctl try-restart fprintd.service
+TimeoutStartSec=30
+
+[Install]
+WantedBy=suspend.target hibernate.target hybrid-sleep.target suspend-then-hibernate.target

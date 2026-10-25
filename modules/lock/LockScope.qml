@@ -79,6 +79,12 @@ Scope {
         grabTimeout.restart();
     }
 
+    // Session: a suspend follows this lock — the fingerprint waits for the
+    // wake (a verify running across a sleep jams fprintd, PamFingerprint).
+    function expectSleep(): void {
+        pamScope.expectSleep();
+    }
+
     function engage(ok: bool): void {
         if (!root.grabbing)
             return;

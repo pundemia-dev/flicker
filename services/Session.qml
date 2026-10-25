@@ -40,6 +40,7 @@ Scope {
         // Lock before sleeping, so the machine wakes up locked; the lock
         // surface gets `lockSettleMs` to map before the system sleeps.
         if ((id === "suspend" || id === "hibernate") && (Config.data.session.lockOnSuspend ?? true)) {
+            root.lock.expectSleep();
             root.lock.activate();
             const s = (Config.data.session.lockSettleMs ?? 600) / 1000;
             Quickshell.execDetached(["sh", "-c", `sleep ${s}; ${cmd}`]);

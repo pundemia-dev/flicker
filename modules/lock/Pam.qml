@@ -73,6 +73,12 @@ Scope {
         }
     }
 
+    // The system is about to sleep (Session's Sleep): no fingerprint round
+    // across it (PamFingerprint).
+    function expectSleep(): void {
+        fingerprint.expectSleep();
+    }
+
     PamFingerprint {
         id: fingerprint
         lock: root.lock
