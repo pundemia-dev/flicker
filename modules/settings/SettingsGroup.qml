@@ -69,6 +69,17 @@ Column {
             id: rows
             width: parent.width
 
+            // A group's `widget`: a custom control above its rows.
+            Loader {
+                active: root.group.widget === "displays"
+                visible: active
+                width: rows.width
+                sourceComponent: SettingsDisplaysArrangement {
+                    host: root.host
+                    theme: root.theme
+                }
+            }
+
             Repeater {
                 model: root.group.rows
 

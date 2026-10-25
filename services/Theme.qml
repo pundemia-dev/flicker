@@ -154,6 +154,15 @@ QtObject {
     readonly property color prompterNote: "#8FA3D6"
     readonly property color prompterNoteRead: "#4E5872"
     readonly property color prompterMarker: "#A8C1FF"
+    // Obsidian ==highlight== backgrounds (==🔴…== etc.), opaque: the alpha
+    // comes from prompter.highlightAlpha (PrompterParse.rgba).
+    readonly property color prompterHlDefault: "#D8BE52"
+    readonly property color prompterHlRed: "#E5534B"
+    readonly property color prompterHlOrange: "#E8913A"
+    readonly property color prompterHlYellow: "#D8BE52"
+    readonly property color prompterHlGreen: "#57B26A"
+    readonly property color prompterHlBlue: "#4C8DF0"
+    readonly property color prompterHlPurple: "#A673E0"
     readonly property string monoFamily: "monospace"
     // QS edit mode: card rim blinks clear -> darker than the card surface
     // (the frosted button #6F1C1C1C) and back (fade).

@@ -956,9 +956,11 @@ Singleton {
                     // Dropped on arrival (no card, no history): every given
                     // field is a case-insensitive regex that must match
                     // (app = appName, summary, body). Default: blueman's
-                    // "Connected" (+ its later "Connected 80%" update; Disconnected
-                    // still shows) — the Bluetooth event indicator says it.
-                    suppress: [{ app: "^blueman$", body: "^connected\\b" }]
+                    // "Connected" / "Disconnected" (+ the later "Connected 80%"
+                    // update, auto-connect and menu "Connected to …"; en / ru) —
+                    // the Bluetooth event indicator says it. Pairing / transfer /
+                    // "Failed to connect" stay notifications.
+                    suppress: [{ app: "^blueman$", body: "^(connected|disconnected|automatically connected)\\b|^(соединение установлено|отключено)" }, { app: "^blueman$", summary: "^(connected|соединение установлено)$" }]
                 })
             property var battery: ({
                     warnPercent: 50,
@@ -982,6 +984,15 @@ Singleton {
                     pauseVideo: true,
                     deferUpdates: true,
                     pollFactor: 3
+                })
+            // Displays (services/Displays, settings → Displays): restore the
+            // layout kept for a set of outputs, revert an unconfirmed change
+            // after confirmSec, re-read the outputs refreshDelayMs after a
+            // screen change.
+            property var displays: ({
+                    restore: true,
+                    confirmSec: 15,
+                    refreshDelayMs: 800
                 })
             property var audio: ({
                     maxVolume: 1.05,
@@ -1569,15 +1580,6 @@ Singleton {
                     escapeMs: 400,
                     order: [],
                     disabled: [],
-                    apps: ({
-                            launchPrefix: ["app2unit", "--"],
-                            terminal: ["kitty"],
-                            detailsIconSize: 88
-                        }),
-                    clipboard: ({
-                            historyLimit: 100,
-                            autoPaste: false,
-                            pasteCommand: "wtype -M ctrl v -m ctrl",
                     // Inline calculator (calc/CalcEngine.js): a result card over
                     // the apps while the query is a calculation, "=" forces
                     // it, "!calc" = with history. Rates (USD base, er-api
@@ -1592,6 +1594,15 @@ Singleton {
                             ratesUrl: "https://open.er-api.com/v6/latest/USD",
                             ratesMaxAgeHours: 12
                         }),
+                    apps: ({
+                            launchPrefix: ["app2unit", "--"],
+                            terminal: ["kitty"],
+                            detailsIconSize: 88
+                        }),
+                    clipboard: ({
+                            historyLimit: 100,
+                            autoPaste: false,
+                            pasteCommand: "wtype -M ctrl v -m ctrl",
                             cacheDir: "",
                             // Feed cliphist (services/ClipboardWatch): "auto" =
                             // own wl-paste watchers unless the compositor runs
@@ -1707,6 +1718,10 @@ Singleton {
                             // checked at start and delayMs after a screen change.
                             fillNewOutputs: true,
                             fillNewOutputsDelayMs: 1500,
+                            // An output's size / scale change restarts wallr
+                            // (it keeps the old buffer) delayMs after it settles.
+                            refitOnResize: true,
+                            refitDelayMs: 600,
                             // Accent colour of the shell (Theme qsBlue/cardBlue:
                             // toggles, selections, launcher tag, stash) from the
                             // wallpaper: matugen primary palette at accentTone.
@@ -1854,6 +1869,10 @@ Singleton {
             // reading line at readLine of the viewport height. mode voice |
             // auto | manual; voice language "auto" = by the script's
             // alphabet. align = PrompterAlign overrides (see its DEF).
+            // Images: a side panel of imagePanelWidth px, the island grows
+            // by it while they are up (text column keeps its width). ==hl==
+            // background alpha ahead / once read (palette: Theme
+            // prompterHl*; the island is dark, text must stay readable).
             property var prompter: ({
                     dir: "~/Documents/prompter",
                     mode: "voice",
@@ -1869,6 +1888,9 @@ Singleton {
                     codeScale: 0.72,
                     lineHeight: 1.18,
                     blockGap: 14,
+                    imagePanelWidth: 440,
+                    highlightAlpha: 0.35,
+                    highlightReadAlpha: 0.14,
                     readLine: 0.34,
                     markerWidth: 3,
                     scrollSpring: 2.4,

@@ -38,6 +38,17 @@ Scope {
     readonly property string lang: (root.cfg?.language ?? "auto") !== "auto" ? root.cfg.language : Parse.detectLang(root.doc.words)
     readonly property real progress: root.doc.words.length > 0 ? root.cursor / root.doc.words.length : 0
     readonly property bool empty: root.doc.words.length === 0
+    // "img" block shown in the side panel (first <= cursor < until), -1 = none.
+    readonly property int imageBlock: {
+        const c = root.cursor;
+        let r = -1;
+        for (const i of root._imgBlocks) {
+            const b = root.doc.blocks[i];
+            if (b && b.first <= c && c < b.until)
+                r = i;
+        }
+        return r;
+    }
     readonly property bool listening: root.dictation?.active === true && root.dictation?.sink === "prompter"
 
     signal showRequested
@@ -47,6 +58,7 @@ Scope {
     property var _spoken: []
     property var _script: []
     property var _before: [0]
+    property var _imgBlocks: []
     // Heard words: finals (trimmed, abs-indexed via _finalCount) + partial.
     property var _finals: []
     property int _finalCount: 0
@@ -87,7 +99,9 @@ Scope {
     function _setSource(src: string, keep: bool): void {
         const oldWords = root.doc.words;
         const oldCursor = root.cursor;
-        const d = Parse.parse(src);
+        // Image paths are relative to the script's folder (none for text).
+        const dir = root.path.length > 0 ? root.path.replace(/\/[^/]*$/, "") : "";
+        const d = Parse.parse(src, { base: dir, home: Quickshell.env("HOME") });
         const spoken = [], script = [], before = [0];
         for (let i = 0; i < d.words.length; i++) {
             if (d.words[i].spoken) {
@@ -99,6 +113,7 @@ Scope {
         root._spoken = spoken;
         root._script = script;
         root._before = before;
+        root._imgBlocks = d.blocks.map((b, i) => b.kind === "img" ? i : -1).filter(i => i >= 0);
         root.doc = d;
         let c = 0;
         if (keep) {
@@ -399,6 +414,7 @@ Scope {
             cursor: root.cursor,
             words: root.doc.words.length,
             word: root.doc.words[root.cursor]?.text ?? "",
+            image: root.imageBlock,
             heard: root._finals.concat(root._partial).slice(-8).join(" "),
             error: root.lastError
         });

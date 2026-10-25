@@ -27,6 +27,8 @@ declare -A PKG=(
   [wf-recorder]=wf-recorder [tesseract]=tesseract [zbarimg]=zbar
   # optional: clipboard history, typing (dictation), visualizer, app launch, 7z
   [cliphist]=cliphist [wtype]=wtype [cava]=cava [app2unit]=app2unit-git [7z]=7zip
+  # optional: display settings (wlr-output-management)
+  [wlr-randr]=wlr-randr
   # optional: wallpapers + accent colour, Python helpers
   [wallr]=wallr-bin [matugen]=matugen [uv]=uv
   # optional: VPN card (sing-box = TUN engine, Xray = its gRPC / XHTTP

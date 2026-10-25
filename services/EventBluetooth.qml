@@ -3,9 +3,11 @@ import "../config"
 
 // Event source: a Bluetooth device connected -> device glyph (left) +
 // its battery (right, live: BlueZ Battery1 often reports a moment after
-// the connection; the name until then). Devices already connected at
-// start-up are no event. Blueman's own "Connected" notification is dropped
-// by the notifications.suppress rules (it would say the same thing twice).
+// the connection; the name until then); disconnected -> the same glyph,
+// neutral, name then "Disconnected". Devices already connected at
+// start-up are no event. Blueman's own connect / disconnect notifications
+// are dropped by the notifications.suppress rules (they would say the
+// same thing twice); pairing / file transfer ones stay notifications.
 QtObject {
     id: root
     required property var events
@@ -13,6 +15,9 @@ QtObject {
 
     // Addresses seen connected on the previous pass.
     property var known: []
+    // address -> {name, icon} of those, for the disconnect event (a gone
+    // device is no longer in connectedDevices).
+    property var info: ({})
     // BlueZ objects populate asynchronously: whatever connects within
     // events.startupQuietMs after start is the start-up state, no event.
     property bool armed: false
@@ -21,6 +26,7 @@ QtObject {
         interval: Config.data.events.startupQuietMs
         onTriggered: {
             root.known = root.addresses();
+            root.info = root.snapshot();
             root.armed = true;
         }
     }
@@ -30,28 +36,52 @@ QtObject {
         const now = root.addresses();
         if (!root.armed)
             return;
-        if (Config.data.events.bluetooth ?? true) {
+        const on = Config.data.events.bluetooth ?? true;
+        if (on) {
             for (const dev of root.connected)
                 if (root.known.indexOf(dev.address) === -1)
                     root.announce(dev);
         }
         for (const addr of root.known)
-            if (now.indexOf(addr) === -1)
+            if (now.indexOf(addr) === -1) {
                 root.events.cancel(`bt:${addr}`);
+                if (on && root.info[addr])
+                    root.announceGone(addr, root.info[addr].name, root.info[addr].icon);
+            }
         root.known = now;
+        root.info = root.snapshot();
     }
 
     function addresses(): var {
         return (root.connected ?? []).map(d => d.address);
     }
 
+    function snapshot(): var {
+        const m = {};
+        for (const d of root.connected ?? [])
+            m[d.address] = { name: d.name || d.deviceName || "", icon: d.icon ?? "" };
+        return m;
+    }
+
     function announce(dev: var): void {
+        root.events.cancel(`bt:off:${dev.address}`);
         root.events.post({
             key: `bt:${dev.address}`,
             icon: root.glyphFor(dev.icon ?? ""),
             glyph: root.drawnGlyph(dev.icon ?? "", dev.name || dev.deviceName || ""),
             color: "qsBlue",
             text: () => dev.batteryAvailable ? `${Math.round(dev.battery * 100)}%` : (dev.name || dev.deviceName || "")
+        });
+    }
+
+    // Also IPC `island eventDemo bluetoothOff`.
+    function announceGone(address: string, name: string, icon: string): void {
+        root.events.post({
+            key: `bt:off:${address}`,
+            icon: root.glyphFor(icon),
+            glyph: root.drawnGlyph(icon, name),
+            color: "islandFg",
+            texts: name ? [name, I18n.tr("Disconnected")] : [I18n.tr("Disconnected")]
         });
     }
 

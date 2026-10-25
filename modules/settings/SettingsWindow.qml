@@ -6,6 +6,7 @@ import "SettingsSchema.js" as Schema
 import "SettingsSearch.js" as Search
 import "SettingsVpn.js" as Vpn
 import "SettingsAudio.js" as AudioSettings
+import "SettingsDisplays.js" as DisplaySettings
 import "SettingsNotifs.js" as Notifs
 
 // Settings window: sidebar of sections (iOS tiles; an end-4 style icon rail
@@ -22,6 +23,7 @@ FloatingWindow {
     required property var audio
     required property var audioDevices
     required property var audioPolicy
+    required property var displays
     required property var notifications
     property string initialSection: "general"
 
@@ -38,8 +40,12 @@ FloatingWindow {
     onCompactChanged: root.railExpanded = false
 
     title: I18n.tr("Flicker Settings")
-    // WirePlumber's settings are read once per window (Sound section).
-    Component.onCompleted: root.audioPolicy?.refreshWp()
+    // WirePlumber's settings are read once per window (Sound section), the
+    // displays' state again (an output changed without a hotplug).
+    Component.onCompleted: {
+        root.audioPolicy?.refreshWp();
+        root.displays?.refresh();
+    }
     implicitWidth: 980
     implicitHeight: 680
     minimumSize: Qt.size(440, 380)
@@ -141,6 +147,8 @@ FloatingWindow {
             return root.audioPolicy?.wp?.[row.key];
         if (row.store === "audioPolicy")
             return root.audioPolicy?.[row.key];
+        if (row.store === "display")
+            return root.displays?.value(row.ref.name, row.key);
         if (row.store === "wallpaper")
             return root.wallpaper?.cfg[row.key];
         if (row.store === "vpn")
@@ -165,6 +173,8 @@ FloatingWindow {
             root.audioPolicy?.setWp(row.key, value);
         } else if (row.store === "audioPolicy") {
             root.audioPolicy[row.key] = value;
+        } else if (row.store === "display") {
+            root.displays?.set(row.ref.name, row.key, value);
         } else if (row.store === "wallpaper") {
             root.wallpaper?.setSetting(row.key, value);
         } else if (row.store === "vpn") {
@@ -219,6 +229,8 @@ FloatingWindow {
             const r = root.devEntry(row.ref)?.row;
             return r?.card ? root.audioDevices.profiles(r.card).options : [];
         }
+        if (row.optionsFrom === "displayModes")
+            return root.displays?.modeOptions(row.ref.name) ?? [];
         if (row.optionsFrom === "audioVariants")
             return (root.devEntry(row.ref)?.row?.members ?? []).map(m => ({ value: m.name, label: m.desc || m.name }));
         return row.options ?? [];
@@ -248,6 +260,14 @@ FloatingWindow {
                 return [AudioSettings.routesGroup(g, root.audioPolicy, root.audioDevices, tr)];
             case "audioDevice":
                 return AudioSettings.deviceGroups(g.ref, root.audioDevices, root.audioPolicy, tr);
+            case "displayArrangement":
+                return [DisplaySettings.arrangementGroup(g, root.displays)];
+            case "displayList":
+                return [DisplaySettings.listGroup(g, root.displays, tr)];
+            case "displayApply":
+                return DisplaySettings.applyGroups(root.displays);
+            case "displayOutput":
+                return DisplaySettings.outputGroups(g.ref, root.displays, tr);
             }
             return [g];
         }));
@@ -295,6 +315,8 @@ FloatingWindow {
     // Grey text before the chevron / at the right of an action (translated).
     function detailOf(row: var): string {
         const v = root.vpn;
+        if (row.action === "displayKeep")
+            return I18n.tr("Reverting in %1 s").arg(root.displays?.confirmLeft ?? 0);
         if (row.action === "vpnPing")
             return (v?.pingMs ?? -1) === -2 ? I18n.tr("Timeout") : (v?.pingMs ?? -1) >= 0 ? I18n.tr("%1 ms").arg(v.pingMs) : "";
         if (row.action === "vpnSpeed") {
@@ -317,6 +339,16 @@ FloatingWindow {
         const err = root.vpn?.error ?? "";
         const failed = err !== "" && err !== "cancelled" && root.vpn?.busy === "" ? err : "";
         switch (group.footerFrom) {
+        case "displays":
+            if (!root.displays?.available)
+                return { text: I18n.tr("Needs wlr-randr (pacman -S wlr-randr)."), alert: true };
+            if (root.displays.error)
+                return { text: I18n.tr("Last change failed: %1").arg(root.displays.error), alert: true };
+            break;
+        case "displayApply":
+            if (!root.displays?.outputs.some(o => root.displays.effective(o).enabled))
+                return { text: I18n.tr("At least one display has to stay on."), alert: true };
+            break;
         case "vpnStatus":
             if (failed && root.vpn.errorOp !== "routing")
                 return { text: I18n.tr("Last error: %1").arg(failed), alert: true };
@@ -401,7 +433,10 @@ FloatingWindow {
         case "vpnPing":
             return !root.vpn?.pinging;
         case "audioNone":
+        case "displayNone":
             return false;
+        case "displayApply":
+            return !!root.displays?.canApply;
         case "audioUse": {
             const r = root.devEntry(row.ref)?.row;
             return !!r && r.available && !r.isDefault;
@@ -512,6 +547,21 @@ FloatingWindow {
             break;
         case "vpnLogs":
             root.vpn?.openLogs();
+            break;
+        case "displayApply":
+            root.displays?.apply();
+            break;
+        case "displayDiscard":
+            root.displays?.discard();
+            break;
+        case "displayKeep":
+            root.displays?.keep();
+            break;
+        case "displayRevert":
+            root.displays?.revert();
+            break;
+        case "displayForget":
+            root.displays?.forgetProfiles();
             break;
         case "notifRuleAdd": {
             const rules = (Config.get(Notifs.LIST) ?? []).slice();

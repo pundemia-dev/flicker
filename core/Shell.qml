@@ -26,7 +26,7 @@ Scope {
     // Event indicators (one at a time in the bar) + their sources.
     Events { id: eventsService }
     EventCharging { id: eventChargingService; events: eventsService; battery: batteryService }
-    EventBluetooth { events: eventsService; bluetooth: bluetoothService }
+    EventBluetooth { id: eventBluetoothService; events: eventsService; bluetooth: bluetoothService }
     EventUpdates { events: eventsService; powerMode: powerModeService }
     Caffeine { id: caffeineService; events: eventsService }
     // Low Power Mode: system power-saver profile + background work shed.
@@ -43,6 +43,9 @@ Scope {
     AudioPolicy { id: audioPolicyService; devices: audioDevicesService; audio: audioService; events: eventsService }
     EventBattery { id: eventBatteryService; events: eventsService; battery: batteryService; charging: eventChargingService }
     EventDisplays { id: eventDisplaysService; events: eventsService }
+    // Output modes / scale / layout (settings → Displays), kept per set of
+    // connected outputs.
+    Displays { id: displaysService; compositor: compositorService }
     EventDrives { id: eventDrivesService; events: eventsService }
     // Long-process watchers for the status drop (StatusFeeds).
     PacmanWatch { id: pacmanWatchService; events: eventsService }
@@ -168,6 +171,7 @@ Scope {
         shazam: shazamService
         statuses: statusesService
         network: eventNetworkService
+        bluetoothEvents: eventBluetoothService
         audioOutput: eventAudioOutputService
         batteryEvents: eventBatteryService
         displays: eventDisplaysService
@@ -176,7 +180,7 @@ Scope {
     }
 
     // Settings window (an ordinary app window; IPC `settings`).
-    SettingsScope { id: settingsScope; theme: themeService; wallpaper: wallpaperService; vpn: vpnService; audio: audioService; audioDevices: audioDevicesService; audioPolicy: audioPolicyService; notifications: notificationsService }
+    SettingsScope { id: settingsScope; theme: themeService; wallpaper: wallpaperService; vpn: vpnService; audio: audioService; audioDevices: audioDevicesService; audioPolicy: audioPolicyService; displays: displaysService; notifications: notificationsService }
 
     OsdWatcher {
         registry: islandRegistry

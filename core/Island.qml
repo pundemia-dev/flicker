@@ -385,9 +385,11 @@ PanelWindow {
                 return { width: moduleHost.preferredWidth, height: moduleHost.preferredHeight, radius: LauncherMetrics.radius(c) };
             return LauncherMetrics.estimate(c, root.state.activePayload?.plugin ?? "");
         }
+        // Prompter: + the image panel on the right while a picture is up.
         if (root.moduleKey === "prompter") {
             const c = root.config.prompter;
-            return { width: c.width, height: c.height, radius: c.radius };
+            const extra = (root.prompter?.imageBlock ?? -1) >= 0 ? (c.imagePanelWidth ?? 440) : 0;
+            return { width: c.width + extra, height: c.height, radius: c.radius };
         }
         // Polkit prompt fits its content (message / command / status lines).
         if (root.moduleKey === "polkit") {

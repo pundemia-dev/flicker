@@ -30,6 +30,7 @@ Scope {
     required property var shazam
     required property var statuses
     required property var network
+    required property var bluetoothEvents
     required property var audioOutput
     required property var batteryEvents
     required property var displays
@@ -244,7 +245,7 @@ Scope {
         // `x` (0..1 along the bar) held for `ms`.
         function touchBarDemo(x: real, ms: int): void { root.touchBar.demo(x, ms); }
         // Event indicator demo (no real source needed): charging | discharging |
-        // bluetooth | pacman | aur | wifi | wifiLost | output | full | critical |
+        // bluetooth | bluetoothOff | pacman | aur | wifi | wifiLost | output | full | critical |
         // display | displayOff | drive | driveOff | downloaded | text
         // <anything else = the text>.
         function eventDemo(kind: string): void {
@@ -259,6 +260,7 @@ Scope {
             const real = {
                 wifi: () => root.network.announce(true, "Demo Wi‑Fi", true),
                 wifiLost: () => root.network.announce(false, "", true),
+                bluetoothOff: () => root.bluetoothEvents.announceGone("demo", "AirPods Pro", "audio-headset"),
                 output: () => root.audioOutput.announce("headphones", "Headphones"),
                 full: () => root.batteryEvents.announceFull(),
                 critical: () => root.batteryEvents.announceCritical(),

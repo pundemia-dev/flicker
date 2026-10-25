@@ -39,7 +39,9 @@
 // (icon tile). store "wallpaper" = launcher.wallpapers via the wallpaper
 // service (the carousel's overrides, so both panels show the same values);
 // store "vpn" = the VPN service's live state (its setters act on change),
-// "vpnRule" = a field of one routing rule (SettingsVpn.js).
+// "vpnRule" = a field of one routing rule (SettingsVpn.js), "display" = an
+// output's setting (SettingsDisplays.js). Group `widget` = a custom control
+// above the rows (SettingsGroup: "displays" = the arrangement).
 // dependsOn (row or group): the row dims and takes no input unless the
 // condition holds (iOS: rows under an off master switch). "key" = truthy,
 // "!key" = falsy, "key=value" = equal as text; an array = all of them;
@@ -248,6 +250,21 @@ const SIDEBAR = [
             ]
         },
         {
+            // Outputs are generated (SettingsDisplays.js, services/Displays):
+            // the arrangement widget, one page per output, Apply / Keep.
+            id: "displays", title: "Displays", glyph: "\uea89", tint: "qsBlue",
+            groups: [
+                { generate: "displayArrangement", footer: "Drag a display to move it, tap it for its resolution, scale and rotation.", rows: [] },
+                { generate: "displayList", footerFrom: "displays", rows: [] },
+                { generate: "displayApply", rows: [] },
+                { title: "Saved layouts", footer: "A kept change is saved for this set of displays and comes back whenever they are connected together.", rows: [
+                    { key: "displays.restore", label: "Restore saved layouts", kind: "bool", keywords: "monitor profile kanshi" },
+                    { key: "displays.confirmSec", label: "Revert unconfirmed changes after", kind: "number", min: 5, max: 60, step: 5, suffix: " s" },
+                    { kind: "action", label: "Forget saved layouts", action: "displayForget", destructive: true, confirm: "Tap again to forget" }
+                ] }
+            ]
+        },
+        {
             // Devices / app outputs are generated (SettingsAudio.js);
             // store "wp" = WirePlumber settings (wpctl settings --save),
             // "audioPolicy" = services/AudioPolicy session state.
@@ -369,6 +386,14 @@ const SIDEBAR = [
                     { key: "launcher.clipboard.watch", label: "Watch clipboard", kind: "choice", segments: true, options: [
                         { value: "auto", label: "Auto" }, { value: true, label: "On" }, { value: false, label: "Off" }
                     ] }
+                ] },
+                { title: "Calculator", footer: "Type 2^10, 15% of 200, 5 usd to rub, 90 min or days until 31.12 in the search; = forces it. Enter copies, Alt+Enter pastes.", rows: [
+                    { key: "launcher.calc.enabled", label: "Calculate while typing", kind: "bool" },
+                    { key: "launcher.calc.currencies", dependsOn: "launcher.calc.enabled", label: "Currencies", kind: "text", array: true, keywords: "rub usd eur exchange rates" },
+                    { key: "launcher.calc.angle", dependsOn: "launcher.calc.enabled", label: "Angles", kind: "choice", segments: true, options: [
+                        { value: "deg", label: "Degrees" }, { value: "rad", label: "Radians" }
+                    ] },
+                    { key: "launcher.calc.historyLimit", label: "History", kind: "number", min: 0, max: 500, step: 10, suffix: " items" }
                 ] }
             ]
         },
@@ -386,14 +411,6 @@ const SIDEBAR = [
             id: "dashboard", title: "Dashboard", glyph: "", tint: "qsIndigo",
             groups: [
                 { title: "Weather", rows: [
-                ] },
-                { title: "Calculator", footer: "Type 2^10, 15% of 200, 5 usd to rub, 90 min or days until 31.12 in the search; = forces it. Enter copies, Alt+Enter pastes.", rows: [
-                    { key: "launcher.calc.enabled", label: "Calculate while typing", kind: "bool" },
-                    { key: "launcher.calc.currencies", dependsOn: "launcher.calc.enabled", label: "Currencies", kind: "text", array: true, keywords: "rub usd eur exchange rates" },
-                    { key: "launcher.calc.angle", dependsOn: "launcher.calc.enabled", label: "Angles", kind: "choice", segments: true, options: [
-                        { value: "deg", label: "Degrees" }, { value: "rad", label: "Radians" }
-                    ] },
-                    { key: "launcher.calc.historyLimit", label: "History", kind: "number", min: 0, max: 500, step: 10, suffix: " items" }
                     { key: "dashboard.weatherLocation", label: "Location", kind: "text" },
                     { key: "dashboard.useFahrenheit", label: "Units", kind: "choice", segments: true, options: [
                         { value: false, label: "°C" }, { value: true, label: "°F" }

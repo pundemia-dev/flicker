@@ -14,6 +14,7 @@ Scope {
     required property var audio
     required property var audioDevices
     required property var audioPolicy
+    required property var displays
     required property var notifications
 
     property bool shown: false
@@ -39,6 +40,7 @@ Scope {
             audio: root.audio
             audioDevices: root.audioDevices
             audioPolicy: root.audioPolicy
+            displays: root.displays
             notifications: root.notifications
             initialSection: root.lastSection
             onSectionChanged: root.lastSection = section

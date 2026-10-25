@@ -315,6 +315,49 @@ Scope {
         }
     }
 
+    // ---- restart after an output's size / scale changes ----
+
+    // wallr follows a scale change with its viewport but keeps the old
+    // buffer (below 100 % the picture sits shrunk in a corner); neither
+    // `wallr ipc reload` nor a set of the same path redraws it. So
+    // refitDelayMs after any output's geometry settles the daemon restarts
+    // (scripts/wallpapers/restart.sh): it restores every output's last
+    // wallpaper at its current size. A screen's geometry settles a moment
+    // after the shell (re)starts: only a change from the last known value of
+    // that output, once armed, counts.
+    Variants {
+        model: Quickshell.screens
+
+        QtObject {
+            required property var modelData
+            readonly property string geometry: `${modelData.width}x${modelData.height}@${modelData.devicePixelRatio}`
+            onGeometryChanged: root.noteGeometry(modelData.name, geometry)
+            Component.onCompleted: root.noteGeometry(modelData.name, geometry)
+        }
+    }
+
+    property var knownGeometry: ({})
+    property bool refitArmed: false
+
+    Timer {
+        running: true
+        interval: 3000
+        onTriggered: root.refitArmed = true
+    }
+
+    function noteGeometry(name: string, geometry: string): void {
+        const prev = root.knownGeometry[name];
+        root.knownGeometry[name] = geometry;
+        if (root.refitArmed && prev !== undefined && prev !== geometry && (root.cfg.refitOnResize ?? true))
+            refitTimer.restart();
+    }
+
+    Timer {
+        id: refitTimer
+        interval: root.cfg.refitDelayMs ?? 600
+        onTriggered: Quickshell.execDetached(["setsid", "-f", root.scripts + "restart.sh"])
+    }
+
     // Configured effect/duration/theme for a real (non-preview) set.
     function applyOpts(output: string): var {
         return Object.assign({

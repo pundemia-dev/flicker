@@ -44,6 +44,7 @@ user's data) live outside the repo: `CLAUDE.local.md` (git-ignored) and `~/.clau
   `dictation` (start/stop/toggle/cancel/status),
   `settings` (open / section <id> / close / toggle — the settings window, section ids in
   `modules/settings/SettingsSchema.js`),
+  `displays` (state (JSON), set <output> <key> <value>, place <output> <x> <y>, apply / keep / revert / discard),
   `prompter` (open <path>, clipboard, text <s>, show/close/toggle, pause, mode voice|auto|manual,
   move <n words>, next/prev (block), status).
 
@@ -192,6 +193,26 @@ user's data) live outside the repo: `CLAUDE.local.md` (git-ignored) and `~/.clau
   sorts every key — never use it); our own write's change event is not re-read.
   Wallpaper rows use the carousel panel's rows + overrides (`store: "wallpaper"`).
   Pages are created on push and destroyed on pop (springs); a section switch = blur-fade.
+- Displays (Oct 2026, user: resolution + scale, drag arrangement, rotation + on/off, confirm with
+  revert; persistence = Flicker's own layouts, not the compositor config): `services/Displays.qml`
+  over wlr-output-management — `wlr-randr` (niri AND driftwm serve it; state =
+  `scripts/displays/state.sh`: `wlr-randr --json` + `niri msg --json outputs` = a MAP by name, the
+  only place saying `is_custom_mode`). Heads without modes are hidden (eDP-2 here is a phantom).
+  Edits = `pending` (only keys differing from live), Apply = ONE wlr-randr call for every output,
+  then `confirming` (`displays.confirmSec`, else revert to the snapshot); Keep saves the applied
+  configs in `statePath("displays.json")` under the SET of connected outputs (make|model|serial),
+  restored on start / after `screensChanged` (+`refreshDelayMs`) when that set appears
+  (`displays.restore`) — after the compositor's own output config. Mode traps (verified live on
+  niri 26.04): niri's custom mode sent back via `--mode` (set_mode) falls to the NATIVE mode, and
+  `--custom-mode` re-derives refresh (60 → 59.93, 59.93 → 59.84) → the current mode is never
+  re-sent, custom modes go `--custom-mode` with a near-whole refresh rounded; driftwm gets
+  `--custom-mode` for every mode (its Custom tries an exact EDID match first). Size change → the
+  outputs right of / below it shift along; drag drop (`place`) snaps edge to edge to the nearest
+  free side (aligned within 8 %), layout normalized to 0,0. UI: `SettingsDisplays.js` (generated
+  groups, store "display"), `SettingsDisplaysArrangement.qml` = SettingsGroup `widget: "displays"`.
+  Verified via IPC `displays` on niri: move above + timed revert, scale keep → saved → restored
+  after a shell reload, mode change + revert, eDP-1 custom mode untouched. NOT tested: driftwm,
+  real hotplug, the drag / taps (rendering checked via grim), rotation, turning an output off.
 - Config: `config/config.json` watched by `config/Config.qml` (pragma Singleton, JsonAdapter,
   hot-reload). New tunable = add to BOTH the JsonAdapter defaults and config.json; read as
   `Config.data.<group>.<key>`. Pure visual tokens live in `services/Theme.qml`.
@@ -531,7 +552,8 @@ user's data) live outside the repo: `CLAUDE.local.md` (git-ignored) and `~/.clau
   `persist.{wifi,bluetooth,airplane,caffeine,volume,brightness}` (all true; the state is saved
   regardless) — settings: Quick Settings → Keep after reboot, Sound, Volume & Brightness.
   Shared helpers: `services/StateFile` (statePath JSON, read() = {} on missing/bad, write(obj)
-  adds `version`) and `services/LoginOnce` (claim() = first time this login).
+  adds `version`) and `services/LoginOnce` (claim() = first time this login). Volume / brightness save verified
+  live; the reboot path, Airplane and auto-off NOT tested.
   Debug IPC `quicksettingsExpand <id>` ("" folds back). Verified via that IPC + grim frames
   (both ways, both panels; BT discovery found nearby devices). NOT tested: the real long press,
   BT connect / pair taps.
@@ -746,31 +768,6 @@ user's data) live outside the repo: `CLAUDE.local.md` (git-ignored) and `~/.clau
   Verified via IPC on the live instance + a headless harness (state machine, picker,
   fuzzy, double Backspace). NOT live-tested (no keyboard/mouse tool): typing, Enter/Alt+Enter,
   launching, copy/auto-paste, wheel, hover, the details toggle.
-- Wallpapers launcher plugin (`plugins/wallpapers/`, Oct 2026, backend **wallr** 0.6.4 — user
-  decision after a source audit; spec/decisions in `temp/wallpapers-plugin-spec.md`). Launcher API
-  grew for it: `LauncherPlugin.bodyComponent/bodyWidth/bodyHeight` (a body REPLACES list + panel,
-  `LauncherMetrics.islandSize({body})`, `estimate()` pre-handover, `maxHeight` counts
-  `wallpapers.cardHeight`), `handleKey(event)` (first chance at keys in the search field),
-  `host` ({screen, originX/Y} = bar centre normalized, y from top — Island services `launcherHost`).
-  Plugin owns the state (`entries`, `selected`, animated `pos` on a Spring whose params come from
-  `wallpapers.speeds[speedLevel]`: single step / quick steps within `speedWindowMs` / auto-repeat
-  + jumps; jumps > `flyMax` snap); `WallCarousel` only draws a WINDOW of cards (ScriptModel slice
-  around round(pos), `CarouselMath.reach`) — folders hold thousands of files. `CarouselMath.js`:
-  width/height/x per offset d (body = `visibleCards` cards, tiers `cardWidths[k]`/`cardHeights[k]` by |d|, gap stays exactly
-  `cardSpacing`), parallax = art wider than the card shifted −d·parallax (clamped to the overscan).
-  GIF/video play in the centre card `playDelayMs` after it rests (AnimatedImage / MediaPlayer+
-  VideoOutput, muted, looped). Thumbs on demand (`thumbAhead` around the selection) via
-  `scripts/wallpapers/thumbs.sh` (ffmpeg, `thumbJobs` parallel) → `~/.cache/flicker/wallpapers/
-  <md5(path|mtime|size)>.jpg`; scan `scripts/wallpapers/scan.sh` (dot DIRS skipped; dot FILES = hidden wallpapers, listed with
-  `hidden: true`; thumb key ignores the dot), rescan
-  only when the dir-mtime signature changes (poll `rescanMs` while active). Live preview (fade,
-  `--no-theme`) after `previewDelayMs`; Esc/close/other plugin restores the original read from
-  `~/.cache/wallr/last_wallpaper/<output>` (execDetached from onDestruction). Enter = this output,
-  Alt+Enter = all; effect `island` = `grow -o <bar centre>`. Prefixes `v `/`g `/`i ` filter type.
-  Scrolling: mouse wheel = vertical (notch = 1 card), touchpad = horizontal only
-  (`touchpadStep` angle units per card). Traps hit: Qt on Wayland reports the touchpad as a
-  Mouse device (tell it apart by scroll phase / pixelDelta); `WheelHandler` sees only events
-  along its `orientation` (default Vertical → pure horizontal swipes never arrived, only
 - Launcher calculator (`modules/launcher/calc/`, Oct 2026; user asked for "the coolest version"
   after looking at other shells — caelestia / end-4 run `qalc` per keystroke, one text row).
   Ours: own engine, no dependency (libqalculate not installed; sudo needs a password).
@@ -801,6 +798,31 @@ user's data) live outside the repo: `CLAUDE.local.md` (git-ignored) and `~/.clau
   RUB), on demand, cached `calc-rates.json`, `ratesMaxAgeHours`; card caption shows the date.
   Verified live: `2+2*3`, `5 usd to rub`, `5 usd` (+EUR row, rates date), plugin placeholder
   and error card. NOT live-tested: history rows, Enter/Alt+Enter, Shift+Delete.
+- Wallpapers launcher plugin (`plugins/wallpapers/`, Oct 2026, backend **wallr** 0.6.4 — user
+  decision after a source audit; spec/decisions in `temp/wallpapers-plugin-spec.md`). Launcher API
+  grew for it: `LauncherPlugin.bodyComponent/bodyWidth/bodyHeight` (a body REPLACES list + panel,
+  `LauncherMetrics.islandSize({body})`, `estimate()` pre-handover, `maxHeight` counts
+  `wallpapers.cardHeight`), `handleKey(event)` (first chance at keys in the search field),
+  `host` ({screen, originX/Y} = bar centre normalized, y from top — Island services `launcherHost`).
+  Plugin owns the state (`entries`, `selected`, animated `pos` on a Spring whose params come from
+  `wallpapers.speeds[speedLevel]`: single step / quick steps within `speedWindowMs` / auto-repeat
+  + jumps; jumps > `flyMax` snap); `WallCarousel` only draws a WINDOW of cards (ScriptModel slice
+  around round(pos), `CarouselMath.reach`) — folders hold thousands of files. `CarouselMath.js`:
+  width/height/x per offset d (body = `visibleCards` cards, tiers `cardWidths[k]`/`cardHeights[k]` by |d|, gap stays exactly
+  `cardSpacing`), parallax = art wider than the card shifted −d·parallax (clamped to the overscan).
+  GIF/video play in the centre card `playDelayMs` after it rests (AnimatedImage / MediaPlayer+
+  VideoOutput, muted, looped). Thumbs on demand (`thumbAhead` around the selection) via
+  `scripts/wallpapers/thumbs.sh` (ffmpeg, `thumbJobs` parallel) → `~/.cache/flicker/wallpapers/
+  <md5(path|mtime|size)>.jpg`; scan `scripts/wallpapers/scan.sh` (dot DIRS skipped; dot FILES = hidden wallpapers, listed with
+  `hidden: true`; thumb key ignores the dot), rescan
+  only when the dir-mtime signature changes (poll `rescanMs` while active). Live preview (fade,
+  `--no-theme`) after `previewDelayMs`; Esc/close/other plugin restores the original read from
+  `~/.cache/wallr/last_wallpaper/<output>` (execDetached from onDestruction). Enter = this output,
+  Alt+Enter = all; effect `island` = `grow -o <bar centre>`. Prefixes `v `/`g `/`i ` filter type.
+  Scrolling: mouse wheel = vertical (notch = 1 card), touchpad = horizontal only
+  (`touchpadStep` angle units per card). Traps hit: Qt on Wayland reports the touchpad as a
+  Mouse device (tell it apart by scroll phase / pixelDelta); `WheelHandler` sees only events
+  along its `orientation` (default Vertical → pure horizontal swipes never arrived, only
   diagonals) — a `MouseArea { acceptedButtons: Qt.NoButton; onWheel }` gets both axes;
   touchpad = phase/pixelDelta seen within `touchpadHoldMs` (slow finger motion rounds
   pixelDelta to 0) → x only, else wheel → y only; touchpads also interleave zero-delta events (must not reset an
@@ -879,6 +901,13 @@ user's data) live outside the repo: `CLAUDE.local.md` (git-ignored) and `~/.clau
   `Wallpaper.fillNewOutputs` (start + `fillNewOutputsDelayMs` after `screensChanged`;
   `fillNewOutputs`) runs `scripts/wallpapers/unset.sh` and sets such outputs to another
   output's wallpaper (else history[0]), no history push. Verified live on niri (DP-5, Oct 2026).
+  wallr 0.6.4 on a SCALE change resizes its viewport but keeps the old buffer (below 100 % the
+  picture sits shrunk in a corner — reproduced on niri, DP-5 at 0.9/0.8); `wallr ipc reload` and
+  a set of the same path (+ effect) do NOT redraw it, a set long after sometimes does → a
+  geometry change (w × h @ dpr) of any output, `refitDelayMs` later, restarts the daemon
+  (`scripts/wallpapers/restart.sh`, setsid; the new daemon restores every output). Armed 3 s
+  after start and only on a change from that output's last known value: screens settle after a
+  shell reload (it restarted wallr on every reload). `refitOnResize`. NOT verified visually yet.
   Accent from the wallpaper (`accentFromWallpaper`, default on): `Wallpaper.updateAccent` runs
   `matugen image <path> --json hex --dry-run --prefer saturation -m dark` (matugen 4 refuses
   without --prefer when not on a terminal) and sets `Theme.wallAccent` = palettes.primary
@@ -1062,6 +1091,24 @@ user's data) live outside the repo: `CLAUDE.local.md` (git-ignored) and `~/.clau
   — tracked to the end incl. ASR errors ("покурим"/"поговорим"). NOT tested: auto mode, keys,
   wheel, footer pills, launcher plugin, clipboard, multi-output hand-over. Known: viewport edges
   are a hard clip (no soft fade on the translucent body — MultiEffect masks are binary).
+  Images + Obsidian highlights (Oct 2026): an images-only paragraph = "img" block (count 0, so
+  jumpBlock / auto / align skip it), NOT drawn in the text column (user): shown in a side panel
+  while `first <= cursor < until` (`Prompter.imageBlock`); `until` = the `%%/img%%` after it
+  (user's syntax; %%…%% = hidden Obsidian comments), else next images / heading / ---. Island
+  grows by `imagePanelWidth` (Island.moduleSize) — it is centred, so the text shifts left by
+  half; text column width = cfg.width (`textW`), never the live island width. Panel (`ImageSet`):
+  one row or one column, whichever draws larger; aspect latched on first load, then
+  `sourceSize` = drawn width; failed load = alt / file name; latched while the island shrinks,
+  cross-fade between blocks. Paths resolve in `Parse.resolveSrc` (base = script dir from
+  Prompter; clipboard has none → relative = note); http(s) never loaded (alt as a note; IPv6 here). `==…==` (+ 🔴🟠🟡🟢🔵🟣) → piece `h`;
+  `htmlFor` paints `background-color: rgba()` (Qt rich text takes rgba() AND #AARRGGBB —
+  alpha FIRST — checked with grabToImage), palette Theme `prompterHl*`, alpha
+  `highlightAlpha` / `highlightReadAlpha`. Column height change = instant re-snap (no spring).
+  Verified live: demo `~/Documents/prompter/речь-23030002.md` (23 rows / 27 images): panel
+  in/out, block → block, hide at a heading, `%%/img%%` end in auto mode. Voice: not read aloud;
+  spoken word list proven identical with / without the markup (node). Seen before the fixed
+  `textW`: the island's open transition showed a wrong spot (text re-wrapped while the width
+  animated), also without images — not re-checked since.
 
 - Indicators polish (Oct 2026, user decisions). Bar row = [privacy | music | dictation |
   clock | timer]; event glyph / text are NOT in the row: pinned to the island's left / right edges,
