@@ -1520,6 +1520,9 @@ and when — `grep -rn "HACK ("`. As of Oct 26 2026:
   `scripts/lock/fprintd-resume-reset.service`, `lock.fingerprintIdleWaitMs / WakeGraceMs`.
 - t2-touchid reports misses as "retry scan" → `modules/lock/PamFingerprint.qml` (onPamMessage).
 - WirePlumber 0.5.18 autoswitch-off crash → `services/AudioBtModes.qml`, `audio.btHoldSettleMs`.
+- systemd 262: multi-unit `systemctl start|stop` (EnqueueUnitJobMany) is denied to users by its
+  D-Bus policy (dbus-broker "security policy denied", systemctl "Access denied"; VPN start / stop
+  failed with no polkit prompt) → `scripts/vpn/vpn.sh` `units_do`, one call per unit.
 Outside the repo (machine): `fbcon=map:1` (Linux 7.2 + force_igd), the sing-box `t2_ncm`
 exemption for Touch ID.
 

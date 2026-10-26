@@ -118,6 +118,18 @@ err() {
     exit 1
 }
 
+# HACK (systemd 262: `systemctl start|stop a b` sends EnqueueUnitJobMany,
+# which its D-Bus policy does not let a user call — denied before polkit is
+# asked). One call per unit, in the order given. Undo (one call again) when
+# org.freedesktop.systemd1.conf allows EnqueueUnitJobMany.
+units_do() {
+    local verb=$1 u
+    shift
+    for u in "$@"; do
+        systemctl "$verb" "$u" || return 1
+    done
+}
+
 # The script pkexec runs: the root-owned copy while it is this one's (the
 # password-free rule covers only it), else this one (polkit asks).
 root_self() {
@@ -552,7 +564,10 @@ start | restart | enable | disable)
     # Xray first: sing-box's shadowsocks outbounds point at it. The kill
     # switch (if on) comes up with sing-box by itself (its drop-in).
     if uses_xray; then
-        systemctl "$1" xray "$unit" || err "systemctl $1 failed"
+        case $1 in
+        start | restart) units_do "$1" xray "$unit" ;;
+        *) systemctl "$1" xray "$unit" ;;
+        esac || err "systemctl $1 failed"
     else
         systemctl "$1" "$unit" || err "systemctl $1 failed"
     fi
@@ -567,7 +582,7 @@ stop)
     *) units+=(xray) ;;
     esac
     systemctl is-active -q "$ks_unit" && units+=("$ks_unit")
-    systemctl stop "${units[@]}" || err "systemctl stop failed"
+    units_do stop "${units[@]}" || err "systemctl stop failed"
     ;;
 killswitch)
     case "${2:-}" in
