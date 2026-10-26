@@ -29,6 +29,9 @@ declare -A PKG=(
   [cliphist]=cliphist [wtype]=wtype [cava]=cava [app2unit]=app2unit-git [7z]=7zip
   # optional: display settings (wlr-output-management)
   [wlr-randr]=wlr-randr
+  # optional: idle screen off on driftwm (wlr-output-power; niri / Hyprland
+  # have their own, without it the dimmed backlight stays the screen-off)
+  [wlopm]=wlopm
   # optional: wallpapers + accent colour, Python helpers
   [wallr]=wallr-bin [matugen]=matugen [uv]=uv
   # optional: VPN card (sing-box = TUN engine, Xray = its gRPC / XHTTP
@@ -40,6 +43,9 @@ for t in "${!PKG[@]}"; do have "$t" || missing+=("${PKG[$t]}"); done
 # Pillow: lock-screen dissolve (scripts/lock/diff.py), caret calibration,
 # wallpaper duplicates — all run on the system python3.
 python3 -c "import PIL" 2>/dev/null || missing+=(python-pillow)
+# GObject: the idle helper (scripts/idle/idled.py: ScreenSaver, logind,
+# lock before sleep, backlight dim).
+python3 -c "import gi" 2>/dev/null || missing+=(python-gobject)
 # OCR language data (capture AI mode): English at least.
 if have tesseract && ! tesseract --list-langs 2>/dev/null | grep -qx eng; then
   missing+=(tesseract-data-eng)
