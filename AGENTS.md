@@ -116,11 +116,14 @@ user's data) live outside the repo: `CLAUDE.local.md` (git-ignored) and `~/.clau
   Function Row Virtual Input Device", never grabbed, never the main keyboard) and lays the
   buttons out exactly like tiny-dfr `FunctionLayer::draw` (16 px gaps, Stretch, empty slots,
   "esc" prepended only when the bar is >= 2170 px — this MBP16 bar is 2008 = no esc, read from
-  the `card*-USB-*` DRM mode), polling `/etc/tiny-dfr/config.toml` mtime (dfr-switcher
-  layouts). It prints only `down <id> <x> <w>` / `up <id>` / `reset` (bar fractions) — key
+  the `card*-USB-*` DRM mode), watching `/etc/tiny-dfr/config.toml` with tiny-dfr's own
+  inotify mask (IN_MOVED_TO | IN_CLOSE — tiny-dfr reloads on a mere READ of the file too;
+  layout re-read on mtime change = dfr-switcher layouts). It prints only `down <id> <x> <w>` / `up <id>` / `reset` (bar fractions) — key
   codes stay inside. Stuck tabs (Oct 2026): an up goes to the id its code went down on (not a
-  re-lookup in a since-switched layout); a config reload = `reset` (tiny-dfr forgets its
-  touches then and never sends the key up); a lone up (the key tiny-dfr left stuck) = a tap;
+  re-lookup in a since-switched layout); any config reload, a read included = `reset` (tiny-dfr
+  forgets its touches then and never sends the key up — the key stays down in the kernel, so
+  nothing may read that file while a finger can be on the bar: dfr-switcher keeps its current
+  layout in `~/.local/state/dfr-switcher/layout`); a lone up (the key tiny-dfr left stuck) = a tap;
   SYN_DROPPED → key state re-read with EVIOCGKEY. `services/TouchBar.qml` → ListModel → per-screen
   `core/TouchBarPresses.qml` (Overlay, empty mask, built-in display by default): CurveRenderer
   PathSvg tab joined to the edge by concave Bézier suction curves (spread / rise / strength) and a convex quarter ellipse (`radius` along the top, the rest of the height up) from the suction straight into the top edge in `corners.color`, SpringAnimation on height.

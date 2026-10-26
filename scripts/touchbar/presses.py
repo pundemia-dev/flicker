@@ -15,16 +15,18 @@ buttons, 16 px gaps, Stretch, an "esc" button prepended when the bar is
                          everything is released
 
 Key codes never leave this process. The config (/etc/tiny-dfr/config.toml
-over /usr/share/tiny-dfr/config.toml) is polled for mtime changes, so a layout
-switch (dfr-switcher cp) is picked up right away; tiny-dfr drops its touches
-on that reload, so whatever is held then is released ("reset"). The device
-is never grabbed: the compositor still gets every key.
+over /usr/share/tiny-dfr/config.toml) is watched with tiny-dfr's own inotify
+mask (IN_MOVED_TO | IN_CLOSE): tiny-dfr reloads on every such event — a mere
+read of the file too (IN_CLOSE_NOWRITE) — and drops its touches, so whatever
+is held then is released ("reset"); the layout is re-read when the mtime
+changed (dfr-switcher cp). The device is never grabbed: the compositor still
+gets every key.
 
 Access: scripts/touchbar/udev.rules (uaccess). Without it, or without
 tiny-dfr running, the script waits and re-checks every RESCAN_S seconds
 (the hint is logged once to stderr).
 """
-import errno, fcntl, glob, os, re, select, struct, sys, time, tomllib
+import ctypes, errno, fcntl, glob, os, re, select, struct, sys, time, tomllib
 
 DEVICE_NAME = "Dynamic Function Row Virtual Input Device"
 BASE_CFG = "/usr/share/tiny-dfr/config.toml"
@@ -41,6 +43,9 @@ SYN_REPORT, SYN_DROPPED = 0, 3
 KEY_BYTES = 0x2FF // 8 + 1  # KEY_MAX
 EVIOCGKEY = 2 << 30 | KEY_BYTES << 16 | ord("E") << 8 | 0x18
 EVENT = struct.Struct("llHHi")
+# tiny-dfr src/config.rs arm_inotify: IN_MOVED_TO | IN_CLOSE.
+IN_WATCH = 0x80 | 0x08 | 0x10
+INOTIFY_EVENT = struct.Struct("iIII")
 
 # input-linux Key names (tiny-dfr Action) whose KEY_ constant differs by more
 # than case and underscores.
@@ -152,6 +157,34 @@ class Layout:
         return next((h for h in hits if h[3]), hits[0])
 
 
+def watch_config():
+    # The directory, not the file: survives the file being replaced.
+    libc = ctypes.CDLL(None, use_errno=True)
+    ino = libc.inotify_init1(os.O_NONBLOCK | os.O_CLOEXEC)
+    if ino < 0 or libc.inotify_add_watch(ino, os.path.dirname(USER_CFG).encode(), IN_WATCH) < 0:
+        log(f"no inotify on {USER_CFG} ({os.strerror(ctypes.get_errno())}), polling its mtime")
+        if ino >= 0:
+            os.close(ino)
+        return None
+    return ino
+
+
+def config_touched(ino):
+    """Drains the queue: did any event hit the config file?"""
+    name = os.path.basename(USER_CFG).encode()
+    hit = False
+    while True:
+        try:
+            data = os.read(ino, 4096)
+        except BlockingIOError:
+            return hit
+        off = 0
+        while off < len(data):
+            n = INOTIFY_EVENT.unpack_from(data, off)[3]
+            hit |= data[off + 16:off + 16 + n].rstrip(b"\0") == name
+            off += 16 + n
+
+
 def find_device():
     for p in glob.glob("/sys/class/input/event*/device/name"):
         try:
@@ -173,7 +206,42 @@ def held_keys(fd):
     return {c for c in range(KEY_BYTES * 8) if buf[c >> 3] >> (c & 7) & 1}
 
 
-def run(dev, layout):
+def read_keys(fd, layout, owner, press, release, dropped):
+    data = os.read(fd, EVENT.size * 64)
+    for off in range(0, len(data) - EVENT.size + 1, EVENT.size):
+        _, _, typ, code, value = EVENT.unpack_from(data, off)
+        # Kernel buffer overflow: events up to the next report are
+        # lost, the real key state is read back after it.
+        if typ == EV_SYN:
+            if code == SYN_DROPPED:
+                dropped = True
+            elif code == SYN_REPORT and dropped:
+                dropped = False
+                down = held_keys(fd)
+                for c in [c for c in owner if c not in down]:
+                    release(c)
+            continue
+        if dropped or typ != EV_KEY or value == 2:
+            continue
+        if value == 0 and code in owner:
+            release(code)
+            continue
+        hit = layout.find(code)
+        if hit is None:
+            continue
+        if value == 1:
+            if code not in owner:
+                press(code, hit)
+        else:
+            # An up with no down: the key tiny-dfr left stuck after a
+            # reload — its next press only sends the up. The finger
+            # did tap it, so show the tap.
+            press(code, hit)
+            release(code)
+    return dropped
+
+
+def run(dev, layout, ino):
     fd = os.open(dev, os.O_RDONLY)
     log(f"reading {dev}")
     held = {}  # id -> set of codes down
@@ -194,52 +262,35 @@ def run(dev, layout):
         if not codes:
             out(f"up {bid}")
 
+    def config_reloaded():
+        # tiny-dfr reloads its config on this and forgets the touches it
+        # had: a finger on a button then never gets its key up. Nothing
+        # held can be trusted. Without inotify only a changed mtime is seen.
+        if owner:
+            out("reset")
+            held.clear()
+            owner.clear()
+        if layout.stale():
+            layout.load()
+            # Our own read: tiny-dfr reloads on it too, nothing held by now.
+            if ino is not None:
+                config_touched(ino)
+
     dropped = False
     try:
         while True:
-            ready, _, _ = select.select([fd], [], [], STALE_POLL_S)
-            # tiny-dfr reloads its config on change and forgets the touches
-            # it had: a finger on a button then never gets its key up (the
-            # dfr-switcher layout switch). Nothing held can be trusted.
-            if layout.stale():
-                if owner:
-                    out("reset")
-                    held.clear()
-                    owner.clear()
-                layout.load()
-            if not ready:
-                continue
-            data = os.read(fd, EVENT.size * 64)
-            for off in range(0, len(data) - EVENT.size + 1, EVENT.size):
-                _, _, typ, code, value = EVENT.unpack_from(data, off)
-                # Kernel buffer overflow: events up to the next report are
-                # lost, the real key state is read back after it.
-                if typ == EV_SYN:
-                    if code == SYN_DROPPED:
-                        dropped = True
-                    elif code == SYN_REPORT and dropped:
-                        dropped = False
-                        down = held_keys(fd)
-                        for c in [c for c in owner if c not in down]:
-                            release(c)
-                    continue
-                if dropped or typ != EV_KEY or value == 2:
-                    continue
-                if value == 0 and code in owner:
-                    release(code)
-                    continue
-                hit = layout.find(code)
-                if hit is None:
-                    continue
-                if value == 1:
-                    if code not in owner:
-                        press(code, hit)
-                else:
-                    # An up with no down: the key tiny-dfr left stuck after a
-                    # reload — its next press only sends the up. The finger
-                    # did tap it, so show the tap.
-                    press(code, hit)
-                    release(code)
+            fds = [fd] if ino is None else [fd, ino]
+            ready, _, _ = select.select(fds, [], [], STALE_POLL_S if ino is None else None)
+            if fd in ready:
+                dropped = read_keys(fd, layout, owner, press, release, dropped)
+            # After the keys: a down read in the same wake-up came before
+            # the reload (the switcher reads the config while the finger is
+            # still on the button).
+            if ino is None:
+                if layout.stale():
+                    config_reloaded()
+            elif ino in ready and config_touched(ino):
+                config_reloaded()
     finally:
         os.close(fd)
         if owner:
@@ -248,7 +299,10 @@ def run(dev, layout):
 
 def main():
     layout = Layout()
+    ino = watch_config()
     layout.load()
+    if ino is not None:
+        config_touched(ino)
     hinted = None
     while True:
         dev = find_device()
@@ -259,7 +313,7 @@ def main():
             time.sleep(RESCAN_S)
             continue
         try:
-            run(dev, layout)
+            run(dev, layout, ino)
         except PermissionError:
             if hinted != "access":
                 here = os.path.dirname(os.path.abspath(__file__))
