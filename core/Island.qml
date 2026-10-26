@@ -26,6 +26,7 @@ PanelWindow {
     required property var events
     required property var caffeine
     property var idle: null
+    property var nightLight: null
     required property var powerMode
     required property var airplane
     required property var vpn
@@ -1884,6 +1885,7 @@ PanelWindow {
                         airplane: root.airplane,
                         caffeine: root.caffeine,
                         idle: root.idle,
+                        nightLight: root.nightLight,
                         vpn: root.vpn,
                         openSettings: section => root.settings?.open(section),
                         audioDevices: root.audioDevices,

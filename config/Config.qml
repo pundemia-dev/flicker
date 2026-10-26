@@ -266,6 +266,7 @@ Singleton {
                     bluetooth: true,
                     updates: true,
                     caffeine: true,
+                    nightLight: true,
                     powerSave: true,
                     airplane: true,
                     vpn: true,
@@ -1407,6 +1408,7 @@ Singleton {
                             bluetooth: ({ width: 340, height: 300 }),
                             vpn: ({ width: 340, height: 420 }),
                             audio: ({ width: 340, height: 460 }),
+                            nightLight: ({ width: 340, height: 250 }),
                             // Tray item menu: height = its rows, at most this.
                             tray: ({ width: 300, height: 420 })
                         })
@@ -2119,6 +2121,27 @@ Singleton {
             property var caffeine: ({
                     minutes: 0,
                     offBelowPercent: 10
+                })
+            // Night Light (services/NightLight, QS card `nightLight`, IPC
+            // `nightlight`): schedule "sun" (Weather's coordinates; none →
+            // the custom hours) / "custom" (from → to, minutes after
+            // midnight, transitionMin fade inside) / "off" (manual).
+            // temperature = night K, dayTemperature = day K (6500 =
+            // untouched), fadeMs = a toggle / setting change eases over this
+            // long, pauseFullscreen = outputs with a fullscreen window stay
+            // at the day temperature. The sun fade runs between
+            // sunDayElevation and sunNightElevation (degrees).
+            property var nightLight: ({
+                    schedule: "sun",
+                    temperature: 3400,
+                    dayTemperature: 6500,
+                    from: 1320,
+                    to: 420,
+                    transitionMin: 30,
+                    fadeMs: 1200,
+                    pauseFullscreen: false,
+                    sunDayElevation: 3,
+                    sunNightElevation: -6
                 })
             // Session menu (services/Session, modules/session). actions =
             // buttons in order (lock logout suspend hibernate reboot

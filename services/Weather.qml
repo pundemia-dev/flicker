@@ -30,6 +30,10 @@ Item {
     property int utcOffset: -new Date().getTimezoneOffset() * 60
 
     property string _loc: ""
+    // Resolved coordinates (NaN before the first lookup; NightLight's sun
+    // schedule reads them and keeps its own copy for offline starts).
+    readonly property real latitude: root._loc.indexOf(",") !== -1 ? parseFloat(root._loc.split(",")[0]) : NaN
+    readonly property real longitude: root._loc.indexOf(",") !== -1 ? parseFloat(root._loc.split(",")[1]) : NaN
     property string _resolvedKey: ""
 
     readonly property string _wanted: Config.data.dashboard.weatherLocation ?? ""

@@ -33,6 +33,7 @@ Item {
             lowPower: lowPowerComp,
             airplane: airplaneComp,
             caffeine: caffeineComp,
+            nightLight: nightLightComp,
             vpn: vpnComp,
             shazam: shazamComp,
             timer: timerComp,
@@ -48,6 +49,7 @@ Item {
             wifi: wifiPanelComp,
             bluetooth: btPanelComp,
             vpn: vpnPanelComp,
+            nightLight: nightLightPanelComp,
             audio: audioPanelComp,
             tray: trayMenuComp
         })[id] ?? null;
@@ -76,6 +78,16 @@ Item {
     Component {
         id: vpnPanelComp
         VpnPanel {
+            services: root.services
+            onCloseRequested: root.closeRequested()
+            cfg: root.services.config.quicksettings
+            theme: root.theme
+            frost: root.services.frost ?? null
+        }
+    }
+    Component {
+        id: nightLightPanelComp
+        NightLightPanel {
             services: root.services
             onCloseRequested: root.closeRequested()
             cfg: root.services.config.quicksettings
@@ -261,6 +273,21 @@ Item {
             on: caffeine?.active ?? false
             status: !on && others.length > 0 ? I18n.tr("Held by %1").arg(others[0].label) : (caffeine?.status ?? I18n.tr("Off"))
             activate: () => caffeine?.toggle()
+        }
+    }
+    // Night Light (services/NightLight): a tap against the schedule holds
+    // until its next turn; status = until / from when. Long press = the
+    // panel (warmth, today's schedule).
+    Component {
+        id: nightLightComp
+        ButtonCard {
+            readonly property var nl: root.services.nightLight ?? null
+            glyph: QsCatalog.glyphOf("nightLight")
+            title: I18n.tr(QsCatalog.titleOf("nightLight"))
+            accent: root.theme?.qsOrange ?? "#FF9F0A"
+            on: nl?.active ?? false
+            status: nl?.status ?? I18n.tr("Unavailable")
+            activate: () => nl?.toggle()
         }
     }
     // VPN (services/Vpn): sing-box on / off; status = the node, or the

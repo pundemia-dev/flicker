@@ -123,7 +123,10 @@ Scope {
         dictation: dictationService
         prompter: prompterService
         compositor: compositorService
+        onResumed: nightLightService.reapply()
     }
+    // Night Light: warm colours at night (own wlr-gamma-control client).
+    NightLight { id: nightLightService; events: eventsService; weather: weatherService; compositor: compositorService }
 
     CaptureScope {
         id: captureService
@@ -195,7 +198,7 @@ Scope {
     }
 
     // Settings window (an ordinary app window; IPC `settings`).
-    SettingsScope { id: settingsScope; theme: themeService; wallpaper: wallpaperService; vpn: vpnService; audio: audioService; audioDevices: audioDevicesService; audioPolicy: audioPolicyService; displays: displaysService; notifications: notificationsService; idle: idleService }
+    SettingsScope { id: settingsScope; theme: themeService; wallpaper: wallpaperService; vpn: vpnService; audio: audioService; audioDevices: audioDevicesService; audioPolicy: audioPolicyService; displays: displaysService; notifications: notificationsService; idle: idleService; nightLight: nightLightService }
 
     OsdWatcher {
         registry: islandRegistry
@@ -232,6 +235,7 @@ Scope {
                 events: eventsService
                 caffeine: caffeineService
                 idle: idleService
+                nightLight: nightLightService
                 powerMode: powerModeService
                 airplane: airplaneService
                 vpn: vpnService

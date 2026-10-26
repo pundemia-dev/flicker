@@ -26,6 +26,7 @@ FloatingWindow {
     required property var displays
     required property var notifications
     property var idle: null
+    property var nightLight: null
     property string initialSection: "general"
 
     property string section: Schema.section(root.initialSection).id
@@ -380,6 +381,20 @@ FloatingWindow {
             const bad = Notifs.ruleError(root.ruleAt(group.ref), tr);
             if (bad)
                 return { text: bad, alert: true };
+            break;
+        }
+        case "nightLight": {
+            const nl = root.nightLight;
+            if (!nl)
+                break;
+            if (!nl.available)
+                return { text: I18n.tr("The compositor has no gamma control (wlr-gamma-control)."), alert: true };
+            if (nl.failed.length > 0)
+                return { text: I18n.tr("Another program controls the colours of %1 (wlsunset, gammastep?).").arg(nl.failed.join(", ")), alert: true };
+            if (nl.sunFallback)
+                return { text: I18n.tr("Location unknown yet: the custom hours are used."), alert: true };
+            if (nl.mode === "sun")
+                return { text: I18n.tr("Sunset %1, sunrise %2. The fade follows the sun from just above the horizon to the end of twilight.").arg(nl.hm(nl.sunset)).arg(nl.hm(nl.sunrise)), alert: false };
             break;
         }
         case "idleHolders": {

@@ -298,8 +298,11 @@ Scope {
     // the desktop for seconds. Not locked yet = the quick lock (no grab).
     // Already locking (session menu Sleep) = wait for its animation to end.
     property bool releasePending: false
+    // logind PrepareForSleep(false): back from suspend (NightLight re-sends).
+    signal resumed
     function prepareSleep(going: bool): void {
         if (!going) {
+            root.resumed();
             root.releasePending = false;
             releaseFallback.stop();
             settle.stop();

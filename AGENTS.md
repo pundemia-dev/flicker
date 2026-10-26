@@ -28,6 +28,8 @@ user's data) live outside the repo: `CLAUDE.local.md` (git-ignored) and `~/.clau
   mouse (needs a writable /dev/uinput), clicks/moves land through the compositor
   like a real mouse. Move in SMALL steps (`-40 0` ×20): one large relative jump barely moves
   the cursor. Cursor position: debugState `capture.square` while capture is open.
+- Hot reload follows the files by inode: `sed -i` (and anything that replaces a file) silently
+  drops it from the watch — no reload, no error. Edit in place (Edit tool / python open "w").
 - Visual check: `grim /tmp/shot.png`, crop top-center. If grim is slow (~1.9 s seen), raise
   `timings.osdAutoCloseMs` when screenshotting short-lived states.
 - IPC: `quickshell -p $PWD ipc call <target> <fn>` (with a live instance running,
@@ -141,6 +143,32 @@ user's data) live outside the repo: `CLAUDE.local.md` (git-ignored) and `~/.clau
   the user's level back on exit). Non-backlit outputs: `core/IdleShade.qml`. DPMS per backend
   (`idle.dpms`); driftwm has no action, only wlr-output-power → `wlopm` (else dark backlight).
   IPC `idle`: status, caffeine, caffeineFor <min>, caffeineOff, test dim|warn|off, wake.
+- Night Light (Oct 2026, no wlsunset / gammastep / hyprsunset): `services/NightLight.qml` owns the
+  schedule, `scripts/nightlight/gammad.py` = a bare wlr-gamma-control client (raw Wayland wire over
+  the socket, no pywayland; stdin JSON `{"temps": {"*": K, "<output>": K}, "fade": ms}` /
+  `{"reapply": true}`, stdout `ready|unsupported|outputs a,b|failed <out>`, exit 3 = no protocol).
+  It is a DAEMON + relay: a gamma control dies with its Wayland connection (identity = a cold flash
+  on every shell reload, seen live: warm → cold → fade warm) and the compositor refuses a second
+  control while the old one is held. The first run forks a detached daemon (abstract socket
+  `flicker-gammad-$WAYLAND_DISPLAY`, log `$XDG_RUNTIME_DIR/flicker/gammad.log`); each shell
+  generation's Process is a thin relay, so a reload changes nothing on screen (verified: 30
+  GAMMA_LUT samples across a reload, all equal). No relay for 3 s = the shell quit → the daemon exits.
+  A daemon from an older gammad.py (mtime stamp) is replaced — one flash, on code changes only.
+  Colour = wlsunset's white point (illuminant D / Planckian blend), fades eased in MIREDS, an output
+  at 6500 K releases its control (compositor identity). Each set_gamma is a blocking DRM commit in
+  the compositor: 15-31 ms measured on driftwm 0.19 / i915 (~26 ms on niri per noctalia) → fades
+  capped at 15 uploads/s, equal 10 K steps never re-sent; schedule ticks (15 s while ramping) are
+  sent with fade = the tick, so the ramp is continuous at ~10 K per upload. driftwm reads the fd
+  from its CURRENT offset (`File::from(fd)`) → lseek 0 after writing the memfd. Verified with
+  `modetest -M i915 -p` (CRTC GAMMA_LUT blob). Schedule `sun` = SunTimes.js (NOAA, fade between
+  +3° and -6°, polar day / night handled) from Weather's resolved coordinates (cached in
+  `nightlight.json` for offline starts; none ever → the custom hours), `custom` = from → to with the
+  fade inside the window, `off` = manual. A toggle against the schedule = override until its next
+  turn the same way (on → until dawn's fade starts, off → until the evening fade) — no jump when it
+  expires. QS card `nightLight` + panel (warmth slider previews even while off, 24 h strip), Settings
+  → Night Light (number rows `time: true` = minutes shown HH:MM), IPC `nightlight` toggle / on / off /
+  preview <K> / status. Idle's `resumed` signal → `reapply()`. NOT tested: a second gamma client
+  (`failed`), niri, multi-output, pauseFullscreen live.
 - Trackpad haptics (Oct 2026), hardware-agnostic — full contract in `docs/haptics.md`:
   `services/Haptics.qml` (Shell → Island → services map, ControlCenter, OsdWatcher) runs
   `scripts/haptics/run.py` (dispatcher: `backend: "auto"` probes `order`, or a name, or a

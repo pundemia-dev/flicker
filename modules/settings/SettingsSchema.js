@@ -16,7 +16,8 @@
 //   number  min max step  raw config units; shown as value / scale with
 //           scale suffix  `decimals` places + suffix; `slider` = a slider
 //           decimals      under the label instead of the stepper;
-//           zeroLabel     `zeroLabel` = shown instead of 0 ("Off")
+//           zeroLabel     `zeroLabel` = shown instead of 0 ("Off");
+//           time          `time` = minutes after midnight shown as HH:MM
 //   text                  inline field; `array` = string list joined by
 //                         spaces (argv / paths)
 //   set     options       multi-select drill-down; the config holds the
@@ -139,6 +140,7 @@ const SIDEBAR = [
                     { key: "events.displays", label: "Displays", kind: "bool" },
                     { key: "events.drives", label: "Drives", kind: "bool" },
                     { key: "events.caffeine", label: "Caffeine", kind: "bool" },
+                    { key: "events.nightLight", label: "Night Light", kind: "bool" },
                     { key: "events.shazam", label: "Shazam", kind: "bool" },
                     { key: "events.transcribe", label: "Transcription", kind: "bool" },
                     { key: "events.pacman", label: "Package manager", kind: "bool" },
@@ -272,6 +274,31 @@ const SIDEBAR = [
                     { key: "displays.restore", label: "Restore saved layouts", kind: "bool", keywords: "monitor profile kanshi" },
                     { key: "displays.confirmSec", label: "Revert unconfirmed changes after", kind: "number", min: 5, max: 60, step: 5, suffix: " s" },
                     { kind: "action", label: "Forget saved layouts", action: "displayForget", destructive: true, confirm: "Tap again to forget" }
+                ] }
+            ]
+        },
+        {
+            // services/NightLight; footer = today's sun times or why the
+            // schedule cannot run.
+            id: "nightLight", title: "Night Light", glyph: "\uece7", tint: "qsOrange",
+            groups: [
+                { footerFrom: "nightLight", rows: [
+                    { key: "nightLight.schedule", label: "Schedule", kind: "choice", segments: true, keywords: "night shift blue light gamma redshift wlsunset gammastep", options: [
+                        { value: "sun", label: "Sunset to sunrise" }, { value: "custom", label: "Custom" }, { value: "off", label: "Off" }
+                    ] }
+                ] },
+                { title: "Custom hours", dependsOn: "!nightLight.schedule=off", footer: "Sunset to sunrise uses these hours too until the location is known (the Weather location in Dashboard).", rows: [
+                    { key: "nightLight.from", label: "Turn on at", kind: "number", time: true, min: 0, max: 1425, step: 15 },
+                    { key: "nightLight.to", label: "Turn off at", kind: "number", time: true, min: 0, max: 1425, step: 15 },
+                    { key: "nightLight.transitionMin", label: "Fade over", kind: "number", min: 0, max: 120, step: 5, suffix: " min", zeroLabel: "Instant" }
+                ] },
+                { title: "Colour", footer: "6500 K = the colours untouched. Dragging the slider in Quick Settings previews the warmth even while Night Light is off.", rows: [
+                    { key: "nightLight.temperature", label: "Night warmth", kind: "number", min: 1900, max: 6000, step: 100, suffix: " K", slider: true, keywords: "temperature kelvin" },
+                    { key: "nightLight.dayTemperature", label: "Day temperature", kind: "number", min: 4500, max: 6500, step: 100, suffix: " K" }
+                ] },
+                { title: "Behaviour", footer: "A tap against the schedule lasts until its next turn: on until the morning, off until the evening.", rows: [
+                    { key: "nightLight.fadeMs", label: "Fade on toggle", kind: "number", min: 0, max: 5000, step: 200, scale: S, decimals: 1, suffix: " s", zeroLabel: "Instant" },
+                    { key: "nightLight.pauseFullscreen", label: "Day colours in fullscreen", kind: "bool", keywords: "games video" }
                 ] }
             ]
         },
