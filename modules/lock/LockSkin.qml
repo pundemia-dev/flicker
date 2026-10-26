@@ -52,6 +52,12 @@ Item {
         }
     }
 
+    // The lock's final frame is up: backdrop dissolved, field and clock in
+    // their slots. LockScope.settled = on every output (sleep waits for it).
+    readonly property bool settled: backdrop.atRest && field.out && field.atField && clock.atSlot
+    onSettledChanged: root.scope?.surfaceSettled(root.screen?.name ?? "", root.settled)
+    Component.onDestruction: root.scope?.surfaceSettled(root.screen?.name ?? "", false)
+
     // Unlock finishes once the regions are back AND the field is home.
     property bool backDone: false
     property bool fieldHome: false

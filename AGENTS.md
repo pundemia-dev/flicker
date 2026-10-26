@@ -129,6 +129,18 @@ user's data) live outside the repo: `CLAUDE.local.md` (git-ignored) and `~/.clau
   PathSvg tab joined to the edge by concave Bézier suction curves (spread / rise / strength) and a convex quarter ellipse (`radius` along the top, the rest of the height up) from the suction straight into the top edge in `corners.color`, SpringAnimation on height.
   Access = `scripts/touchbar/udev.rules` (uaccess); without it the script waits and logs the
   sudo hint once. Config `touchBar` (width/height/widthMode/span/offset in Settings → Keyboard).
+- Idle chain (Oct 2026, no hypridle/swayidle): `services/Idle.qml` = Quickshell `IdleMonitor`s per
+  stage (dim → lock countdown event → lock → screen off → sleep, `idle.ac`/`idle.battery`, while
+  locked `lockedScreenOffSec`), gated by `holders` IN THE SHELL (Caffeine, D-Bus ScreenSaver,
+  systemd-inhibit idle, recording, dictation, prompter, opt. fullscreen/media) — driftwm counts a
+  Wayland inhibitor only while its surface is on screen. `sleepBlockers` (media, status keys in
+  `idle.sleepWaitsFor`) hold only the sleep. `scripts/idle/idled.py` (Gio): owns
+  org.freedesktop.ScreenSaver, logind PrepareForSleep/Lock/ListInhibitors, a sleep DELAY inhibitor
+  (lid / power key / systemctl suspend lock first, released once `lock.locked`), Locked/IdleHint,
+  backlight ramps via logind SetBrightness (`Brightness.held` = not saved, no OSD; the helper puts
+  the user's level back on exit). Non-backlit outputs: `core/IdleShade.qml`. DPMS per backend
+  (`idle.dpms`); driftwm has no action, only wlr-output-power → `wlopm` (else dark backlight).
+  IPC `idle`: status, caffeine, caffeineFor <min>, caffeineOff, test dim|warn|off, wake.
 - Trackpad haptics (Oct 2026), hardware-agnostic — full contract in `docs/haptics.md`:
   `services/Haptics.qml` (Shell → Island → services map, ControlCenter, OsdWatcher) runs
   `scripts/haptics/run.py` (dispatcher: `backend: "auto"` probes `order`, or a name, or a

@@ -2061,6 +2061,65 @@ Singleton {
                     fingerprintWakeGraceMs: 10000,
                     fingerprintSleepHoldMs: 60000
                 })
+            // Idle chain (services/Idle, scripts/idle/idled.py). Stage times
+            // are seconds since the last input per power source (0 = off):
+            // dim → lock (lockWarnSec of island countdown before it) → screen
+            // off → sleep (sleepAction = a session.commands id). Locked:
+            // screens off after lockedScreenOffSec. dimLevel = fraction of
+            // the user's backlight (shade 1 - dimLevel on outputs without
+            // one; backlitOutputs = regex of outputs with the backlight);
+            // dimMs / offFadeMs ease in, undimMs back. appInhibitors = apps
+            // may hold it (Wayland, D-Bus ScreenSaver, systemd-inhibit);
+            // media: playing media holds none | sleep | all; fullscreen = a
+            // fullscreen window holds it all; sleepWaitsFor = status keys
+            // (services/StatusFeeds) sleep waits for. logindLock = `loginctl
+            // lock-session` locks. dpms = screen on / off commands per
+            // compositor backend (wlopm needs pacman -S wlopm).
+            // sleepLockWaitMs / sleepSettleMs: an outside sleep waits that
+            // long for the lock at most / after it is up.
+            property var idle: ({
+                    enabled: true,
+                    ac: ({
+                            dimSec: 240,
+                            lockSec: 300,
+                            screenOffSec: 600,
+                            sleepSec: 0
+                        }),
+                    battery: ({
+                            dimSec: 120,
+                            lockSec: 180,
+                            screenOffSec: 300,
+                            sleepSec: 900
+                        }),
+                    lockWarnSec: 10,
+                    lockedScreenOffSec: 30,
+                    sleepAction: "suspend",
+                    dimLevel: 0.3,
+                    dimMs: 2000,
+                    offFadeMs: 1500,
+                    undimMs: 250,
+                    backlitOutputs: "^(eDP|LVDS|DSI)",
+                    appInhibitors: true,
+                    media: "sleep",
+                    fullscreen: false,
+                    sleepWaitsFor: ["timer", "recordSaving", "transcribe", "localSend", "pacman", "download", "modelDownload"],
+                    logindLock: true,
+                    sleepLockWaitMs: 4500,
+                    sleepSettleMs: 150,
+                    dpms: ({
+                            niri: ({ off: "niri msg action power-off-monitors", on: "niri msg action power-on-monitors" }),
+                            hyprland: ({ off: "hyprctl dispatch dpms off", on: "hyprctl dispatch dpms on" }),
+                            "default": ({ off: "wlopm --off '*'", on: "wlopm --on '*'" })
+                        })
+                })
+            // Caffeine (services/Caffeine, QS card `caffeine`, IPC `idle
+            // caffeine*`): minutes = how long a tap keeps it on (0 = until
+            // turned off); offBelowPercent = off by itself on battery at
+            // that charge (0 = never).
+            property var caffeine: ({
+                    minutes: 0,
+                    offBelowPercent: 10
+                })
             // Session menu (services/Session, modules/session). actions =
             // buttons in order (lock logout suspend hibernate reboot
             // poweroff), defaultAction = selected on open; confirm = a second

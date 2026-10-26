@@ -37,11 +37,25 @@ Scope {
             return;
         root._locked = now;
         if (!now) {
+            root.quick = false;
             // The grabs show screen contents: gone as soon as the lock is.
             Quickshell.execDetached(["bash", "-c", `rm -f ${root.shq(root.shotDir)}/grab-*`]);
             root.wallpaper?.clock?.lockEnded();
         }
     }
+    // Every output shows the lock's final frame (LockSkin.settled) and the
+    // compositor confirmed the lock: what a sleep has to wait for (Idle).
+    property var settledScreens: ({})
+    readonly property bool settled: root.locked && sessionLock.secure
+        && Quickshell.screens.every(s => root.settledScreens[s.name] === true)
+    function surfaceSettled(name: string, on: bool): void {
+        if (name === "" || (root.settledScreens[name] === true) === on)
+            return;
+        const m = Object.assign({}, root.settledScreens);
+        m[name] = on;
+        root.settledScreens = m;
+    }
+
     // Hot reload while locked: pick the real state up.
     Component.onCompleted: Qt.callLater(root.syncLocked)
     readonly property var cfg: Config.data.lock ?? ({})
@@ -49,6 +63,8 @@ Scope {
     // Grab of this lock (one stamp per lock); "" = locked without a grab.
     property string stamp: ""
     property bool grabbing: false
+    // This lock started quick (activate(true)): LockBackdrop.
+    property bool quick: false
     // IslandRegistry (Shell): the island rect per output at lock time — the
     // password field starts there (LockField).
     property var registry: null
@@ -72,7 +88,11 @@ Scope {
         return root.stamp === "" ? "" : `${root.shotDir}/grab-${name}-${root.stamp}.ppm`;
     }
 
-    function activate(): void {
+    // quick (lock before sleep): the grab is still taken — the unlock plays
+    // back into it — but never shown on the way in: the lock starts black
+    // and settles in ~1 s (the system may freeze mid-animation, and the
+    // wake must never show the desktop).
+    function activate(quick: bool): void {
         if (sessionLock.locked || root.grabbing)
             return;
         // Snapshots for the animation only: whatever throws here must never
@@ -88,6 +108,7 @@ Scope {
         } catch (e) {
             console.warn("[lock] preparing the lock animation failed:", e);
         }
+        root.quick = quick;
         if (!(root.cfg.dissolve ?? true)) {
             root.stamp = "";
             sessionLock.locked = true;
@@ -188,7 +209,7 @@ Scope {
         target: "lock"
         // Deliberately no "toggle"/"unlock" over IPC: unlocking requires PAM
         // authentication. Only `activate` (lock) and `isLocked` are exposed.
-        function activate(): void { root.activate(); }
+        function activate(): void { root.activate(false); }
         function isLocked(): bool { return sessionLock.locked; }
     }
 }

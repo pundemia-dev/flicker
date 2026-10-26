@@ -13,7 +13,7 @@ import "../../components"
 // slightly from the grab (accepted).
 // Layers: black → wallpaper → base grab (island painted out; the tiles'
 // texture source) →
-// tiles → black cover (only when locked without a grab: it fades out instead).
+// tiles → black cover (locked without a grab, or quick: only on the way in).
 Item {
     id: root
 
@@ -22,6 +22,9 @@ Item {
     readonly property var cfg: root.scope?.cfg ?? ({})
     readonly property real dpr: root.screen?.devicePixelRatio ?? 1
     readonly property string grab: root.scope?.grabPath(root.screen?.name ?? "") ?? ""
+    // Quick lock (before sleep): the black cover hides the grab on the way
+    // in; the unlock still returns to the grab.
+    readonly property bool quick: root.scope?.quick ?? false
 
     // regions.sh answer ({w, h, regions, wallpaper}); null until it lands.
     property var info: null
@@ -43,6 +46,10 @@ Item {
     }
 
     signal unlockDone
+
+    // The dissolve has finished (LockSkin.settled).
+    readonly property bool atRest: root.dissolved && !root.unlocking
+        && (root.grab === "" || base.p < 0.01) && (!cover.visible || cover.p < 0.01)
 
     // The base grab (texture source for LockField's bar crop); null = no grab.
     readonly property Item grabItem: root.grab !== "" ? grabImg : null
@@ -94,7 +101,7 @@ Item {
             if (t && (t.gone || !t.atRest))
                 return false;
         }
-        return base.p > 0.99 && (root.grab !== "" || cover.p > 0.99);
+        return base.p > 0.99;
     }
 
     Rectangle {
@@ -206,8 +213,10 @@ Item {
         id: cover
         anchors.fill: parent
         color: "black"
-        visible: root.grab === ""
-        property real p: root.dissolved ? 0 : 1
+        visible: root.grab === "" || root.quick
+        // Only on the way in: the unlock never goes back to black (without
+        // a grab it ends on the wallpaper, with one on the grab).
+        property real p: root.dissolved || root.unlocking ? 0 : 1
         Behavior on p {
             NumberAnimation {
                 duration: root.dissolved ? (root.cfg.dissolveMs ?? 400) : (root.cfg.returnMs ?? 300)

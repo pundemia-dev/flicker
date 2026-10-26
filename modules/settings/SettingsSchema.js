@@ -55,6 +55,17 @@ function opts(list) {
     return list.map(v => typeof v === "object" ? v : { value: v, label: String(v) });
 }
 
+// Auto-Lock stage rows of one power source (idle.ac / idle.battery).
+function IDLE_ROWS(src) {
+    const m = { min: 0, max: 7200, step: 60, scale: 60, suffix: " min", zeroLabel: "Never" };
+    return [
+        Object.assign({ key: `idle.${src}.dimSec`, label: "Dim screen after", keywords: "idle" }, m, { kind: "number", step: 30, decimals: 1 }),
+        Object.assign({ key: `idle.${src}.lockSec`, label: "Lock after", keywords: "idle auto-lock" }, m, { kind: "number" }),
+        Object.assign({ key: `idle.${src}.screenOffSec`, label: "Turn screen off after", keywords: "idle dpms" }, m, { kind: "number" }),
+        Object.assign({ key: `idle.${src}.sleepSec`, label: "Sleep after", keywords: "idle suspend" }, m, { kind: "number", step: 300 })
+    ];
+}
+
 const LANGS = [{ value: "auto", label: "Automatic" }, { value: "en", label: "English" }, { value: "ru", label: "Russian" }];
 
 // Carousel settings panel pages → groups (same rows, same store).
@@ -551,6 +562,42 @@ const SIDEBAR = [
                     { key: "battery.lowPercent", label: "Low at", kind: "number", min: 5, max: 50, step: 1, suffix: " %" },
                     { key: "battery.criticalPercent", label: "Critical at", kind: "number", min: 1, max: 20, step: 1, suffix: " %" },
                     { key: "battery.chargeLimit", label: "Charge limit", kind: "number", min: 0, max: 100, step: 5, suffix: " %" }
+                ] }
+            ]
+        },
+        {
+            id: "idle", title: "Auto-Lock & Sleep", glyph: "\ueaf8", tint: "settingsPurple",
+            groups: [
+                { footer: "Counted from the last key press or pointer move. A dim at or after the lock is skipped.", footerFrom: "idleHolders", rows: [
+                    { key: "idle.enabled", label: "Auto-lock and sleep", kind: "bool", keywords: "idle timeout dim screensaver hypridle swayidle" }
+                ] },
+                { title: "On power adapter", dependsOn: "idle.enabled", rows: IDLE_ROWS("ac") },
+                { title: "On battery", dependsOn: "idle.enabled", rows: IDLE_ROWS("battery") },
+                { title: "Behaviour", dependsOn: "idle.enabled", rows: [
+                    { key: "idle.lockWarnSec", label: "Countdown before locking", kind: "number", min: 0, max: 60, step: 5, suffix: " s", zeroLabel: "Off" },
+                    { key: "idle.lockedScreenOffSec", label: "Screen off when locked", kind: "number", min: 0, max: 600, step: 10, suffix: " s", zeroLabel: "Never" },
+                    { key: "idle.dimLevel", label: "Dim to", kind: "number", min: 0.05, max: 0.9, step: 0.05, scale: 0.01, suffix: " %", slider: true },
+                    { key: "idle.sleepAction", label: "Sleep means", kind: "choice", segments: true, options: [
+                        { value: "suspend", label: "Sleep" }, { value: "hibernate", label: "Hibernate" }
+                    ] }
+                ] },
+                { title: "Stay awake for", dependsOn: "idle.enabled", footer: "Apps: video players and browsers ask for it themselves. Sleep still waits for the tasks chosen below.", rows: [
+                    { key: "idle.appInhibitors", label: "Apps that ask", kind: "bool", keywords: "inhibit video" },
+                    { key: "idle.fullscreen", label: "Fullscreen windows", kind: "bool", keywords: "games video" },
+                    { key: "idle.media", label: "Playing media", kind: "choice", options: [
+                        { value: "none", label: "No" }, { value: "sleep", label: "Only keep awake" }, { value: "all", label: "Also no dim or lock" }
+                    ] },
+                    { key: "idle.sleepWaitsFor", label: "Sleep waits for", kind: "set", options: [
+                        { value: "timer", label: "Timer" }, { value: "recordSaving", label: "Saving a recording" },
+                        { value: "transcribe", label: "Transcription" }, { value: "localSend", label: "LocalSend" },
+                        { value: "pacman", label: "Package manager" }, { value: "download", label: "Downloads" },
+                        { value: "modelDownload", label: "Model downloads" }, { value: "wallpaperIndex", label: "Wallpaper indexing" }
+                    ] },
+                    { key: "idle.logindLock", label: "Lock on loginctl lock-session", kind: "bool" }
+                ] },
+                { title: "Caffeine", footer: "Holds everything above. Also in Quick Settings and IPC idle caffeineFor <min>.", rows: [
+                    { key: "caffeine.minutes", label: "A tap keeps it on", kind: "number", min: 0, max: 480, step: 15, suffix: " min", zeroLabel: "Until off" },
+                    { key: "caffeine.offBelowPercent", label: "Off on battery at", kind: "number", min: 0, max: 50, step: 5, suffix: " %", zeroLabel: "Never" }
                 ] }
             ]
         },

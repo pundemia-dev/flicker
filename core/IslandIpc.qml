@@ -168,7 +168,7 @@ Scope {
             else
                 root.island?.openModule("updates", {});
         }
-        function lock(): void { root.lock.activate(); }
+        function lock(): void { root.lock.activate(false); }
         // Session menu (lock / log out / sleep / restart / shut down), toggle.
         function session(): void { root.island?.toggleSession(); }
         function close(): void {

@@ -29,7 +29,7 @@ Scope {
 
     function exec(id: string): void {
         if (id === "lock") {
-            root.lock.activate();
+            root.lock.activate(false);
             return;
         }
         const cmd = root.commandFor(id);
@@ -41,7 +41,7 @@ Scope {
         // surface gets `lockSettleMs` to map before the system sleeps.
         if ((id === "suspend" || id === "hibernate") && (Config.data.session.lockOnSuspend ?? true)) {
             root.lock.expectSleep();
-            root.lock.activate();
+            root.lock.activate(false);
             const s = (Config.data.session.lockSettleMs ?? 600) / 1000;
             Quickshell.execDetached(["sh", "-c", `sleep ${s}; ${cmd}`]);
             return;

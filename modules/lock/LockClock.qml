@@ -43,6 +43,8 @@ Item {
     y: root.cy - root.height / 2
     scale: Math.max(0.01, root.s)
 
+    readonly property bool atSlot: root.out && Math.abs(root.cx - (root.slot.x + root.slot.width / 2)) < 1
+        && Math.abs(root.cy - (root.slot.y + root.slot.height / 2)) < 1 && Math.abs(root.s - 1) < 0.01 && fade.p > 0.99
     readonly property bool atHome: root.home !== null && Math.abs(root.cy - root.homeCy) < 1 && Math.abs(root.s - root.homeScale) < 0.01
 
     function place(cx: real, cy: real, s: real, animated: bool): void {

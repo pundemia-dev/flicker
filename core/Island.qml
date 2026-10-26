@@ -25,6 +25,7 @@ PanelWindow {
     required property var privacy
     required property var events
     required property var caffeine
+    property var idle: null
     required property var powerMode
     required property var airplane
     required property var vpn
@@ -1034,7 +1035,7 @@ PanelWindow {
     }
 
     function openLock(): void {
-        root.lock.activate();
+        root.lock.activate(false);
     }
 
     function openNotificationCenter(): void {
@@ -1881,6 +1882,8 @@ PanelWindow {
                         battery: root.battery,
                         powerMode: root.powerMode,
                         airplane: root.airplane,
+                        caffeine: root.caffeine,
+                        idle: root.idle,
                         vpn: root.vpn,
                         openSettings: section => root.settings?.open(section),
                         audioDevices: root.audioDevices,

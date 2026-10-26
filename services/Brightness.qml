@@ -25,6 +25,11 @@ QtObject {
     readonly property real restoreMin: 0.05
     // OsdWatcher skips changes until this timestamp (UI sliders call quiet()).
     property real osdQuietUntil: 0
+    // Idle dim (services/Idle): while held, the idle helper drives the
+    // backlight; readbacks leave `brightness` (the user's level) alone, so
+    // the dim is never saved and never shows the OSD.
+    property bool held: false
+    readonly property int userRaw: Math.round(root.brightness * root.maxRaw)
 
     function quiet(): void {
         root.osdQuietUntil = Date.now() + Config.data.osd.quietMs;
@@ -75,7 +80,7 @@ QtObject {
         onFileChanged: reload()
         onLoaded: {
             const c = parseInt(text().trim());
-            if (isNaN(c) || root.maxRaw <= 0)
+            if (root.held || isNaN(c) || root.maxRaw <= 0)
                 return;
             const v = c / root.maxRaw;
             // Our own optimistic set already holds the rounded percent:

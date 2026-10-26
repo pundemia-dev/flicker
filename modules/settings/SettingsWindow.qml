@@ -25,6 +25,7 @@ FloatingWindow {
     required property var audioPolicy
     required property var displays
     required property var notifications
+    property var idle: null
     property string initialSection: "general"
 
     property string section: Schema.section(root.initialSection).id
@@ -379,6 +380,16 @@ FloatingWindow {
             const bad = Notifs.ruleError(root.ruleAt(group.ref), tr);
             if (bad)
                 return { text: bad, alert: true };
+            break;
+        }
+        case "idleHolders": {
+            // What holds the chain / sleep right now (services/Idle).
+            const h = root.idle?.holders ?? [];
+            if (h.length > 0)
+                return { text: I18n.tr("Kept awake now by: %1.").arg(h.map(x => x.reason ? `${x.label} (${x.reason})` : x.label).join(", ")), alert: false };
+            const b = root.idle?.sleepBlockers ?? [];
+            if (b.length > 0)
+                return { text: I18n.tr("Sleep waits now for: %1.").arg(b.map(x => x.label).join(", ")), alert: false };
             break;
         }
         case "notifRuleUntil": {

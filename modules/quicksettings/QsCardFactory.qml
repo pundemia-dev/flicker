@@ -32,6 +32,7 @@ Item {
             slideshow: slideshowComp,
             lowPower: lowPowerComp,
             airplane: airplaneComp,
+            caffeine: caffeineComp,
             vpn: vpnComp,
             shazam: shazamComp,
             timer: timerComp,
@@ -244,6 +245,22 @@ Item {
             on: mode?.active ?? false
             status: !(mode?.available ?? false) ? I18n.tr("Unavailable") : on ? I18n.tr("On") : I18n.tr("Off")
             activate: () => mode?.toggle()
+        }
+    }
+    // Caffeine (services/Caffeine): the idle chain held (no dim / lock /
+    // sleep); a tap keeps it on for caffeine.minutes (0 = until off).
+    // Status = time left / On, or what else keeps the screen awake now.
+    Component {
+        id: caffeineComp
+        ButtonCard {
+            readonly property var caffeine: root.services.caffeine ?? null
+            readonly property var others: (root.services.idle?.holders ?? []).filter(h => h.kind !== "caffeine")
+            glyph: QsCatalog.glyphOf("caffeine")
+            title: I18n.tr(QsCatalog.titleOf("caffeine"))
+            accent: root.theme?.coffee ?? "#C8915A"
+            on: caffeine?.active ?? false
+            status: !on && others.length > 0 ? I18n.tr("Held by %1").arg(others[0].label) : (caffeine?.status ?? I18n.tr("Off"))
+            activate: () => caffeine?.toggle()
         }
     }
     // VPN (services/Vpn): sing-box on / off; status = the node, or the

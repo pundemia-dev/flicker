@@ -34,6 +34,7 @@ const CARDS = {
     translate: { glyph: "\uebbe", title: "Translate", sizes: BUTTON_WIDE },
     lowPower: { glyph: "\uef3c", title: "Low Power Mode", sizes: BUTTON_SMALL },
     airplane: { glyph: "\ueb6f", title: "Airplane Mode", sizes: BUTTON_SMALL },
+    caffeine: { glyph: "\uef0e", title: "Caffeine", sizes: BUTTON_SMALL },
     cellular: { glyph: "\ueccb", title: "Cellular Data", sizes: BUTTON_SMALL },
     dictation: { glyph: "\uef2c", title: "Dictation", sizes: BUTTON_SMALL },
     stopwatch: { glyph: "\uff9b", title: "Stopwatch", sizes: BUTTON_SMALL },

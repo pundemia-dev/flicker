@@ -28,7 +28,7 @@ Scope {
     EventCharging { id: eventChargingService; events: eventsService; battery: batteryService }
     EventBluetooth { id: eventBluetoothService; events: eventsService; bluetooth: bluetoothService }
     EventUpdates { events: eventsService; powerMode: powerModeService }
-    Caffeine { id: caffeineService; events: eventsService }
+    Caffeine { id: caffeineService; events: eventsService; battery: batteryService }
     // Low Power Mode: system power-saver profile + background work shed.
     PowerMode { id: powerModeService; events: eventsService }
     // Airplane Mode: every radio rfkill-blocked, the previous state restored.
@@ -109,6 +109,21 @@ Scope {
     LockScope { id: lockScope; registry: islandRegistry; keyboard: keyboardIndicatorService; theme: themeService; wallpaper: wallpaperService }
     // Session actions (lock / log out / sleep / restart / shut down).
     Session { id: sessionService; lock: lockScope; compositor: compositorService }
+    // Idle chain: dim → lock → screen off → sleep; Caffeine and apps hold it.
+    Idle {
+        id: idleService
+        lock: lockScope
+        session: sessionService
+        brightness: brightnessService
+        caffeine: caffeineService
+        events: eventsService
+        players: playersService
+        statuses: statusesService
+        recorder: recorderService
+        dictation: dictationService
+        prompter: prompterService
+        compositor: compositorService
+    }
 
     CaptureScope {
         id: captureService
@@ -180,7 +195,7 @@ Scope {
     }
 
     // Settings window (an ordinary app window; IPC `settings`).
-    SettingsScope { id: settingsScope; theme: themeService; wallpaper: wallpaperService; vpn: vpnService; audio: audioService; audioDevices: audioDevicesService; audioPolicy: audioPolicyService; displays: displaysService; notifications: notificationsService }
+    SettingsScope { id: settingsScope; theme: themeService; wallpaper: wallpaperService; vpn: vpnService; audio: audioService; audioDevices: audioDevicesService; audioPolicy: audioPolicyService; displays: displaysService; notifications: notificationsService; idle: idleService }
 
     OsdWatcher {
         registry: islandRegistry
@@ -188,6 +203,15 @@ Scope {
         compositor: compositorService
         audio: audioService
         brightness: brightnessService
+    }
+
+    Variants {
+        model: Quickshell.screens
+        IdleShade {
+            required property ShellScreen modelData
+            targetScreen: modelData
+            idle: idleService
+        }
     }
 
     Variants {
@@ -207,6 +231,7 @@ Scope {
                 privacy: privacyService
                 events: eventsService
                 caffeine: caffeineService
+                idle: idleService
                 powerMode: powerModeService
                 airplane: airplaneService
                 vpn: vpnService
