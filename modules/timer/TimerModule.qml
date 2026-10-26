@@ -221,6 +221,9 @@ Item {
             family: root.theme?.fontFamily ?? "SF Pro Display"
             pixelSize: root.liveSize
             weight: Font.DemiBold
+            // Drawn at liveSize and scaled (setup ≈ 0.65): NativeRendering
+            // glyphs hinted at 46 px came out distorted once scaled down.
+            renderType: Text.CurveRendering
         }
     }
 
