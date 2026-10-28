@@ -437,6 +437,70 @@ Singleton {
                     widthSpring: 4,
                     widthDamping: 0.4
                 })
+            // Translator (services/Translator + TranslateJob, modules/translator,
+            // launcher plugin `!tr`). engine google | deepl | ai | duckduckgo
+            // (scripts/translator/translate.py; deepl needs "deepl" in
+            // ai.keysFile; ai = services/Ai with aiPrompt, aiModel "" = ai.model).
+            // source "auto" | a code, target = a code; text already in the
+            // target goes to secondTarget (DeepL extension). selection: the
+            // pill on any text selection (Wayland primary selection) — shown
+            // showMs (held while hovered) for selections of minChars..maxChars;
+            // ignoreApps = app_ids that never get it; a probe waits up to
+            // releaseTimeoutMs for the mouse button to come up, an enter later
+            // than heldMs = a mouse selection (pill under the pointer, else
+            // under the caret); pill = KeyboardPill overrides (keyboard.* keys).
+            // panel: the translation window (px; sourceLines of the selected
+            // text before "show all"). debounceMs: launcher typing → request.
+            property var translator: ({
+                    engine: "google",
+                    source: "auto",
+                    target: "ru",
+                    secondTarget: "en",
+                    debounceMs: 450,
+                    aiModel: "",
+                    aiPrompt: "Translate the following text from {{from-language}} to {{to-language}}. Output only the translation, with no explanations, notes or quotes.\n\n{{text-to-translate}}",
+                    pasteDelayMs: 180,
+                    pasteCommand: "wtype -M ctrl v -m ctrl",
+                    selection: ({
+                            enabled: true,
+                            showMs: 4000,
+                            minChars: 2,
+                            maxChars: 5000,
+                            heldMs: 60,
+                            caretRecentMs: 500,
+                            releaseTimeoutMs: 20000,
+                            directProbeMs: 300,
+                            watchRestartMs: 3000,
+                            pointerHeight: 22,
+                            ignoreApps: ["org.quickshell"],
+                            pill: ({ pillPadding: 11, glyphSize: 15, glyphGap: 5 })
+                        }),
+                    panel: ({
+                            width: 420,
+                            maxHeight: 420,
+                            padding: 14,
+                            gap: 10,
+                            radius: 22,
+                            edgeMargin: 8,
+                            anchorGap: 8,
+                            fontSize: 15,
+                            sourceSize: 12,
+                            sourceLines: 3,
+                            sourceMaxShare: 0.4
+                        }),
+                    launcher: ({ minHeight: 120, maxHeight: 360, fontSize: 17 })
+                })
+            // AI backend (services/Ai, scripts/ai/server.py — started on the
+            // first request). model: an id from services/AiModels.js,
+            // "ollama/<name>" or "g4f/<model>" (keyless). keysFile: chmod-600
+            // JSON {"gemini": "...", "anthropic": "...", "deepl": "..."}.
+            property var ai: ({
+                    model: "g4f/gpt-4",
+                    temperature: 0.7,
+                    keysFile: "~/.config/flicker/apikeys.json",
+                    startTimeoutMs: 90000,
+                    restartMs: 3000
+                })
             // Drawn animated glyphs of event indicators (indicators/*Glyph.qml).
             // pacman: sizes are fractions of the glyph size; mouth = jaw
             // half-angle (deg); dotStart = dot spawn distance in radii right

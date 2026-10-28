@@ -9,11 +9,15 @@ import "../../components"
 // to a new wallpaper), ink picked for contrast. A soft shadow from stacked
 // capsules (no shader). Appears through FadeBlur + a scale pop; its width
 // springs between the contents. Position is the overlay's business.
+// Also the translator's selection pill (modules/translator): what
+// "layout" with a Tabler `glyph` before the label.
 Item {
     id: root
     property bool shown: false
     property string what: "caps"
     property string label: ""
+    // Tabler glyph before the label (what "layout"), "" = label only.
+    property string glyph: ""
     property color bg: "#E5E5EA"
     property var cfg: ({})
     property var theme: null
@@ -34,8 +38,9 @@ Item {
         text: root.label
     }
     // Target width (the overlay positions by it, not by the animated one).
+    readonly property real glyphWidth: root.glyph !== "" ? (root.cfg.glyphSize ?? 15) + (root.cfg.glyphGap ?? 5) : 0
     readonly property real targetWidth: root.what === "layout"
-        ? Math.max(root.capsWidth, Math.ceil(fm.advanceWidth) + 2 * root.padX) : root.capsWidth
+        ? Math.max(root.capsWidth, Math.ceil(fm.advanceWidth) + root.glyphWidth + 2 * root.padX) : root.capsWidth
     property real capsuleWidth: root.targetWidth
     Behavior on capsuleWidth { Spring { stiffness: root.cfg.widthSpring ?? 4; damp: root.cfg.widthDamping ?? 0.4 } }
 
@@ -118,9 +123,22 @@ Item {
             anchors.fill: capsule
             shown: root.what === "layout"
 
+            Icon {
+                id: glyphText
+                visible: root.glyph !== ""
+                anchors.verticalCenter: parent.verticalCenter
+                x: (parent.width - root.glyphWidth - labelText.width) / 2
+                text: root.glyph
+                font.family: root.theme?.iconFamily ?? "tabler-icons"
+                iconSize: root.cfg.glyphSize ?? 15
+                iconColor: root.ink
+                renderType: Text.QtRendering
+            }
+
             RollingText {
                 id: labelText
                 anchors.centerIn: parent
+                anchors.horizontalCenterOffset: root.glyphWidth / 2
                 text: root.label
                 color: root.ink
                 pixelSize: root.cfg.labelSize ?? 13

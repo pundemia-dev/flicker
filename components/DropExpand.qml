@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Effects
+import Quickshell.Widgets
 import "../config"
 
 // Drop expansion (user design, first built for the QS Wi‑Fi card): a source
@@ -39,6 +40,9 @@ Item {
     property int shadowSize: 0
     property real shadowStrength: 0
     property real panelRadius: 16
+    // Clip the panel content to the shape's rounded rect (ClippingRectangle),
+    // so scrolled lists don't poke out of the corners.
+    property bool clipPanel: false
     property bool closeOnOutside: true
     // Blur-behind (null = off): an item drawn behind this one, at
     // backdropPos (own coords); the shape shows it blurred by backdropBlur px.
@@ -316,20 +320,27 @@ Item {
 
         // Panel: laid out at its final size, scaled up with the shape.
         FadeBlur {
+            id: panelFade
             width: root.panelW
             height: root.panelH
             anchors.centerIn: parent
             scale: Math.min(shape.width / root.panelW, shape.height / root.panelH)
             stiffness: root.fadeStiffness
             shown: root.opened && root.growOn
-            Loader {
-                id: panelLoader
+            // Radius in panel coords: the shape's, undone by the scale.
+            ClippingRectangle {
                 anchors.fill: parent
-                onLoaded: {
-                    if ("expander" in item)
-                        item.expander = root;
-                    if ("payload" in item)
-                        item.payload = root.opts.payload ?? null;
+                color: "transparent"
+                radius: root.clipPanel && panelFade.scale > 0 ? Math.min(root.curR / panelFade.scale, width / 2, height / 2) : 0
+                Loader {
+                    id: panelLoader
+                    anchors.fill: parent
+                    onLoaded: {
+                        if ("expander" in item)
+                            item.expander = root;
+                        if ("payload" in item)
+                            item.payload = root.opts.payload ?? null;
+                    }
                 }
             }
         }

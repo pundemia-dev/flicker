@@ -1,5 +1,6 @@
 .pragma library
 .import "../launcher/plugins/wallpapers/WallSettingsList.js" as Wall
+.import "../../services/Languages.js" as Langs
 
 // What the settings window shows: module BEHAVIOUR only (user decision —
 // no paddings / radii / springs, those stay in config.json). Strings are
@@ -432,6 +433,29 @@ const SIDEBAR = [
                         { value: "deg", label: "Degrees" }, { value: "rad", label: "Radians" }
                     ] },
                     { key: "launcher.calc.historyLimit", label: "History", kind: "number", min: 0, max: 500, step: 10, suffix: " items" }
+                ] }
+            ]
+        },
+        {
+            id: "translator", title: "Translator", glyph: "\uebbe", tint: "settingsTeal",
+            groups: [
+                { footer: "Select text anywhere: a pill with a translate button pops up next to it, a click opens the translation. Launcher: !tr.", dependsOn: "translator.selection.enabled", rows: [
+                    { key: "translator.selection.enabled", label: "Pill on text selection", kind: "bool", keywords: "deepl selection primary" },
+                    { key: "translator.selection.showMs", label: "Show for", kind: "number", min: 1000, max: 15000, step: 500, scale: S, decimals: 1, suffix: " s" },
+                    { key: "translator.selection.minChars", label: "Shortest selection", kind: "number", min: 1, max: 50, step: 1, suffix: " chars" },
+                    { key: "translator.selection.ignoreApps", label: "Never in apps", kind: "text", array: true, wide: true, allowEmpty: true, placeholder: "app_id …", keywords: "exclude ignore" }
+                ] },
+                { title: "Translation", footer: "Text already in the target language is translated to the second language (DeepL). DeepL needs a \"deepl\" key in the AI keys file.", rows: [
+                    { key: "translator.engine", label: "Engine", kind: "choice", options: [
+                        { value: "google", label: "Google" }, { value: "deepl", label: "DeepL" }, { value: "ai", label: "AI" }, { value: "duckduckgo", label: "DuckDuckGo" }
+                    ] },
+                    { key: "translator.source", label: "From", kind: "choice", options: Langs.list.map(l => ({ value: l.code, label: l.name })) },
+                    { key: "translator.target", label: "To", kind: "choice", options: Langs.targets().map(l => ({ value: l.code, label: l.name })) },
+                    { key: "translator.secondTarget", label: "Second language", kind: "choice", options: Langs.targets().map(l => ({ value: l.code, label: l.name })) }
+                ] },
+                { title: "AI", footer: "Model: g4f/<model> (keyless, unreliable), ollama/<name> or a built-in id (key in the keys file).", rows: [
+                    { key: "ai.model", label: "Model", kind: "text", keywords: "g4f ollama gemini claude gpt" },
+                    { key: "ai.keysFile", label: "Keys file", kind: "text", wide: true, keywords: "api key token" }
                 ] }
             ]
         },

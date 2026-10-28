@@ -27,6 +27,9 @@ PanelWindow {
     required property var caffeine
     property var idle: null
     property var nightLight: null
+    // services/Translator + services/Ai (launcher plugin `!tr`).
+    property var translator: null
+    property var ai: null
     required property var powerMode
     required property var airplane
     required property var vpn
@@ -1915,6 +1918,8 @@ PanelWindow {
                                 wallpaper: root.wallpaper,
                                 prompter: root.prompter,
                                 clipboardWatch: root.clipboardWatch,
+                                translator: root.translator,
+                                ai: root.ai,
                                 screen: root.targetScreen?.name ?? "",
                                 originX: 0.5,
                                 originY: (root.islandCfg.topMargin + root.islandCfg.height / 2) / Math.max(1, root.targetScreen?.height ?? 1)

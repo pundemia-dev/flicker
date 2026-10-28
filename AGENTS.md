@@ -35,7 +35,7 @@ user's data) live outside the repo: `CLAUDE.local.md` (git-ignored) and `~/.clau
 - IPC: `quickshell -p $PWD ipc call <target> <fn>` (with a live instance running,
   address yours via `quickshell ipc --id <by-id dir> call ...`). `island` is ONE handler
   (`core/IslandIpc.qml`) routed via `core/IslandRegistry.qml` to the island on
-  `compositor.focusedOutput` — never put an IpcHandler in per-screen Island. Targets: `island` (launcher (toggle), launcherPlugin <id> (apps|clipboard|wallpapers|prompter|calc, toggle), quicksettings, quicksettingsEdit/Page/Resize/Expand, quicksettingsPanel <cmd> <arg>, stashMenu <i>,
+  `compositor.focusedOutput` — never put an IpcHandler in per-screen Island. Targets: `island` (launcher (toggle), launcherPlugin <id> (apps|clipboard|wallpapers|prompter|calc|translate, toggle), quicksettings, quicksettingsEdit/Page/Resize/Expand, quicksettingsPanel <cmd> <arg>, stashMenu <i>,
   notifications, stash (tray toggle), capture (again while open = next mode), captureMode(shot|record|color|
   window|ai|scan), captureScreen (= Enter in the active tool), captureCancel, session (session menu toggle), screenshot
   (instant, no overlay), record (toggle), recordPause, recordControls, dashboard, dashboardEdit, dashboardResize, dashboardMove, player, lyrics (player's lyrics panel toggle), updates (toggle), lock, close, minimal, island, osd, debugState,
@@ -44,6 +44,7 @@ user's data) live outside the repo: `CLAUDE.local.md` (git-ignored) and `~/.clau
   keyboardDemo layout|caps, touchBarDemo <x 0..1> <ms>, shazam (listen / cancel), timer (module toggle), timerStart <min>, timerPause (toggle), timerCancel, stashTranscript <path>, stashPreview <path>,
   statusDemo <name> <percent> (<0 = spinning) / statusDemoEnd <name> / statusNext (= swipe on the drop),
   `dictation` (start/stop/toggle/cancel/status),
+  `translator` (selection / text <s> / close / language <code> / engine <id> / status),
   `settings` (open / section <id> / close / toggle — the settings window, section ids in
   `modules/settings/SettingsSchema.js`),
   `displays` (state (JSON), set <output> <key> <value>, place <output> <x> <y>, apply / keep / revert / discard),
@@ -1505,6 +1506,72 @@ user's data) live outside the repo: `CLAUDE.local.md` (git-ignored) and `~/.clau
   `island keyboardDemo layout|caps`, debugState `keyboard`. Verified live: caret follow while
   typing, caps→EN→caps at the caret, launcher → pointer, bottom-right corner clamp. NOT tested:
   niri (windowRects there NOT live-tested), multi-output, zoomed drift canvas.
+- Translator (Oct 2026, user: DeepL browser extension shell-wide; backend = pShell's): select text
+  anywhere → a pill (the keyboard pill `KeyboardPill` + `glyph`) next to it → a click grows it into
+  the translation panel (ColorPanel grow pattern: `growT` lerps pill capsule rect / colour → panel).
+  `services/Translator.qml` (Shell, IPC `translator`: selection / text <s> / close / language <code> /
+  engine <id> / status) watches the PRIMARY selection (`wl-paste --primary --type text --watch`,
+  argv[0] `flicker-selwatch`; GTK4 re-offers on EVERY drag step, verified) and on a change maps a
+  full-screen probe surface per output (`modules/translator/SelectionOverlay`) that WAITS for
+  wl_pointer.enter: while the selecting button is held the client's implicit grab keeps the pointer,
+  the enter lands exactly at the button-up (verified on driftwm with a uinput mouse: enter at the
+  release ms; unheld ~17 ms after the map) = "mouse button released" without evdev (no `input`
+  group). Only then the text is read (`wl-paste --primary`, `maxChars`). Enter later than `heldMs` =
+  mouse selection, but kitty offers primary only AFTER the button-up (seen: pill landed on
+  its prompt caret) → caret placement needs no held button AND a real caret move (rect value
+  change) within `caretRecentMs` before the offer (Shift+arrows); everything else = the pointer. Same text again
+  without a held button = ignored (apps re-offer primary on focus changes). Suppressed while locked,
+  an island holds the keyboard or the panel is open; `selection.ignoreApps` by focused app_id. Panel
+  (`TranslatorPanel`): overlay mask = full screen while open (a press outside closes), keyboard
+  Exclusive (Esc / Ctrl+C / Ctrl+Enter = replace), language / engine chips open a `LanguagePicker`
+  in place of the texts, "replace" (only when a caret was up) = wl-copy + `pasteCommand` after
+  `pasteDelayMs`. `services/TranslateJob.qml` = one request (panel + launcher): google / deepl /
+  duckduckgo via `scripts/translator/translate.py` (pShell port, IPv4 forced; Google gtx answers
+  429 "Sorry" to flagged IPs (VPN exit, seen) → falls back to the Chrome extension endpoint
+  `clients5.google.com/translate_a/t?client=dict-chrome-ex`, POST, newlines kept; DuckDuckGo
+  answered 403 (Oct 2026), kept best-effort), "ai" via services/Ai; detected == target →
+  `secondTarget` once (DeepL). Launcher plugin `!tr` (`plugins/translate/`, host.translator): the
+  search field is the input, a body (height from a hidden Text twin) shows the translation; Enter
+  copy + close, Alt+Enter translate back, Tab swaps target ⇄ secondTarget.
+  AI backend = pShell's, ported as `services/Ai.qml` (Shell, host.ai) + `services/AiRequest.qml`
+  (one streamed request: delta / done / failed / models) + `scripts/ai/server.py` (uv: httpx +
+  g4f; IPv4 getaddrinfo patch); the server starts on the FIRST request, not with the shell.
+  ACCESS (user: no random process / malware may use it; pShell's env token was readable through
+  /proc/<pid>/environ by any process of the user, and Math.random made it): AiRequest connects
+  ITSELF (Quickshell.Io `Socket`, pShell's client.py dropped); server.py answers only when the
+  SO_PEERCRED peer is the quickshell that started it (first quickshell ancestor by
+  /proc/<pid>/exe, same uid, exe re-checked) AND the request carries the session token server.py
+  made (`secrets`, sent on its stdout pipe in the ready line, constant-time compare); else it drops
+  the connection and logs "refused connection from pid …" ([Ai] warning). Socket in a private
+  `$XDG_RUNTIME_DIR/flicker-ai/` (0700, owner + not-a-symlink checked), bound under umask 077;
+  server.py refuses to run when no quickshell is among its ancestors; exits when that quickshell
+  goes (2 s). Verified: a foreign python connect → reset + logged; no token in the server's
+  environ / cmdline; a standalone server run refuses. Limits (same uid): a process able to edit
+  ~/.config/quickshell/flicker or read `ai.keysFile` gets around any of this (yama ptrace_scope 1
+  keeps it out of quickshell's memory). keys `ai.keysFile` (chmod 600), models `services/AiModels.js` + Ollama (on server start) +
+  g4f (`discoverG4f()` on demand — it probes providers for real). g4f tried Oct 2026: gpt-4 silent
+  60 s, gpt-4o-mini all providers failed (one tried to drive a browser, CDP timeout) — unreliable.
+  BROWSER WINDOWS (user report): g4f's default RetryProvider includes browser-driven providers
+  (ChatGPT = CDPSession, Copilot / CopilotSession / OpenaiChat = zendriver) that open a real Chrome
+  window; `use_nodriver` lies (ChatGPT reports False). server.py builds its own IterListProvider of
+  keyless providers whose module chain imports none of get_nodriver / get_nodriver_session /
+  get_args_from_nodriver / CDPSession / nodriver (`_g4f_uses_browser`) and replaces those helpers
+  in every loaded g4f module with a raise (`_g4f_no_browser`). Verified: gpt-4 → CopilotApp /
+  Yqcloud, a translation came back, no Chrome process.
+  A chat launcher plugin can reuse AiRequest. Config `translator`, `ai`; settings → Translator.
+  Verified live: IPC `text` → panel + Google result; uinput drag over a GTK4 TextView → pill under
+  the pointer with the final text → click → panel; launcher `!tr` via wtype (typing, Tab →
+  retarget note). A retarget costs a second request (~2 s total on the dict fallback). The gtx
+  refusal is remembered 10 min (`$XDG_RUNTIME_DIR/flicker-translate-gtx-blocked`). NOT tested:
+  mouse in the panel / pickers, replace, DeepL (no key), AI engine end-to-end, niri, multi-output.
+  Panel sizing traps (fixed): heights from twins with no height of their own (a Text whose
+  height is bound to its own implicit height + elide collapsed to one line), and the start snap
+  re-binds `panelHAnimated` (Qt.binding) — a plain assignment froze it at "Translating…".
+  Launcher plugin without rows: `listModel` must be a ScriptModel — a plain [] makes the manager
+  read Array.prototype.values (LauncherList "slice of function values").
+  Quickshell 0.3.2 trap seen here: after a FAILED hot reload (type error) the next successful one
+  left IPC answering "Not ready to accept queries yet" for good (shell itself kept running) — a
+  restart of the shell fixed it.
 - Shazam (Oct 2026): `services/Shazam.qml` (Shell → Island `shazam` → services map, IslandIpc
   `island shazam` = listen / cancel) runs `scripts/shazam/recognize.py` (uv script, shazamio +
   audioop-lts, Python <3.14 — shazamio-core has no 3.14 wheels): parecord raw 16 kHz mono,

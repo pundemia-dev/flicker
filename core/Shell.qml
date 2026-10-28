@@ -6,6 +6,7 @@ import "../compositor"
 import "../modules/lock"
 import "../modules/capture"
 import "../modules/keyboard"
+import "../modules/translator"
 import "../modules/settings"
 
 Scope {
@@ -68,6 +69,10 @@ Scope {
     // Keyboard pill: layout / Caps Lock under the text caret (or pointer).
     Caret { id: caretService; compositor: compositorService; registry: islandRegistry }
     KeyboardIndicator { id: keyboardIndicatorService; keyboardLayout: keyboardLayoutService; caret: caretService }
+    // AI backend (server on the first request) + the translator: a pill on
+    // any text selection → translation panel; launcher plugin `!tr`.
+    Ai { id: aiService }
+    Translator { id: translatorService; ai: aiService; caret: caretService; lock: lockScope; registry: islandRegistry; compositor: compositorService }
     // Teleprompter: shows on the focused output (Island.openPrompter).
     Prompter {
         id: prompterService
@@ -269,6 +274,8 @@ Scope {
                 statuses: statusesService
                 session: sessionService
                 keyboard: keyboardIndicatorService
+                translator: translatorService
+                ai: aiService
             }
 
             KeyboardOverlay {
@@ -277,6 +284,13 @@ Scope {
                 theme: themeService
                 lock: lockScope
                 compositor: compositorService
+            }
+
+            SelectionOverlay {
+                targetScreen: modelData
+                translator: translatorService
+                theme: themeService
+                lock: lockScope
             }
 
             RecordRegionOverlay {
