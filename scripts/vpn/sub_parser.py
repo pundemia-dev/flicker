@@ -841,14 +841,17 @@ def update_clash(text):
 
 def _clash_proxies_fallback(text):
     """Tolerant parser for the `proxies:` list when PyYAML is unavailable.
-    Handles inline flow maps `- {a: b}` and block maps with nested mappings
-    (e.g. ws-opts / headers / reality-opts) via an indentation stack."""
+    Handles inline flow maps `- {a: b}`, block maps with nested mappings
+    (e.g. ws-opts / headers / reality-opts) and block lists inside a proxy
+    (`alpn:` + `- h2` lines, indented or not) via an indentation stack.
+    Stack entries: (child indent, container, parent, key, key indent) —
+    parent[key] is the container, so an empty one can turn into a list."""
     lines = text.splitlines()
     out = []
     in_proxies = False
     cur = None            # current proxy dict
-    item_indent = None    # indent of the `- ` marker
-    stack = []            # list of (indent, container_dict)
+    item_indent = None    # indent of the proxy's `- ` marker
+    stack = []
 
     def flush():
         if cur is not None:
@@ -869,21 +872,26 @@ def _clash_proxies_fallback(text):
         if indent == 0 and not stripped.startswith("-") and stripped.endswith(":"):
             break
 
-        if stripped.startswith("- "):
+        if stripped == "-" or stripped.startswith("- "):
+            item = stripped[1:].strip()
+            # Deeper than the proxy's own marker: a list inside the proxy.
+            if item_indent is not None and indent > item_indent:
+                if cur is not None:
+                    _seq_item(stack, indent, item, raw)
+                continue
             flush()
-            item = stripped[2:].strip()
+            item_indent = indent
             if item.startswith("{"):
                 out.append(_parse_flow_map(item))
                 cur = None
                 stack = []
-                item_indent = None
                 continue
             cur = {}
-            item_indent = indent
-            stack = [(indent + 2, cur)]
+            col = _item_col(raw, indent)
+            stack = [(col, cur, None, None, indent)]
             k, sep, v = item.partition(":")
             if sep:
-                _assign(stack, indent + 2, k.strip(), v.strip())
+                _assign(stack, col, k.strip(), v.strip())
             continue
 
         if cur is None:
@@ -898,17 +906,50 @@ def _clash_proxies_fallback(text):
     return out
 
 
+def _item_col(raw, indent):
+    """Column of what follows a `- ` marker at `indent`."""
+    rest = raw[indent + 1:]
+    return indent + 1 + len(rest) - len(rest.lstrip(" "))
+
+
+def _seq_item(stack, indent, item, raw):
+    # The list belongs to the innermost key opened at or left of this `-`
+    # (`alpn:` + `  - h2`, or YAML's indentless `alpn:` + `- h2`).
+    while len(stack) > 1 and stack[-1][4] > indent:
+        stack.pop()
+    child_indent, seq, parent, key, key_indent = stack[-1]
+    if parent is None:
+        return  # a `-` straight inside a proxy or a list item: not YAML
+    if isinstance(seq, dict):
+        if seq:
+            return  # already a mapping
+        seq = parent[key] = []
+        stack[-1] = (child_indent, seq, parent, key, key_indent)
+    if item.startswith("{"):
+        seq.append(_parse_flow_map(item))
+    elif re.match(r"^[^\s:'\"]+\s*:(\s|$)", item):
+        # `- k: v`: a mapping item, its further keys below at its column.
+        d = {}
+        seq.append(d)
+        col = _item_col(raw, indent)
+        stack.append((col, d, None, None, indent + 1))
+        k, _, v = item.partition(":")
+        _assign(stack, col, k.strip(), v.strip())
+    elif item:
+        seq.append(_yaml_scalar(item))
+
+
 def _assign(stack, indent, key, value):
-    # Find the container whose child-indent matches this line's indent.
-    container = stack[-1][1]
-    for ind, cont in stack:
-        if indent >= ind:
+    # Find the mapping whose child-indent matches this line's indent.
+    container = stack[0][1]
+    for ind, cont, *_ in stack:
+        if indent >= ind and isinstance(cont, dict):
             container = cont
     if value == "":
-        # Opens a nested mapping.
+        # Opens a nested mapping (or a list: _seq_item turns it into one).
         child = {}
         container[key] = child
-        stack.append((indent + 2, child))
+        stack.append((indent + 2, child, container, key, indent))
     else:
         container[key] = _yaml_scalar(value)
 

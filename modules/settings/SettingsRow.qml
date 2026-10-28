@@ -291,7 +291,8 @@ Item {
             align: root.below ? TextInput.AlignLeft : TextInput.AlignRight
             placeholder: root.row.placeholder ?? ""
             allowEmpty: !!root.row.allowEmpty
-            text: root.row.array ? (root.value ?? []).join(" ") : String(root.value ?? "")
+            // A hand-written config may hold one string where a list goes.
+            text: root.row.array ? [].concat(root.value ?? []).join(" ") : String(root.value ?? "")
             onCommitted: t => root.host.setValue(root.row, root.row.array ? t.split(/\s+/).filter(s => s) : t)
         }
     }

@@ -46,9 +46,10 @@
 #                      takes it down ("release" in the panel).
 #   select <tag>       make <tag> the selector default (root), restart the
 #                      unit if it runs
-#   subscribe <url>    remember the URL (user state, 0600), download it as
-#                      the user, then (root) parse + `sing-box check` +
-#                      install config.json, restart the unit if it runs
+#   subscribe <url>    download it as the user, then (root) parse +
+#                      `sing-box check` + install config.json, restart the
+#                      unit if it runs; once applied, remember the URL
+#                      (user state, 0600; a failed one keeps the old)
 #   update             subscribe again with the remembered URL
 #   apply [json] [refresh]
 #                      routing (json = the shell's `vpn.routing`; without it
@@ -602,15 +603,19 @@ subscribe)
     http://* | https://*) ;;
     *) err "not an http(s) URL" ;;
     esac
-    mkdir -p "$state_dir"
-    (umask 077 && printf '%s' "$url" >"$sub_file")
     raw=$(mktemp) || err "mktemp"
     trap 'rm -f "$raw"' EXIT
     curl -4 -sfL -m 20 -A sing-box "$url" -o "$raw" || err "download failed"
     [ -s "$raw" ] || err "empty subscription"
     # The applied routing's rule-sets, refreshed along with the nodes.
     [ -s "$routing_etc" ] && fetch_rules "$routing_etc"
-    pkexec "$(root_self)" _apply "$raw" "$rules_cache"
+    # pkexec's status as is (the panel tells 126 / 127 apart).
+    pkexec "$(root_self)" _apply "$raw" "$rules_cache" || exit
+    # Remembered only once applied: a mistyped / dead URL, a rejected
+    # subscription or a dismissed prompt keeps the working one for `update`.
+    mkdir -p "$state_dir"
+    (umask 077 && printf '%s' "$url" >"$sub_file.new" && mv -f "$sub_file.new" "$sub_file") ||
+        err "applied, but cannot save the subscription URL"
     ;;
 apply)
     mkdir -p "$state_dir"

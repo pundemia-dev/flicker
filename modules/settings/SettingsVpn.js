@@ -100,10 +100,13 @@ function isEmpty(rule) {
 }
 
 // The list row label: the rule's name, else "geoip:ru, geosite:youtube +3".
+// A hand-written config may hold a string `match` (routing.py takes it as
+// one matcher) or a non-string name.
 function summary(rule, tr) {
-    if ((rule.name ?? "").trim() !== "")
-        return rule.name.trim();
-    const m = rule.match ?? [];
+    const name = String(rule.name ?? "").trim();
+    if (name !== "")
+        return name;
+    const m = [].concat(rule.match ?? []).map(String);
     if (m.length === 0)
         return tr("No matches");
     const shown = m.slice(0, 2).join(", ");
