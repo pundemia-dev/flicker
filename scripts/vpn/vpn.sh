@@ -6,9 +6,10 @@
 # active one = its `default`. Ported from the dots-hyprland (ii)
 # virtualprivatenetwork.sh; subscriptions are parsed by sub_parser.py.
 # Nodes sing-box cannot carry (gRPC: its lite transport fails against Xray
-# servers; XHTTP) go to Xray (xray.service) behind local shadowsocks-2022 ports
-# (xray_split.py, keyed), and while there are any xray.service
-# starts / stops / restarts with sing-box.
+# servers; XHTTP, VLESS Encryption) go to Xray (xray.service) behind local
+# shadowsocks-2022 ports (xray_split.py, keyed), and while there are any
+# xray.service starts / stops / restarts with sing-box. Without Xray the
+# XHTTP / Encryption nodes are dropped (a SKIPPED:tag<TAB>why line each).
 # The configs hold the nodes' secrets: root:<unit user> 0640. What the panel
 # needs (nodes, types, the active one, whether Xray is in use, the applied
 # routing) is written next to them, secret-free, to /etc/flicker-vpn/view.json
@@ -759,6 +760,19 @@ _apply)
     etmp=$(mktemp) || err "mktemp"
     trap 'rm -f "$tmp" "$xtmp" "$ntmp" "$etmp"' EXIT
     python3 -I "$here/sub_parser.py" "$tmp" "$2" "$etmp" || err "no nodes in the subscription"
+    # gRPC / XHTTP / VLESS Encryption nodes to Xray. Without it (or for a
+    # transport Xray lacks) the XHTTP / Encryption ones are dropped: sing-box
+    # would reject the whole config over one of them (SKIPPED: lines).
+    if xuid=$(id -u xray 2>/dev/null) && command -v xray >/dev/null; then
+        python3 -I "$here/xray_split.py" "$tmp" "$xtmp" "$ntmp" "$xuid" "$etmp"
+    else
+        python3 -I "$here/xray_split.py" --drop "$tmp" "$etmp"
+    fi
+    case $? in
+    0) ;;
+    2) err "no usable node: the subscription's nodes need Xray" ;;
+    *) err "xray split failed" ;;
+    esac
     # Keep the chosen node across an update (the parser defaults to the first,
     # often a provider's placeholder) if the new subscription still has it.
     keep=$([ -r "$config" ] && jq -r --arg ms "$(selector)" \
@@ -766,10 +780,6 @@ _apply)
     if [ -n "$keep" ]; then
         jq --arg tag "$keep" '(.outbounds[] | select(.type == "selector" and (.outbounds | index($tag) != null)) | .default) = $tag' \
             "$tmp" >"$tmp.keep" && mv "$tmp.keep" "$tmp"
-    fi
-    # gRPC / XHTTP nodes to Xray (only when it is installed).
-    if xuid=$(id -u xray 2>/dev/null) && command -v xray >/dev/null; then
-        python3 -I "$here/xray_split.py" "$tmp" "$xtmp" "$ntmp" "$xuid" "$etmp" || err "xray split failed"
     fi
     sing-box check -c "$tmp" || err "sing-box rejected the generated config"
     # $tmp = the new base; the config = it + the applied routing / overlay.

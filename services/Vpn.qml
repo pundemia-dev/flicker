@@ -189,6 +189,8 @@ Scope {
             const err = opOut.text.split("\n").find(l => l.startsWith("ERR:"));
             // sing-box was not running: saved, not tried (vpn.sh restart_checked).
             const unchecked = opOut.text.split("\n").some(l => l.startsWith("UNCHECKED:"));
+            // Nodes the import dropped (xray_split.py): "SKIPPED:tag<TAB>why".
+            const skipped = opOut.text.split("\n").filter(l => l.startsWith("SKIPPED:")).map(l => l.substring(8));
             // pkexec: 126 = the prompt was dismissed. 127 = not authorized:
             // no agent / denied, but some agents say so for a dismissed
             // prompt too. Shown, no toast.
@@ -208,7 +210,10 @@ Scope {
                     root.post("vpn:error", "accentRed", op.kind === "subscribe" || op.kind === "update"
                         ? I18n.tr("Subscription failed") : op.kind === "routing" ? I18n.tr("Routing failed") : I18n.tr("VPN failed"));
             } else if (op.kind === "subscribe" || op.kind === "update") {
-                root.post("vpn:sub", "qsBlue", unchecked ? I18n.tr("Subscription saved · applies on next VPN start") : I18n.tr("Subscription updated"));
+                if (skipped.length)
+                    console.info("[vpn] skipped nodes:", skipped.join("; ").replace(/\t/g, ": "));
+                const msg = unchecked ? I18n.tr("Subscription saved · applies on next VPN start") : I18n.tr("Subscription updated");
+                root.post("vpn:sub", "qsBlue", skipped.length ? I18n.tr("%1 · nodes skipped: %2").arg(msg).arg(skipped.length) : msg);
             } else if (op.kind === "routing") {
                 root.post("vpn:sub", "qsBlue", unchecked ? I18n.tr("Routing saved · applies on next VPN start") : I18n.tr("Routing applied"));
             } else if (op.kind === "select" && root.up) {

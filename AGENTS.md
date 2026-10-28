@@ -755,8 +755,14 @@ user's data) live outside the repo: `CLAUDE.local.md` (git-ignored) and `~/.clau
   Arch's sing-box is built WITHOUT `with_grpc`: its lite gRPC sends `:authority` = the SNI
   (for REALITY the camouflage domain) and Xray servers drop the stream ("connection upload
   handshake: io: read/write on closed pipe"). So `xray_split.py` moves gRPC / XHTTP nodes
-  (vless/vmess/trojan; + VLESS Encryption nodes on any transport — the link's `extra` /
-  `encryption` / `flow` reach Xray via the extras JSON) to Xray (`xray-bin`, `xray.service` User=xray): one Xray outbound per
+  (vless/vmess/trojan; + VLESS Encryption nodes on raw / ws / httpupgrade / grpc / xhttp —
+  the link's `extra` / `encryption` / `flow` reach Xray via the extras JSON). sing-box (1.14)
+  has neither XHTTP nor Encryption and fails `check` on the whole config over one such node,
+  so they are DROPPED when Xray is missing (`xray_split.py --drop`) or cannot take the
+  transport (h2: removed from Xray); gRPC ones Xray cannot take stay sing-box's. Each drop =
+  a `SKIPPED:tag<TAB>why` stdout line → the panel's toast counts them; a selector left empty
+  = exit 2. Node tags `proxy` / `direct` are reserved (`RESERVED_TAGS`, a node so named gets
+  ` 1`). To Xray (`xray-bin`, `xray.service` User=xray): one Xray outbound per
   node behind its own 127.0.0.1 shadowsocks-2022 inbound (`2022-blake3-aes-128-gcm`, random
   free port + fresh random key per node per import — NOT SOCKS: its password covers TCP only,
   UDP datagrams are unauthenticated), the sing-box outbound of the same tag becomes a

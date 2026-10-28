@@ -22,7 +22,9 @@ import urllib.parse
 OUTBOUNDS = []     # proxy outbounds (everything except wireguard)
 ENDPOINTS = []     # wireguard endpoints (sing-box >= 1.11)
 ORDER_TAGS = []    # tags in subscription order (proxies + endpoints mixed)
-_USED_TAGS = set()
+# build_config's own outbounds: a node named so would duplicate the tag.
+RESERVED_TAGS = ("proxy", "direct")
+_USED_TAGS = set(RESERVED_TAGS)
 EXTRAS = {}        # tag -> Xray-only link parameters (see the header)
 
 UTLS_FP = {
@@ -34,7 +36,7 @@ UTLS_FP = {
 def _uniq_tag(tag):
     tag = (tag or "").strip()
     if not tag:
-        tag = "proxy"
+        tag = "node"
     base = tag
     i = 1
     while tag in _USED_TAGS:
@@ -199,9 +201,9 @@ def build_transport(net, q, host_header=""):
             t["host"] = host
         return t
     if net in ("xhttp", "splithttp"):
-        # XHTTP (xray-core names it `splithttp`, v2rayNG emits it the same way)
-        # is a sing-box 1.11+ transport that splits traffic over plain HTTP/1.1
-        # to defeat pattern-based DPI. Query keys follow the xray spec:
+        # XHTTP (formerly `splithttp`): Xray only, sing-box has no such
+        # transport — xray_split.py moves the node to Xray, or drops it
+        # without one. Query keys follow the xray spec:
         #   path, host, mode (auto | packet-up | stream-up | stream-one).
         t = {"type": "xhttp"}
         if path and path != "/":
