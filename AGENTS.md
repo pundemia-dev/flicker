@@ -755,7 +755,8 @@ user's data) live outside the repo: `CLAUDE.local.md` (git-ignored) and `~/.clau
   Arch's sing-box is built WITHOUT `with_grpc`: its lite gRPC sends `:authority` = the SNI
   (for REALITY the camouflage domain) and Xray servers drop the stream ("connection upload
   handshake: io: read/write on closed pipe"). So `xray_split.py` moves gRPC / XHTTP nodes
-  (vless/vmess/trojan) to Xray (`xray-bin`, `xray.service` User=xray): one Xray outbound per
+  (vless/vmess/trojan; + VLESS Encryption nodes on any transport — the link's `extra` /
+  `encryption` / `flow` reach Xray via the extras JSON) to Xray (`xray-bin`, `xray.service` User=xray): one Xray outbound per
   node behind its own 127.0.0.1 shadowsocks-2022 inbound (`2022-blake3-aes-128-gcm`, random
   free port + fresh random key per node per import — NOT SOCKS: its password covers TCP only,
   UDP datagrams are unauthenticated), the sing-box outbound of the same tag becomes a

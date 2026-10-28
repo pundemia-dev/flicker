@@ -6,7 +6,8 @@
 # Argv: <config_path> <raw_subscription_file> [extras_path]
 # Exit 0 on success (config written), 1 on failure (no nodes / read error).
 # extras_path: link parameters sing-box has no field for but Xray does
-# (REALITY spiderX, gRPC authority / multi mode), JSON { tag: { ... } } —
+# (REALITY spiderX, gRPC authority / multi mode, XHTTP extra, VLESS
+# Encryption), JSON { tag: { ... } } —
 # for xray_split.py, which moves such nodes to Xray.
 
 import sys
@@ -61,6 +62,22 @@ def remember_extras(tag, q):
         e["authority"] = q["authority"]
     if q.get("mode", "").lower() == "multi" and q.get("type", "").lower() == "grpc":
         e["multiMode"] = True
+    if q.get("type", "").lower() in ("xhttp", "splithttp") and q.get("extra"):
+        # xhttpSettings.extra (padding, xmux, downloadSettings, header
+        # placement...): the server may insist on its non-default values.
+        try:
+            x = json.loads(q["extra"])
+            if isinstance(x, dict) and x:
+                e["xhttpExtra"] = x
+        except ValueError:
+            pass
+    enc = q.get("encryption", "")
+    if enc and enc.lower() != "none":
+        # VLESS Encryption (mlkem768x25519plus...): Xray only. With it Vision
+        # runs over any transport, so the flow sing-box was not given rides along.
+        e["encryption"] = enc
+        if q.get("flow"):
+            e["flow"] = q["flow"]
     if e:
         EXTRAS[tag] = e
 

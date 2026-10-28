@@ -3,7 +3,8 @@
 #
 # sing-box stays the TUN / routing / DNS engine. Its gRPC transport is the
 # "lite" one unless built with_grpc (Arch's is not), which Xray servers
-# reject; XHTTP it has no transport for at all. Each such node becomes an
+# reject; XHTTP and VLESS Encryption it has no support for at all. Each such
+# node becomes an
 # Xray outbound behind its own local shadowsocks-2022 inbound (127.0.0.1,
 # a random free port), and the sing-box outbound of the same tag a
 # `shadowsocks` client to it — the selector, the node list and switching do
@@ -59,8 +60,10 @@ def free_port(taken):
 def stream(ob, extra):
     tr = ob.get("transport") or {}
     tls = ob.get("tls") or {}
-    s = {"network": tr["type"]}
-    if tr["type"] == "grpc":
+    s = {"network": tr.get("type", "raw")}
+    if s["network"] == "raw":
+        pass
+    elif tr["type"] == "grpc":
         g = {"serviceName": tr.get("service_name", "")}
         if extra.get("authority"):
             g["authority"] = extra["authority"]
@@ -76,6 +79,8 @@ def stream(ob, extra):
             x["host"] = host[0] if isinstance(host, list) else host
         if tr.get("mode"):
             x["mode"] = tr["mode"]
+        if extra.get("xhttpExtra"):
+            x["extra"] = extra["xhttpExtra"]
         s["xhttpSettings"] = x
     if not tls.get("enabled"):
         s["security"] = "none"
@@ -113,9 +118,11 @@ def outbound(ob, tag, extra):
     t = ob["type"]
     addr, port = ob["server"], ob["server_port"]
     if t == "vless":
-        settings = {"address": addr, "port": port, "id": ob["uuid"], "encryption": "none"}
-        if ob.get("flow"):
-            settings["flow"] = ob["flow"]
+        settings = {"address": addr, "port": port, "id": ob["uuid"],
+                    "encryption": extra.get("encryption", "none")}
+        flow = ob.get("flow") or extra.get("flow")
+        if flow:
+            settings["flow"] = flow
     elif t == "vmess":
         settings = {"address": addr, "port": port, "id": ob["uuid"],
                     "security": ob.get("security", "auto")}
@@ -145,7 +152,8 @@ def main():
     ports = set()
     for ob in cfg.get("outbounds", []):
         tr = (ob.get("transport") or {}).get("type")
-        if tr not in XRAY_TRANSPORTS or ob.get("type") not in XRAY_PROTOCOLS:
+        vless_enc = ob.get("type") == "vless" and "encryption" in extras.get(ob.get("tag"), {})
+        if (tr not in XRAY_TRANSPORTS and not vless_enc) or ob.get("type") not in XRAY_PROTOCOLS:
             continue
         i = len(nodes)
         try:
