@@ -142,8 +142,10 @@ Scope {
         root.run("select", ["select", tag]);
     }
     function subscribe(url: string): void {
+        // The URL is the provider's access token: in the environment, which
+        // only this user can read, not in argv (any user's `ps` shows that).
         if (root.busy === "" && url.trim() !== "")
-            root.run("subscribe", ["subscribe", url.trim()]);
+            root.run("subscribe", ["subscribe"], { FLICKER_VPN_URL: url.trim() });
     }
     function updateSubscription(): void {
         if (root.busy === "" && root.subscription)
@@ -169,11 +171,13 @@ Scope {
         stateProc.running = true;
     }
 
-    function run(kind: string, args: var): void {
+    function run(kind: string, args: var, env: var): void {
         root.busy = kind;
         root.error = "";
         op.kind = kind;
         op.arg = args[1] ?? "";
+        // Per run: an earlier one's variables must not stay set.
+        op.environment = env ?? {};
         op.command = [root.script, ...args];
         op.running = true;
     }

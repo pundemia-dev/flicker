@@ -785,7 +785,18 @@ user's data) live outside the repo: `CLAUDE.local.md` (git-ignored) and `~/.clau
   while it matches the scripts (else from the repo, always asking: re-run `setup` after
   editing them); password-free input is untrusted — routing as a JSON string, rule-sets via
   `routing.py install-rules` (O_NOFOLLOW, owned by PKEXEC_UID). An update keeps the
-  chosen node if the new subscription still has it.
+  chosen node if the new subscription still has it. Hardening (ultrareview, Oct 2026):
+  sing-box JSON nodes from a subscription are scrubbed at any depth (`_scrub`: `*_path` /
+  `*_directory`, dial fields, `detour` / `domain_resolver`; WireGuard's interface name /
+  `system` / `listen_port`), `tor` is not accepted (it runs a binary) — the provider, not the
+  user, writes them; root-half temp files are all mktemp 0600 (a redirect to a NEW file is
+  0644 under root's umask); the subscription URL (the provider's token) never goes in an argv
+  (`/proc/<pid>/cmdline` is world-readable): Vpn.qml passes `FLICKER_VPN_URL` in the
+  environment (0400), curl gets it as `-K -`, and it is remembered only once `_apply`
+  succeeded. Root halves lock `/run/flicker-vpn/lock` (root 0600 from creation: any fd can
+  hold an flock, a world-readable lock let any user stall every operation and freeze the
+  panel's status) and write "PID start-time" to `/run/flicker-vpn/restarting` (0644);
+  `state` = restarting while that process lives.
   Kill switch (`vpn.sh killswitch on|off`, panel switch): `flicker-vpn-killswitch.service`
   (oneshot, loads `/etc/flicker-vpn/killswitch.nft` = table `inet flicker_killswitch`, output
   hook: accept lo, the TUN (fixed `interface_name: flicker-tun` — the switch renames an older

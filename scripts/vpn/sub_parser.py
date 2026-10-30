@@ -620,11 +620,39 @@ def parse_share_link(line):
 # ---------------------------------------------------------------------------
 # sing-box JSON node ingestion (already in sing-box format)
 # ---------------------------------------------------------------------------
+# No tor: it runs a binary (executable_path) with its own arguments.
 VALID_NODE_TYPES = {
     "socks", "http", "shadowsocks", "vmess", "vless", "trojan",
     "anytls", "hysteria", "hysteria2", "tuic", "wireguard", "ssh",
-    "shadowtls", "naive", "tor",
+    "shadowtls", "naive",
 }
+
+# A sing-box JSON node is the provider's text, and sing-box acts on it as
+# its own user (CAP_NET_ADMIN, may read any file). What a node needs is the
+# server's side; fields naming local things are dropped at any depth:
+# files (*_path / *_directory: ssh private_key_path, TLS certificate / key
+# / ECH config paths...), the dial fields (interface, address, mark, netns,
+# network strategy: this machine's business), and references to other tags
+# (detour / domain_resolver: tags here are renamed, and a missing one fails
+# the whole config).
+LOCAL_KEYS = {
+    "detour", "bind_interface", "inet4_bind_address", "inet6_bind_address",
+    "bind_address_no_port", "routing_mark", "reuse_addr", "netns",
+    "domain_resolver", "domain_strategy", "network_strategy", "network_type",
+    "fallback_network_type", "fallback_delay",
+}
+# A WireGuard endpoint's local side: an interface it would create (a name
+# could take the TUN's or a real one's), a port it would listen on.
+WG_LOCAL_KEYS = {"name", "system", "listen_port", "interface_name", "system_interface"}
+
+
+def _scrub(v):
+    if isinstance(v, dict):
+        return {k: _scrub(x) for k, x in v.items()
+                if not (k in LOCAL_KEYS or str(k).endswith(("_path", "_directory")))}
+    if isinstance(v, list):
+        return [_scrub(x) for x in v]
+    return v
 
 
 def _wg_outbound_to_endpoint(out):
@@ -664,10 +692,10 @@ def parse_singbox_node(out):
     t = out.get("type")
     if t not in VALID_NODE_TYPES:
         return
-    node = dict(out)
-    # Drop dial fields that were removed/renamed and would taint a clean config.
-    node.pop("domain_strategy", None)
+    node = _scrub(out)
     if t == "wireguard":
+        for k in WG_LOCAL_KEYS:
+            node.pop(k, None)
         # legacy outbound vs already-endpoint
         if "peers" in node or "address" in node and "server" not in node:
             node["type"] = "wireguard"

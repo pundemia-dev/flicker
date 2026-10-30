@@ -46,7 +46,9 @@
 #                      takes it down ("release" in the panel).
 #   select <tag>       make <tag> the selector default (root), restart the
 #                      unit if it runs
-#   subscribe <url>    download it as the user, then (root) parse +
+#   subscribe [url]    (url: the argument, or $FLICKER_VPN_URL — the panel's
+#                      way: argv is world-readable in /proc, the environment
+#                      is not) download it as the user, then (root) parse +
 #                      `sing-box check` + install config.json, restart the
 #                      unit if it runs; once applied, remember the URL
 #                      (user state, 0600; a failed one keeps the old)
@@ -107,9 +109,10 @@ tun_name=flicker-tun
 self=$(realpath "$0")
 here=$(dirname "$self")
 
-# Root halves hold a lock on this file (lock_ops): `state` reports
-# restarting (the panel holds the unit / kill switch it shows meanwhile).
-# The kernel drops it with the holder, however it ends.
+# Root halves hold a lock on $ops_lock (lock_ops) and name themselves in
+# $restart_mark: `state` reports restarting while that process lives (the
+# panel holds the unit / kill switch it shows meanwhile).
+ops_lock=/run/flicker-vpn/lock
 restart_mark=/run/flicker-vpn/restarting
 unchecked=""
 # Xray ran before restart_checked touched it (roll_back runs it again).
@@ -317,14 +320,39 @@ stays_up() {
     return 1
 }
 
+# Start time of process $1 (field 22 of its stat, after the "(comm)" that
+# may hold spaces); fails when there is no such process. PID + start time
+# name one process: a reused PID has another.
+proc_start() {
+    local s
+    { s=$(<"/proc/$1/stat"); } 2>/dev/null || return 1
+    # shellcheck disable=SC2086 # split into the fields
+    set -- ${s##*) }
+    echo "${20}"
+}
+
 # Root halves that change configs run one at a time: an exclusive lock on
-# $restart_mark, taken before their .bak copies (a second one would
-# overwrite the first's rollback). `state` reads it as restarting. 30 s at
-# most: the file is world-readable, anyone can hold a shared lock on it.
+# $ops_lock, taken before their .bak copies (a second one would overwrite
+# the first's rollback). Root-only (0600 from its creation): a lock needs
+# only an open fd, and a world-readable file let any user hold it forever,
+# stalling every operation and the panel's status. The kernel drops it
+# with the holder, however it ends. The holder then writes "PID start" to
+# $restart_mark (0644, root's directory: nobody else can fake it) for
+# `state`; a dead holder's mark is stale by itself.
 lock_ops() {
-    mkdir -p -m 755 "$(dirname "$restart_mark")" || err "cannot create $(dirname "$restart_mark")"
-    exec 9>>"$restart_mark" && chmod 644 "$restart_mark" || err "cannot open $restart_mark"
+    local d um m
+    d=$(dirname "$ops_lock")
+    mkdir -p -m 755 "$d" || err "cannot create $d"
+    um=$(umask)
+    umask 077
+    exec 9>>"$ops_lock"
+    m=$?
+    umask "$um"
+    [ $m -eq 0 ] && chmod 600 "$ops_lock" || err "cannot open $ops_lock"
     flock -w 30 9 || err "another VPN operation is still running"
+    m=$(mktemp "$restart_mark.XXXXXX") &&
+        printf '%s %s\n' "$$" "$(proc_start $$)" >"$m" && chmod 644 "$m" && mv -f "$m" "$restart_mark" ||
+        { rm -f "$m"; err "cannot write $restart_mark"; }
 }
 
 # Xray: up | starting | down (failed, stopped, or waiting out Restart= after
@@ -503,6 +531,35 @@ selector() {
     jq -r '[.outbounds[]? | select(.type == "selector") | .tag][0] // empty' "$config" 2>/dev/null
 }
 
+# subscribe / update: download $url as the user, apply it (root), then
+# remember it. The URL carries the provider's access token, and any local
+# user can read a process's argv (/proc/<pid>/cmdline): it reaches curl as
+# a config on stdin (printf is a builtin), never as an argument.
+subscribe_url() {
+    case "$url" in
+    http://* | https://*) ;;
+    *) err "not an http(s) URL" ;;
+    esac
+    case "$url" in
+    *[[:space:][:cntrl:]]*) err "the URL has spaces or control characters" ;;
+    esac
+    local esc=${url//\\/\\\\}
+    esc=${esc//\"/\\\"}
+    raw=$(mktemp) || err "mktemp"
+    trap 'rm -f "$raw"' EXIT
+    printf 'url = "%s"\n' "$esc" | curl -4 -sfL -m 20 -A sing-box -K - -o "$raw" || err "download failed"
+    [ -s "$raw" ] || err "empty subscription"
+    # The applied routing's rule-sets, refreshed along with the nodes.
+    [ -s "$routing_etc" ] && fetch_rules "$routing_etc"
+    # pkexec's status as is (the panel tells 126 / 127 apart).
+    pkexec "$(root_self)" _apply "$raw" "$rules_cache" || exit
+    # Remembered only once applied: a mistyped / dead URL, a rejected
+    # subscription or a dismissed prompt keeps the working one for `update`.
+    mkdir -p "$state_dir"
+    (umask 077 && printf '%s' "$url" >"$sub_file.new" && mv -f "$sub_file.new" "$sub_file") ||
+        err "applied, but cannot save the subscription URL"
+}
+
 # These go through pkexec: without it its exec fails with 127, which the
 # panel would show as "not authorized".
 case "${1:-}" in
@@ -516,12 +573,14 @@ state)
     installed=false
     command -v sing-box >/dev/null && installed=true
     # Before and after the units are read: a restart that starts or ends
-    # in between still counts. Locked = a root half is restarting (a shared
-    # lock needs only read access; 1 = held, anything else = no).
+    # in between still counts. Marked = a root half is restarting: the
+    # process its mark names (lock_ops) is still alive.
     restarting=false
     marked() {
-        { flock -n -s 9; [ $? -eq 1 ]; } 9<"$restart_mark"
-    } 2>/dev/null
+        local pid start
+        read -r pid start 2>/dev/null <"$restart_mark" || return 1
+        [[ $pid =~ ^[0-9]+$ ]] && [ -n "$start" ] && [ "$(proc_start "$pid")" = "$start" ]
+    }
     marked && restarting=true
     st=$(systemctl is-active "$unit" 2>/dev/null)
     # Up only once both are. Xray down (xray_state) = only its nodes are:
@@ -598,24 +657,11 @@ select)
     exec pkexec "$(root_self)" _select "$2"
     ;;
 subscribe)
-    url=${2:-}
-    case "$url" in
-    http://* | https://*) ;;
-    *) err "not an http(s) URL" ;;
-    esac
-    raw=$(mktemp) || err "mktemp"
-    trap 'rm -f "$raw"' EXIT
-    curl -4 -sfL -m 20 -A sing-box "$url" -o "$raw" || err "download failed"
-    [ -s "$raw" ] || err "empty subscription"
-    # The applied routing's rule-sets, refreshed along with the nodes.
-    [ -s "$routing_etc" ] && fetch_rules "$routing_etc"
-    # pkexec's status as is (the panel tells 126 / 127 apart).
-    pkexec "$(root_self)" _apply "$raw" "$rules_cache" || exit
-    # Remembered only once applied: a mistyped / dead URL, a rejected
-    # subscription or a dismissed prompt keeps the working one for `update`.
-    mkdir -p "$state_dir"
-    (umask 077 && printf '%s' "$url" >"$sub_file.new" && mv -f "$sub_file.new" "$sub_file") ||
-        err "applied, but cannot save the subscription URL"
+    # The panel passes the URL in the environment (only this user can read
+    # it: /proc/<pid>/environ is 0400); an argument (by hand) is visible.
+    url=${FLICKER_VPN_URL:-${2:-}}
+    unset FLICKER_VPN_URL
+    subscribe_url
     ;;
 apply)
     mkdir -p "$state_dir"
@@ -647,7 +693,8 @@ edit)
     ;;
 update)
     [ -s "$sub_file" ] || err "no subscription"
-    exec "$self" subscribe "$(cat "$sub_file")"
+    url=$(<"$sub_file")
+    subscribe_url
     ;;
 ping)
     t=$(curl -4 -s -o /dev/null -w '%{time_total}' --connect-timeout 5 -m 6 "$probe") || err "timeout"
@@ -763,7 +810,8 @@ _apply)
     xtmp=$(mktemp) || err "mktemp"
     ntmp=$(mktemp) || err "mktemp"
     etmp=$(mktemp) || err "mktemp"
-    trap 'rm -f "$tmp" "$xtmp" "$ntmp" "$etmp"' EXIT
+    ktmp=$(mktemp) || err "mktemp"
+    trap 'rm -f "$tmp" "$xtmp" "$ntmp" "$etmp" "$ktmp"' EXIT
     python3 -I "$here/sub_parser.py" "$tmp" "$2" "$etmp" || err "no nodes in the subscription"
     # gRPC / XHTTP / VLESS Encryption nodes to Xray. Without it (or for a
     # transport Xray lacks) the XHTTP / Encryption ones are dropped: sing-box
@@ -782,15 +830,18 @@ _apply)
     # often a provider's placeholder) if the new subscription still has it.
     keep=$([ -r "$config" ] && jq -r --arg ms "$(selector)" \
         '[.outbounds[]? | select(.type == "selector" and .tag == $ms) | .default][0] // empty' "$config")
+    # Through another mktemp file and back into $tmp's own: a new file (a
+    # redirect, root's umask) would be 0644 — every node's secrets readable
+    # in /tmp until the restart check is done.
     if [ -n "$keep" ]; then
         jq --arg tag "$keep" '(.outbounds[] | select(.type == "selector" and (.outbounds | index($tag) != null)) | .default) = $tag' \
-            "$tmp" >"$tmp.keep" && mv "$tmp.keep" "$tmp"
+            "$tmp" >"$ktmp" && cat "$ktmp" >"$tmp"
     fi
     sing-box check -c "$tmp" || err "sing-box rejected the generated config"
     # $tmp = the new base; the config = it + the applied routing / overlay.
     install_rules "$routing_etc" "${3:-}" || err "rule-set install failed"
     ctmp=$(mktemp) || err "mktemp"
-    trap 'rm -f "$tmp" "$xtmp" "$ntmp" "$etmp" "$ctmp"' EXIT
+    trap 'rm -f "$tmp" "$xtmp" "$ntmp" "$etmp" "$ktmp" "$ctmp"' EXIT
     out=$(compose "$tmp" "$routing_etc" "$custom_etc" "$ctmp") || err "${out#ERR:}"
     if [ -s "$ntmp" ]; then
         # Format by extension otherwise, and mktemp names have none.
