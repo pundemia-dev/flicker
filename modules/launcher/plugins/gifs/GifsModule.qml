@@ -135,10 +135,10 @@ LauncherPlugin {
         root.jobs = [];
     }
 
-    function search(): void {
-        debounce.stop();
-        root.epoch++;
-        root.stopJobs();
+    // A new query keeps the old tiles (faded, `stale`) until its first page
+    // lands, then swaps them in one go — no empty flash between queries.
+    property bool stale: false
+    function reset(): void {
         results.clear();
         root.rowOf = {};
         root.geo = [];
@@ -146,13 +146,28 @@ LauncherPlugin {
         root.colH = [];
         root.selected = 0;
         root.scrollY = 0;
+        root.waveStamp = Date.now();
+    }
+    function search(): void {
+        debounce.stop();
+        root.epoch++;
+        root.stopJobs();
         root.next = "";
         root.error = "";
         root.busy = false;
+        if (!root.apiKey || results.count === 0) {
+            root.stale = false;
+            root.reset();
+        } else {
+            root.stale = true;
+        }
         if (!root.apiKey)
             return;
         root.request("");
     }
+    // Tiles created within waveMs of this grow in as a wave (top → down,
+    // column by column); later ones (paging) grow in on their own.
+    property real waveStamp: 0
 
     function loadMore(): void {
         if (root.busy || root.next === "" || !root.apiKey)
@@ -190,6 +205,10 @@ LauncherPlugin {
             return;
         }
         if (msg.page) {
+            if (root.stale) {
+                root.stale = false;
+                root.reset();
+            }
             const map = root.rowOf;
             const geo = root.geo.slice(), cols = root.colItems.slice(), colH = root.colH.slice();
             for (let c = cols.length; c < root.columns; c++) {
@@ -236,6 +255,10 @@ LauncherPlugin {
             if (i !== undefined)
                 results.setProperty(i, "ready", true);
         } else if (msg.error) {
+            if (root.stale) {
+                root.stale = false;
+                root.reset();
+            }
             root.error = msg.error;
             root.busy = false;
         }
@@ -340,9 +363,23 @@ LauncherPlugin {
     }
 
     // ── Copy ──────────────────────────────────────────────────────────
+    // Enter / click: the tile presses in (`pressed`), the copy fires and the
+    // launcher closes pressMs later.
+    property bool pressed: false
+    property var pendingCopy: null
+    Timer {
+        id: pressTimer
+        interval: root.g.pressMs ?? 140
+        onTriggered: root.doCopy(root.pendingCopy.item, root.pendingCopy.asUrl)
+    }
     function copy(item: var, asUrl: bool): void {
-        if (!item)
+        if (!item || root.pressed)
             return;
+        root.pendingCopy = { item: { full: item.full, page: item.page }, asUrl: asUrl };
+        root.pressed = true;
+        pressTimer.restart();
+    }
+    function doCopy(item: var, asUrl: bool): void {
         const mode = asUrl ? "url" : (root.g.copyAs ?? "file");
         const paste = (root.g.autoPaste ?? false) ? (root.cfg?.clipboard?.pasteCommand ?? "wtype -M ctrl v -m ctrl") : "";
         // $1 url to fetch, $2 cache dir, $3 mode, $4 page/link, $5 paste cmd.
@@ -446,6 +483,9 @@ LauncherPlugin {
                 width: parent.width
                 height: root.contentH
                 y: -body.shownY
+                // Old results while a new query runs.
+                opacity: root.stale ? (root.g.staleOpacity ?? 0.3) : 1
+                Behavior on opacity { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
 
                 Item {
                     id: tilesLayer
@@ -463,6 +503,21 @@ LauncherPlugin {
                         required property real ty
                         required property real th
                         readonly property bool isSel: tile.index === root.selected
+                        // Grow-in: 0 → 1 on a spring after a wave delay.
+                        property real appear: 0
+                        Behavior on appear { Spring { stiffness: root.g.appearStiffness ?? 4.5; damp: root.g.appearDamping ?? 0.42; eps: 0.002 } }
+                        Timer {
+                            id: appearTimer
+                            onTriggered: tile.appear = 1
+                        }
+                        Component.onCompleted: {
+                            const onScreen = tile.ty < body.shownY + root.viewH && tile.ty + tile.th > body.shownY;
+                            const wave = Date.now() - root.waveStamp < (root.g.waveMs ?? 600) && onScreen;
+                            const col = Math.round((tile.tx - root.inset) / (root.colW + root.spacing));
+                            appearTimer.interval = wave ? Math.max(1, (tile.ty - body.shownY) / root.viewH * (root.g.waveRowMs ?? 260) + col * (root.g.waveColMs ?? 55)) : 1;
+                            appearTimer.start();
+                        }
+                        opacity: tile.appear
                         readonly property bool near: tile.ty + tile.th > body.shownY - root.viewH && tile.ty < body.shownY + root.viewH * 2
                         readonly property bool inView: tile.ty + tile.th > body.shownY && tile.ty < body.shownY + root.viewH
                         x: tile.tx
@@ -470,8 +525,10 @@ LauncherPlugin {
                         width: root.colW
                         height: tile.th
                         z: tile.isSel ? 1 : 0
-                        scale: tile.isSel ? (root.g.selectScale ?? 1.07) : 1
-                        Behavior on scale { Spring { stiffness: 6; damp: 0.45; eps: 0.002 } }
+                        property real selScale: tile.isSel ? (root.pressed ? (root.g.pressScale ?? 0.96) : (root.g.selectScale ?? 1.07)) : 1
+                        Behavior on selScale { Spring { stiffness: 6; damp: 0.45; eps: 0.002 } }
+                        scale: tile.selScale * (0.82 + 0.18 * tile.appear)
+                        transform: Translate { y: (1 - tile.appear) * 14 }
 
                         RoundedClip {
                             anchors.fill: parent
@@ -517,6 +574,8 @@ LauncherPlugin {
                                     anchors.right: parent.right
                                     anchors.bottom: parent.bottom
                                     anchors.margins: 8
+                                    anchors.bottomMargin: tile.isSel ? 8 : 0
+                                    Behavior on anchors.bottomMargin { Spring { stiffness: 5; damp: 0.5; eps: 0.1 } }
                                     text: tile.title.replace(/\s+GIF\b.*$/i, "")
                                     color: "white"
                                     font.family: root.theme.fontFamily

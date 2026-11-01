@@ -1700,6 +1700,11 @@ Singleton {
                     // locale "" = UI language. Enter copies as copyAs: file
                     // (text/uri-list of the downloaded GIF) | image (image/gif)
                     // | url; Alt+Enter = the link (linkKind gif | page).
+                    // Motion: tiles grow in on appear* springs as a wave
+                    // (waveRowMs per screen height down, waveColMs per column)
+                    // for waveMs after new results; old results fade to
+                    // staleOpacity while a new query runs; Enter / click
+                    // presses the tile to pressScale and closes pressMs later.
                     // autoPaste uses clipboard.pasteCommand. cacheDir "" =
                     // ~/.cache/flicker/gifs, files older than cacheDays pruned.
                     gifs: ({
@@ -1720,6 +1725,14 @@ Singleton {
                             blurMax: 32,
                             focusStiffness: 4,
                             focusDamping: 0.5,
+                            appearStiffness: 4.5,
+                            appearDamping: 0.42,
+                            waveMs: 600,
+                            waveRowMs: 260,
+                            waveColMs: 55,
+                            staleOpacity: 0.3,
+                            pressScale: 0.96,
+                            pressMs: 140,
                             pageSize: 24,
                             rating: "pg-13",
                             locale: "",

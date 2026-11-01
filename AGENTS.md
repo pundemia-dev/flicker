@@ -901,6 +901,11 @@ user's data) live outside the repo: `CLAUDE.local.md` (git-ignored) and `~/.clau
   pShell's `~/.config/pShell/shell.json` (`custom.gif.apiKey`). Verified live: no-key state,
   masonry, arrows + the outline following them. NOT live-tested: paging, copy/paste into apps.
   TRAP: inside a RoundedClip `parent` is its inner layer (x = 0) — address the clip by id.
+  Motion: tiles grow in (appear spring: opacity, scale 0.82→1, 14 px rise) as a wave for `waveMs`
+  after new results (delay by screen height + column; paging tiles grow in alone); a new query
+  keeps the old tiles faded (`stale`, staleOpacity) until its first page lands, then swaps; Enter /
+  click presses the tile (pressScale) and copies + closes pressMs later; the caption slides up.
+  Verified with grim frame series (open, typing "cat").
 - Launcher calculator (`modules/launcher/calc/`, Oct 2026; user asked for "the coolest version"
   after looking at other shells — caelestia / end-4 run `qalc` per keystroke, one text row).
   Ours: own engine, no dependency (libqalculate not installed; sudo needs a password).
