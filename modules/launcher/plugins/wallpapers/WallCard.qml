@@ -97,8 +97,22 @@ Item {
     opacity: Math.min(1, root.appear) * (1 - root.gone) * M.edgeOpacity(root.c, root.d, root.halfWidth)
     scale: ((root.c.appearScale ?? 0.6) + (1 - (root.c.appearScale ?? 0.6)) * root.appear) * (1 - (root.c.leaveShrink ?? 0.15) * root.gone)
 
+    // Part of the card inside the carousel, in local (unscaled) x: a card
+    // past the edge is drawn NARROWER with its own rounded corners instead
+    // of being cut by the carousel's square clip. The art keeps its place.
+    readonly property real visibleLo: root.edgeCut(0)
+    readonly property real visibleHi: root.edgeCut(parent?.width ?? 0)
+    function edgeCut(px: real): real {
+        const s = Math.max(0.01, root.scale);
+        return Math.max(0, Math.min(root.width, (px - root.x - root.width / 2) / s + root.width / 2));
+    }
+
     BlurSurface {
-        anchors.fill: parent
+        id: face
+        x: root.visibleLo
+        width: Math.max(0, root.visibleHi - root.visibleLo)
+        height: parent.height
+        visible: width > 0
         amount: root.gone
 
         RoundedClip {
@@ -114,7 +128,7 @@ Item {
                 id: art
                 width: M.artWidth(root.c)
                 height: root.c.cardHeight
-                x: (root.width - width) / 2 + M.artShift(root.c, root.d)
+                x: (root.width - width) / 2 + M.artShift(root.c, root.d) - root.visibleLo
                 y: (root.height - height) / 2
 
                 Image {
@@ -205,10 +219,11 @@ Item {
         }
     }
 
-    // Hidden file (".name"): an eye-off mark in the top-left corner.
+    // Hidden file (".name"): an eye-off mark in the top-left corner (of the
+    // visible part: no badge cut at the carousel edge).
     Rectangle {
-        anchors.top: parent.top
-        anchors.left: parent.left
+        anchors.top: face.top
+        anchors.left: face.left
         anchors.margins: root.c.badgeInset ?? 8
         width: root.c.badgeSize ?? 26
         height: width
@@ -229,8 +244,8 @@ Item {
 
     // Favourite mark: a star on a dark disc in the top-right corner, pops in.
     Rectangle {
-        anchors.top: parent.top
-        anchors.right: parent.right
+        anchors.top: face.top
+        anchors.right: face.right
         anchors.margins: root.c.badgeInset ?? 8
         width: root.c.badgeSize ?? 26
         height: width

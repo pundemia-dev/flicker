@@ -1025,6 +1025,9 @@ user's data) live outside the repo: `CLAUDE.local.md` (git-ignored) and `~/.clau
   clamped to ±visibleSide, else the first visible card waited an empty step) as origin and delays the rest by `appearStaggerMs` per card; the batch
   ends with the event-loop turn (callLater), so a lone card entering the window starts at once.
   Asked ONCE in onCompleted — a binding would re-run it (and its side effect) on every `pos`.
+  Edge cards: the face (BlurSurface → RoundedClip) is narrowed to the part inside the carousel
+  (`visibleLo/Hi`, scale-aware; art offset by −visibleLo, badges anchored to the face), so a
+  card past the edge keeps rounded corners instead of the carousel's square clip line.
   fuzzysort ranks through a heap: EQUAL scores come out in an input-dependent order (node:
   abs-1, abs-3, abs-2), so with a query a removal reshuffled the ties far from the gap —
   WallFilter.rank buckets the hits by `_score` (no `score` field here) in list order — LINEAR:
