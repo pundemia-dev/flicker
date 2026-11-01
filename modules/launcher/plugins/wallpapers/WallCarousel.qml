@@ -34,6 +34,22 @@ Item {
     }
     readonly property int reach: M.reach(root.c, root.width / 2)
 
+    // Appear wave: delegates created in one go (opening, a new search
+    // result set) are built left to right, so the first of the batch is its
+    // leftmost; each next one is delayed by its distance in cards from it.
+    // Off-screen cards count as the edge ones (no empty first step). The batch ends with
+    // the event-loop turn (callLater), so a lone newcomer starts at once.
+    property real waveOrigin: NaN
+    readonly property int visibleSide: Math.floor((Math.max(1, root.c.visibleCards || 5) - 1) / 2)
+    function waveDelay(d: real): int {
+        const v = Math.max(-root.visibleSide, Math.min(d, root.visibleSide));
+        if (isNaN(root.waveOrigin)) {
+            root.waveOrigin = v;
+            Qt.callLater(() => root.waveOrigin = NaN);
+        }
+        return Math.round(Math.max(0, v - root.waveOrigin) * (root.c.appearStaggerMs ?? 90));
+    }
+
     ScriptModel {
         id: windowModel
         values: {
@@ -87,6 +103,7 @@ Item {
             }
 
             entry: modelData
+            waveDelay: root.waveDelay
             instant: !!root.plugin.flipInstant[modelData.path]
             d: idx - root.plugin.pos + shift
             c: root.c

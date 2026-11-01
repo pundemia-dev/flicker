@@ -58,11 +58,24 @@ Item {
     y: ((parent?.height ?? 0) - root.height) / 2
     z: 100 - Math.abs(root.d)
 
-    // Newcomers (search results, the window growing) rise in.
+    // Newcomers (opening, search results, the window growing) grow in. A
+    // batch created together forms a wave left to right: `waveDelay(d)`
+    // (the carousel's, asked once at birth) holds this card back so the
+    // springs overlap.
+    property var waveDelay: null
     property real appear: 0
     Behavior on appear {
         id: appearBehavior
-        Spring { stiffness: 4; damp: 0.5; eps: 0.005 }
+        Spring {
+            stiffness: root.c.appearStiffness ?? 7
+            damp: root.c.appearDamping ?? 0.5
+            eps: 0.005
+        }
+    }
+    Timer {
+        id: appearTimer
+        interval: 0
+        onTriggered: root.appear = 1
     }
     Component.onCompleted: {
         if (root.instant || root.leaving) {
@@ -70,13 +83,19 @@ Item {
             root.appear = 1;
             appearBehavior.enabled = true;
         } else {
-            root.appear = 1;
+            const delay = root.waveDelay ? root.waveDelay(root.d) : 0;
+            if (delay > 0) {
+                appearTimer.interval = delay;
+                appearTimer.start();
+            } else {
+                root.appear = 1;
+            }
         }
         if (root.leaving)
             root.gone = 1;
     }
-    opacity: root.appear * (1 - root.gone) * M.edgeOpacity(root.c, root.d, root.halfWidth)
-    scale: (0.9 + 0.1 * root.appear) * (1 - (root.c.leaveShrink ?? 0.15) * root.gone)
+    opacity: Math.min(1, root.appear) * (1 - root.gone) * M.edgeOpacity(root.c, root.d, root.halfWidth)
+    scale: ((root.c.appearScale ?? 0.6) + (1 - (root.c.appearScale ?? 0.6)) * root.appear) * (1 - (root.c.leaveShrink ?? 0.15) * root.gone)
 
     BlurSurface {
         anchors.fill: parent

@@ -29,8 +29,33 @@ function make(path, mtimeText, sizeText) {
         size: parseInt(sizeText),
         mtimeText: mtimeText,
         sizeText: sizeText,
-        key: Qt.md5(visiblePath + "|" + mtimeText + "|" + sizeText)
+        // Lazy: md5 over ~5000 files was most of a ~0.7 s stall on open;
+        // only cards on screen (thumbnails) and the semantic view read it.
+        get key() {
+            if (this._key === undefined)
+                this._key = Qt.md5(visiblePath + "|" + mtimeText + "|" + sizeText);
+            return this._key;
+        }
     };
+}
+
+// Scan lines → entries, reusing the entry of every unchanged line (stable
+// identity: the carousel's window model diffs by it). The cache lives in
+// this library (one per engine), not in the service: the launcher rebuilds
+// the plugin on every open, and an empty cache re-made every entry. A plain
+// object, not a Map: QV4's Map lookups are linear — 5000 get/set took
+// ~0.3 s even with every line cached.
+let cache = Object.create(null);
+function fromLines(lines) {
+    const live = Object.create(null);
+    const list = [];
+    for (const l of lines) {
+        const e = cache[l.id] ?? make(l.path, l.mtimeText, l.sizeText);
+        live[l.id] = e;
+        list.push(e);
+    }
+    cache = live;
+    return list;
 }
 
 // scan.sh output → [{ line id, path, mtimeText, sizeText }] (no entries
@@ -54,4 +79,31 @@ function sort(list, by) {
     else
         list.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
     return list;
+}
+
+// The whole scan → sorted list, memoised on the scan text: the launcher
+// rebuilds the plugin on every open and rescans, and the answer is nearly
+// always the same — no re-parse, no re-sort (~0.1 s on ~5000 names). `last`
+// seeds a new service, so the carousel has its cards from the first frame
+// instead of after the scan.
+let lastText = null;
+let lastBy = "";
+let lastList = [];
+function parse(text, by) {
+    if (text !== lastText || by !== lastBy) {
+        lastList = sort(fromLines(lines(text)), by);
+        lastText = text;
+        lastBy = by;
+    }
+    return lastList;
+}
+function last(by) {
+    return by === lastBy ? lastList : [];
+}
+// The service changed its list itself (trash, hide/unhide): seed the next
+// one with it, and forget the scan text: a failed trash rescans to the
+// SAME text, which must not return the list without the file.
+function remember(list) {
+    lastList = list;
+    lastText = null;
 }

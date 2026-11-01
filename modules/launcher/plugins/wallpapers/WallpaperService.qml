@@ -26,8 +26,9 @@ Item {
     }
 
     // [{ path, name, hidden, type: image|gif|video, mtime, size, key }]
-    property var files: []
-    property bool loaded: false
+    // Seeded with the last scan (WallEntry keeps it across plugin rebuilds).
+    property var files: WallEntry.last(root.cfg?.sort ?? "name")
+    property bool loaded: root.files.length > 0
     // key -> true once its thumbnail file exists (reassigned: bindings
     // read thumbUrl()).
     property var thumbs: ({})
@@ -40,7 +41,6 @@ Item {
     // ---- scan ----
 
     property string signature: ""
-    property var entryCache: new Map()
 
     function scanArgs(mode: string): var {
         return [root.scripts + "scan.sh", mode, (root.cfg?.recursive ?? true) ? "1" : "0"].concat(root.cfg?.dirs ?? []);
@@ -68,15 +68,9 @@ Item {
     }
 
     function parseFiles(text: string): void {
-        const live = new Map();
-        const list = [];
-        for (const l of WallEntry.lines(text)) {
-            const e = root.entryCache.get(l.id) ?? WallEntry.make(l.path, l.mtimeText, l.sizeText);
-            live.set(l.id, e);
-            list.push(e);
-        }
-        root.entryCache = live;
-        root.files = WallEntry.sort(list, root.cfg?.sort ?? "name");
+        const list = WallEntry.parse(text, root.cfg?.sort ?? "name");
+        if (list !== root.files)
+            root.files = list;
         root.loaded = true;
     }
 
@@ -84,12 +78,14 @@ Item {
     // confirms it).
     function dropFile(path: string): void {
         root.files = root.files.filter(e => e.path !== path);
+        WallEntry.remember(root.files);
     }
 
     // A file renamed by us (hide/unhide): show the new name now instead of
     // waiting for the next signature poll (which then confirms it).
     function renameFile(from: string, to: string): void {
         root.files = root.files.map(e => e.path === from ? WallEntry.make(to, e.mtimeText, e.sizeText) : e);
+        WallEntry.remember(root.files);
     }
 
     // Directory signature poll: a full rescan only when it changes.

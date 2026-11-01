@@ -975,6 +975,11 @@ user's data) live outside the repo: `CLAUDE.local.md` (git-ignored) and `~/.clau
   fade + `leaveShrink` on `leave*`), a removed centre is replaced from `lastDir`'s side;
   hide/unhide in the "include" view keeps the card (`renames` → same slot). Every survivor is
   `instant` (no rise-in): the Repeater RECREATES moved delegates — they blanked for ~1 s.
+  Newcomers grow in as a wave left to right (`appear*`): delegates of one batch are created in
+  index order, `WallCarousel.waveDelay` takes the batch's first (= leftmost; off-screen d is
+  clamped to ±visibleSide, else the first visible card waited an empty step) as origin and delays the rest by `appearStaggerMs` per card; the batch
+  ends with the event-loop turn (callLater), so a lone card entering the window starts at once.
+  Asked ONCE in onCompleted — a binding would re-run it (and its side effect) on every `pos`.
   fuzzysort ranks through a heap: EQUAL scores come out in an input-dependent order (node:
   abs-1, abs-3, abs-2), so with a query a removal reshuffled the ties far from the gap —
   WallFilter.rank buckets the hits by `_score` (no `score` field here) in list order — LINEAR:
@@ -991,7 +996,12 @@ user's data) live outside the repo: `CLAUDE.local.md` (git-ignored) and `~/.clau
   (toggle, all files) / `wallpaperNext`. Thumbnail warm-up = `services/WallpaperWarmup.qml`:
   `warmupDelaySec` after start + every `warmupRescanMin`, missing thumbs in batches through
   thumbs.sh (`warmupJobs`, nice), off on battery. `WallEntry.js` = the ONE entry/key builder
-  (carousel, slideshow, warm-up must hash identically). Status pills (WallPill) on the carousel
+  (carousel, slideshow, warm-up must hash identically); `key` is a lazy getter (md5 on ~5000
+  files stalled the open ~0.4 s). The launcher REBUILDS the plugin on every open: the entry cache
+  and the last sorted scan live in WallEntry.js (`.pragma library`, one per engine) — `parse`
+  is memoised on the scan text, `last` seeds a new service (cards on the first frame);
+  `remember` after a local trash/rename. Plain objects, not Map: QV4 Map lookups are linear
+  (5000 get/set ≈ 0.3 s). NB a .js edit alone does not hot-reload the shell. Status pills (WallPill) on the carousel
   top: hidden view, slideshow, duplicate search. Ctrl+Delete = `gio trash` (service queue,
   `trashDone`; the card dissolves like a hide). "d " view = visual duplicates:
   `services/WallpaperDupes.qml` runs `scripts/wallpapers/dupes.py` (system python3 + Pillow) on

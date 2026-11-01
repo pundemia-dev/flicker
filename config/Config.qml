@@ -598,7 +598,7 @@ Singleton {
                     // (scale/opacity, breathMs per half) while listening.
                     shazam: {
                         appearScale: 0.5,
-                        appearStiffness: 4,
+                        appearStiffness: 7,
                         appearDamping: 0.35,
                         breathMs: 650,
                         breathScale: 0.8,
@@ -1647,7 +1647,7 @@ Singleton {
                     // Scroll spring of the rows + plate (stiffer than motion*).
                     scrollStiffness: 3,
                     scrollDamping: 0.5,
-                    appearStiffness: 4,
+                    appearStiffness: 7,
                     appearDamping: 0.5,
                     removeStiffness: 9,
                     removeDamping: 1,
@@ -1751,6 +1751,14 @@ Singleton {
                             // Removal (hide/delete): survivors close the gap
                             // on close*, the gone card dissolves (blur, fade,
                             // leaveShrink) on leave*, ghost kept leaveMs.
+                            // Appear wave: a batch of new cards (opening,
+                            // search results) grows in left to right, each
+                            // appearStaggerMs after its left neighbour, from
+                            // appearScale; springs overlap.
+                            appearStaggerMs: 90,
+                            appearScale: 0.6,
+                            appearStiffness: 7,
+                            appearDamping: 0.5,
                             closeStiffness: 4,
                             closeDamping: 0.5,
                             leaveStiffness: 3,
