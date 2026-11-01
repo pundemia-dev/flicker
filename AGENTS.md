@@ -35,7 +35,7 @@ user's data) live outside the repo: `CLAUDE.local.md` (git-ignored) and `~/.clau
 - IPC: `quickshell -p $PWD ipc call <target> <fn>` (with a live instance running,
   address yours via `quickshell ipc --id <by-id dir> call ...`). `island` is ONE handler
   (`core/IslandIpc.qml`) routed via `core/IslandRegistry.qml` to the island on
-  `compositor.focusedOutput` — never put an IpcHandler in per-screen Island. Targets: `island` (launcher (toggle), launcherPlugin <id> (apps|clipboard|wallpapers|prompter|calc|translate|gifs, toggle), quicksettings, quicksettingsEdit/Page/Resize/Expand, quicksettingsPanel <cmd> <arg>, stashMenu <i>,
+  `compositor.focusedOutput` — never put an IpcHandler in per-screen Island. Targets: `island` (launcher (toggle), launcherPlugin <id> (apps|clipboard|wallpapers|prompter|calc|translate|emoji|gifs, toggle), quicksettings, quicksettingsEdit/Page/Resize/Expand, quicksettingsPanel <cmd> <arg>, stashMenu <i>,
   notifications, stash (tray toggle), capture (again while open = next mode), captureMode(shot|record|color|
   window|ai|scan), captureScreen (= Enter in the active tool), captureCancel, session (session menu toggle), screenshot
   (instant, no overlay), record (toggle), recordPause, recordControls, dashboard, dashboardEdit, dashboardResize, dashboardMove, player, lyrics (player's lyrics panel toggle), updates (toggle), lock, close, minimal, island, osd, debugState,
@@ -936,6 +936,27 @@ user's data) live outside the repo: `CLAUDE.local.md` (git-ignored) and `~/.clau
   RUB), on demand, cached `calc-rates.json`, `ratesMaxAgeHours`; card caption shows the date.
   Verified live: `2+2*3`, `5 usd to rub`, `5 usd` (+EUR row, rates date), plugin placeholder
   and error card. NOT live-tested: history rows, Enter/Alt+Enter, Shift+Delete.
+- Emoji & symbols launcher plugin (`plugins/emoji/`, `!emoji`, Nov 2026): a grid body (tabs: recent,
+  the 9 Unicode emoji groups, then symbol groups punctuation / arrows / math / currency / keys ⌘⌥ /
+  letterlike / indices + fractions / Greek / shapes / dingbats; grid; footer with the name). Search
+  = en + ru names and CLDR keywords over everything. Enter / click TYPES the character into the
+  window under the launcher: `services/TextTyper` (Shell → Island → `launcherHost.typer`) = its own
+  DictationTyper (wtype), in Shell because the launcher destroys plugins on close, fired
+  `launcher.emoji.typeDelayMs` (150) after the close so the keyboard is back on the window;
+  Alt+Enter = wl-copy. Arrows walk the grid (Left/Right too — the field's caret loses them),
+  Tab/Shift+Tab = category, PgUp/PgDn. Data `emoji.tsv` from `scripts/launcher/gen_emoji_data.py`
+  (emoji-test.txt + CLDR en/ru annotations, IPv4; emoji newer than the installed Noto Color Emoji
+  dropped; CLDR's non-emoji symbols + a curated list it lacks), parsed once per shell
+  (`EmojiData.js`, .pragma library); recents `statePath emoji-recents.json`. Body height = the
+  list cap (no new layer reserve). Verified live: ru search «огонь» → Enter → 🔥 in a zenity entry;
+  wtype carries ZWJ / flag sequences whole (❤️‍🔥 🇷🇺 👨‍👩‍👧 into a Qt field). No skin-tone picker.
+  Motion = the session menu's: ONE flat plate (`Theme.sessionPlate`, `Spring {}`, VelocityDeform on
+  the slot in grid CONTENT coords), hover selects (onPositionChanged only — cells gliding under a
+  resting pointer don't steal it), selected glyph grows / press shrinks; tab bar has its own plate;
+  a new set grows in as a diagonal wave (cells built < 200 ms after `revealStamp`), the plate pops
+  in at cell 0; keyboard scroll = SpringAnimation on contentY; footer glyph GlyphBump. TRAP: a child
+  declared inside a GridView is NOT reparented into its contentItem (unlike Flickable) — the plate
+  stayed put while the cells scrolled; `parent: grid.contentItem` explicitly.
 - Wallpapers launcher plugin (`plugins/wallpapers/`, Oct 2026, backend **wallr** 0.6.4 — user
   decision after a source audit; spec/decisions in `temp/wallpapers-plugin-spec.md`). Launcher API
   grew for it: `LauncherPlugin.bodyComponent/bodyWidth/bodyHeight` (a body REPLACES list + panel,

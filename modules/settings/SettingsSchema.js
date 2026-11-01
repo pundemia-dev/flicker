@@ -412,7 +412,8 @@ const SIDEBAR = [
                     { key: "launcher.disabled", label: "Plugins", kind: "set", invert: true, options: [
                         { value: "apps", label: "Apps" }, { value: "clipboard", label: "Clipboard" },
                         { value: "wallpapers", label: "Wallpapers" }, { value: "prompter", label: "Teleprompter" },
-                        { value: "calc", label: "Calculator" }
+                        { value: "calc", label: "Calculator" }, { value: "translate", label: "Translator" },
+                        { value: "emoji", label: "Emoji & symbols" }
                     ] },
                     { key: "launcher.maxShown", label: "Results shown", kind: "number", min: 3, max: 12, step: 1 },
                     { key: "launcher.magicSymbol", label: "Plugin prefix", kind: "text" },

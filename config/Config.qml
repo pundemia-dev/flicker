@@ -1690,6 +1690,15 @@ Singleton {
                             watch: "auto",
                             watchRestartMs: 2000
                         }),
+                    // Emoji & symbols (plugins/emoji, `!emoji`): Enter types
+                    // the character into the window via wtype (services/
+                    // TextTyper) typeDelayMs after the launcher closed (the
+                    // keyboard must be back on the window); Alt+Enter copies.
+                    emoji: ({
+                            typeDelayMs: 150,
+                            recentsLimit: 48,
+                            cellSize: 50
+                        }),
                     // GIF search (plugins/gifs, scripts/gifs/search.py). Key in
                     // ai.keysFile: {"giphy": ...} or {"tenor": ...}; provider
                     // auto | giphy | tenor. Masonry: `columns` inside `inset`,

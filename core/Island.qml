@@ -30,6 +30,8 @@ PanelWindow {
     // services/Translator + services/Ai (launcher plugin `!tr`).
     property var translator: null
     property var ai: null
+    // services/TextTyper (launcher emoji plugin types into the window).
+    property var typer: null
     required property var powerMode
     required property var airplane
     required property var vpn
@@ -1920,6 +1922,7 @@ PanelWindow {
                                 clipboardWatch: root.clipboardWatch,
                                 translator: root.translator,
                                 ai: root.ai,
+                                typer: root.typer,
                                 screen: root.targetScreen?.name ?? "",
                                 originX: 0.5,
                                 originY: (root.islandCfg.topMargin + root.islandCfg.height / 2) / Math.max(1, root.targetScreen?.height ?? 1)

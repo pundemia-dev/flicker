@@ -72,6 +72,8 @@ Scope {
     // AI backend (server on the first request) + the translator: a pill on
     // any text selection → translation panel; launcher plugin `!tr`.
     Ai { id: aiService }
+    // Text into the focused window (launcher emoji plugin, wtype).
+    TextTyper { id: textTyperService }
     Translator { id: translatorService; ai: aiService; caret: caretService; lock: lockScope; registry: islandRegistry; compositor: compositorService }
     // Teleprompter: shows on the focused output (Island.openPrompter).
     Prompter {
@@ -276,6 +278,7 @@ Scope {
                 keyboard: keyboardIndicatorService
                 translator: translatorService
                 ai: aiService
+                typer: textTyperService
             }
 
             KeyboardOverlay {

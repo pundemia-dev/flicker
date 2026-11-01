@@ -6,6 +6,7 @@ import "plugins/prompter"
 import "plugins/calc"
 import "plugins/translate"
 import "plugins/gifs"
+import "plugins/emoji"
 
 // Launcher plugins (pShell PluginRegistry semantics without folder
 // scanning: Quickshell's scanner misses imports of dynamically loaded
@@ -26,6 +27,7 @@ QtObject {
         PrompterManifest {},
         CalcManifest {},
         TranslateManifest {},
+        EmojiManifest {},
         GifsManifest {}
     ]
 
