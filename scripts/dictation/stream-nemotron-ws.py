@@ -70,8 +70,11 @@ SESSION = os.environ.get("DICT_SESSION_FILE", "")
 # instead of waiting to fill the buffer, so partial latency stays at tens
 # of ms. (A big CHUNK derived from chunkMs blocked a full 800ms per read.)
 FRAME = max(512, min(8192, int(os.environ.get("DICT_CHUNK_BYTES", "2048"))))
+# --raw is mandatory: without it pw-record (PipeWire 1.6) wraps stdout in a
+# Sun AU container (".snd" header, BIG-endian samples), which the server
+# reads as s16le noise -> no text at all while the mic wave still moves.
 PW_CMD = os.environ.get(
-    "PW_CMD", "pw-record --rate 16000 --channels 1 --format s16 -")
+    "PW_CMD", "pw-record --raw --rate 16000 --channels 1 --format s16 -")
 # Trailing silence to flush a cache-aware streaming model before commit
 # (0.5s of 16k s16 mono zeros); tune experimentally per backend.
 TRAIL_SILENCE_BYTES = int(os.environ.get("DICT_TRAIL_SILENCE_BYTES", "16000"))
