@@ -1690,6 +1690,47 @@ Singleton {
                             watch: "auto",
                             watchRestartMs: 2000
                         }),
+                    // GIF search (plugins/gifs, scripts/gifs/search.py). Key in
+                    // ai.keysFile: {"giphy": ...} or {"tenor": ...}; provider
+                    // auto | giphy | tenor. Masonry: `columns` inside `inset`,
+                    // body `height`, tile h/w clamped to minAspect..maxAspect;
+                    // selected tile scales by selectScale, a blurred outline
+                    // (bandWidth px, bandSteps rings, blur bandBlur^bandCurve
+                    // falling outward) follows it; others at dimOthers brightness. rating g | pg | pg-13 | r;
+                    // locale "" = UI language. Enter copies as copyAs: file
+                    // (text/uri-list of the downloaded GIF) | image (image/gif)
+                    // | url; Alt+Enter = the link (linkKind gif | page).
+                    // autoPaste uses clipboard.pasteCommand. cacheDir "" =
+                    // ~/.cache/flicker/gifs, files older than cacheDays pruned.
+                    gifs: ({
+                            provider: "auto",
+                            columns: 3,
+                            height: 380,
+                            inset: 10,
+                            spacing: 12,
+                            radius: 14,
+                            minAspect: 0.5,
+                            maxAspect: 1.6,
+                            selectScale: 1.07,
+                            dimOthers: 0.55,
+                            bandWidth: 60,
+                            bandSteps: 8,
+                            bandBlur: 1,
+                            bandCurve: 1.4,
+                            blurMax: 32,
+                            focusStiffness: 4,
+                            focusDamping: 0.5,
+                            pageSize: 24,
+                            rating: "pg-13",
+                            locale: "",
+                            debounceMs: 350,
+                            playAll: true,
+                            copyAs: "file",
+                            linkKind: "gif",
+                            autoPaste: false,
+                            cacheDir: "",
+                            cacheDays: 3
+                        }),
                     // Wallpaper carousel (plugins/wallpapers, backend wallr).
                     // Cards by distance from the centre: cardWidths[k] x
                     // cardHeight*cardHeights[k] (centre largest, each step

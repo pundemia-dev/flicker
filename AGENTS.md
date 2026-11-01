@@ -35,7 +35,7 @@ user's data) live outside the repo: `CLAUDE.local.md` (git-ignored) and `~/.clau
 - IPC: `quickshell -p $PWD ipc call <target> <fn>` (with a live instance running,
   address yours via `quickshell ipc --id <by-id dir> call ...`). `island` is ONE handler
   (`core/IslandIpc.qml`) routed via `core/IslandRegistry.qml` to the island on
-  `compositor.focusedOutput` — never put an IpcHandler in per-screen Island. Targets: `island` (launcher (toggle), launcherPlugin <id> (apps|clipboard|wallpapers|prompter|calc|translate, toggle), quicksettings, quicksettingsEdit/Page/Resize/Expand, quicksettingsPanel <cmd> <arg>, stashMenu <i>,
+  `compositor.focusedOutput` — never put an IpcHandler in per-screen Island. Targets: `island` (launcher (toggle), launcherPlugin <id> (apps|clipboard|wallpapers|prompter|calc|translate|gifs, toggle), quicksettings, quicksettingsEdit/Page/Resize/Expand, quicksettingsPanel <cmd> <arg>, stashMenu <i>,
   notifications, stash (tray toggle), capture (again while open = next mode), captureMode(shot|record|color|
   window|ai|scan), captureScreen (= Enter in the active tool), captureCancel, session (session menu toggle), screenshot
   (instant, no overlay), record (toggle), recordPause, recordControls, dashboard, dashboardEdit, dashboardResize, dashboardMove, player, lyrics (player's lyrics panel toggle), updates (toggle), lock, close, minimal, island, osd, debugState,
@@ -882,6 +882,25 @@ user's data) live outside the repo: `CLAUDE.local.md` (git-ignored) and `~/.clau
   Verified via IPC on the live instance + a headless harness (state machine, picker,
   fuzzy, double Backspace). NOT live-tested (no keyboard/mouse tool): typing, Enter/Alt+Enter,
   launching, copy/auto-paste, wheel, hover, the details toggle.
+- GIF search launcher plugin `!gif` (`plugins/gifs/`, Nov 2026): GIPHY or Tenor with the USER's key
+  from `ai.keysFile` (`{"giphy": ...}` / `{"tenor": ...}`; no shared demo keys — refused as
+  third-party credentials). `scripts/gifs/search.py` (stdlib, IPv4, key over stdin) prints the page,
+  then `{"ready": id}` per preview downloaded to `~/.cache/flicker/gifs` (Qt only loads local files);
+  one Process per page (`jobComp`, epoch-guarded) so paging never kills the previous page's
+  downloads. Body = masonry (user disliked the cropped 4x3 grid, ring and footer): `columns` inside
+  `inset`, aspect kept (clamped min/maxAspect), shortest column first; layout in `geo`/`colItems`
+  (←/→ = nearest tile by centre in the next column, ↑/↓ within the column); own spring scroll
+  (Repeater in an Item, not a Flickable), tiles load/play only near/inside the view; selection =
+  scale + title caption + a blurred OUTLINE (user wanted no full blur of the
+  neighbours): one live ShaderEffectSource of the tiles around a springing focus rect, MultiEffect
+  blur in `bandSteps` nested RoundedClip rings (strong inside → ~0 outside, so no visible edge;
+  a soft alpha mask is impossible here — MultiEffect masks are binary), the selected tile copied
+  crisp on top; others flat-dimmed to `dimOthers` on the tile, no footer. Enter =
+  `launcher.gifs.copyAs` (file → text/uri-list, image → image/gif, url), Alt+Enter = link, Ctrl+O =
+  page; the copy is a detached `sh` (the plugin dies with the launcher). The giphy key came from
+  pShell's `~/.config/pShell/shell.json` (`custom.gif.apiKey`). Verified live: no-key state,
+  masonry, arrows + the outline following them. NOT live-tested: paging, copy/paste into apps.
+  TRAP: inside a RoundedClip `parent` is its inner layer (x = 0) — address the clip by id.
 - Launcher calculator (`modules/launcher/calc/`, Oct 2026; user asked for "the coolest version"
   after looking at other shells — caelestia / end-4 run `qalc` per keystroke, one text row).
   Ours: own engine, no dependency (libqalculate not installed; sudo needs a password).

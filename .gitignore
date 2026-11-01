@@ -6,3 +6,6 @@ temp/
 # Machine-specific agent notes
 CLAUDE.local.md
 __pycache__/
+
+# API keys (never commit; the real file is ~/.config/flicker/apikeys.json)
+apikeys*.json

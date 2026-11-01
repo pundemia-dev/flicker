@@ -1156,5 +1156,8 @@
   "Keys file": "Файл ключей",
   "AI server stopped": "Сервер ИИ остановился",
   "AI server refused the request": "Сервер ИИ отклонил запрос",
-  "AI server not reachable": "Сервер ИИ недоступен"
+  "AI server not reachable": "Сервер ИИ недоступен",
+  "GIFs": "GIF",
+  "Search GIFs (GIPHY / Tenor), Enter copies": "Поиск GIF (GIPHY / Tenor), Enter копирует",
+  "Add a GIPHY or Tenor API key to %1:\n{\"giphy\": \"…\"} or {\"tenor\": \"…\"}\n(developers.giphy.com · developers.google.com/tenor)": "Добавьте API-ключ GIPHY или Tenor в %1:\n{\"giphy\": \"…\"} или {\"tenor\": \"…\"}\n(developers.giphy.com · developers.google.com/tenor)"
 }

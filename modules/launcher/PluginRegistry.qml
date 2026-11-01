@@ -5,13 +5,15 @@ import "plugins/wallpapers"
 import "plugins/prompter"
 import "plugins/calc"
 import "plugins/translate"
+import "plugins/gifs"
 
 // Launcher plugins (pShell PluginRegistry semantics without folder
 // scanning: Quickshell's scanner misses imports of dynamically loaded
 // files, so plugins are listed explicitly — one line per plugin folder).
 // `active` = not in config.launcher.disabled, ordered by
 // config.launcher.order, then the manifest `order` hint, then title;
-// active[0] is the default plugin (plain typing).
+// active[0] is the default plugin (plain typing). New plugin folders
+// hot-reload only after an edit here (the scanner watches seen files).
 QtObject {
     id: root
     property var order: []
@@ -23,7 +25,8 @@ QtObject {
         WallpapersManifest {},
         PrompterManifest {},
         CalcManifest {},
-        TranslateManifest {}
+        TranslateManifest {},
+        GifsManifest {}
     ]
 
     readonly property var active: {
